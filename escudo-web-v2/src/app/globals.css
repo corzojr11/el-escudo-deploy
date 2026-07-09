@@ -1,0 +1,179 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Colores de marca El Escudo */
+  --color-escudo-gold: #ffb800;
+  --color-escudo-green: #00ff9d;
+  --color-escudo-cyan: #00e5ff;
+  --color-escudo-red: #ff3b5c;
+  --color-escudo-surface: #151a22;
+  --color-escudo-border: #2a2f38;
+}
+
+:root {
+  /* Tema oscuro por defecto: El Escudo */
+  --background: #0b0f14;
+  --foreground: #f2f4f7;
+  --card: #151a22;
+  --card-foreground: #f2f4f7;
+  --popover: #151a22;
+  --popover-foreground: #f2f4f7;
+  --primary: #ffb800;
+  --primary-foreground: #0b0f14;
+  --secondary: #1e242d;
+  --secondary-foreground: #f2f4f7;
+  --muted: #1e242d;
+  --muted-foreground: #a0a5b0;
+  --accent: #00ff9d;
+  --accent-foreground: #0b0f14;
+  --destructive: #ff3b5c;
+  --border: #2a2f38;
+  --input: #2a2f38;
+  --ring: #ffb800;
+  --chart-1: #ffb800;
+  --chart-2: #00ff9d;
+  --chart-3: #00e5ff;
+  --chart-4: #ff3b5c;
+  --chart-5: #a855f7;
+  --radius: 0.625rem;
+  --sidebar: #0f1318;
+  --sidebar-foreground: #f2f4f7;
+  --sidebar-primary: #ffb800;
+  --sidebar-primary-foreground: #0b0f14;
+  --sidebar-accent: #1e242d;
+  --sidebar-accent-foreground: #f2f4f7;
+  --sidebar-border: #2a2f38;
+  --sidebar-ring: #ffb800;
+}
+
+.dark {
+  --background: #0b0f14;
+  --foreground: #f2f4f7;
+  --card: #151a22;
+  --card-foreground: #f2f4f7;
+  --popover: #151a22;
+  --popover-foreground: #f2f4f7;
+  --primary: #ffb800;
+  --primary-foreground: #0b0f14;
+  --secondary: #1e242d;
+  --secondary-foreground: #f2f4f7;
+  --muted: #1e242d;
+  --muted-foreground: #a0a5b0;
+  --accent: #00ff9d;
+  --accent-foreground: #0b0f14;
+  --destructive: #ff3b5c;
+  --border: #2a2f38;
+  --input: #2a2f38;
+  --ring: #ffb800;
+  --chart-1: #ffb800;
+  --chart-2: #00ff9d;
+  --chart-3: #00e5ff;
+  --chart-4: #ff3b5c;
+  --chart-5: #a855f7;
+  --sidebar: #0f1318;
+  --sidebar-foreground: #f2f4f7;
+  --sidebar-primary: #ffb800;
+  --sidebar-primary-foreground: #0b0f14;
+  --sidebar-accent: #1e242d;
+  --sidebar-accent-foreground: #f2f4f7;
+  --sidebar-border: #2a2f38;
+  --sidebar-ring: #ffb800;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Utilidades de marca */
+@layer utilities {
+  .text-escudo-gold {
+    color: #ffb800;
+  }
+  .text-escudo-green {
+    color: #00ff9d;
+  }
+  .text-escudo-cyan {
+    color: #00e5ff;
+  }
+  .text-escudo-red {
+    color: #ff3b5c;
+  }
+  .bg-escudo-surface {
+    background-color: #151a22;
+  }
+  .border-escudo {
+    border-color: #2a2f38;
+  }
+  .shadow-glow-green {
+    box-shadow: 0 0 12px rgba(0, 255, 157, 0.15);
+  }
+}
+
+/* Animación sutil del LED OMNI */
+@keyframes pulse-led {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.animate-pulse-led {
+  animation: pulse-led 2s ease-in-out infinite;
+}
