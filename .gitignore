@@ -1,0 +1,23 @@
+# Environment
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Dependencies / builds
+node_modules/
+dist/
+build/
+web-build/
+android/
+ios/
+venv/
+__pycache__/
+*.py[cod]
+*.log
+*.tsbuildinfo
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
