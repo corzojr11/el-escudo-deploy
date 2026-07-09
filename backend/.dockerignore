@@ -1,0 +1,9 @@
+.env
+.env.*
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.pytest_cache/
+DEBUG_OMNI.txt
+*.log
