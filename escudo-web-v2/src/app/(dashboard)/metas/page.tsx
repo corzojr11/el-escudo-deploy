@@ -1,20 +1,11 @@
-import { ModulePlaceholder } from "@/components/dashboard/ModulePlaceholder";
+import { getGoals } from "@/app/actions/goals";
+import { MetasClient } from "./metas-client";
 
 export const metadata = {
   title: "Metas — El Escudo",
 };
 
-export default function MetasPage() {
-  return (
-    <ModulePlaceholder
-      title="Metas"
-      description="Definición y seguimiento de objetivos personales."
-      features={[
-        "Metas SMART",
-        "Seguimiento de progreso",
-        "Recordatorios y hitos",
-        "Recompensas XP",
-      ]}
-    />
-  );
+export default async function MetasPage() {
+  const goals = await getGoals();
+  return <MetasClient goals={goals} />;
 }

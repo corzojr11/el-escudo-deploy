@@ -1,20 +1,21 @@
-import { ModulePlaceholder } from "@/components/dashboard/ModulePlaceholder";
+import { getFinances, getFinanceSummary } from "@/app/actions/finances";
+import { normalizeFinances } from "@/lib/api/helpers";
+import { FinanzasClient } from "./finanzas-client";
 
 export const metadata = {
   title: "Finanzas — El Escudo",
 };
 
-export default function FinanzasPage() {
+export default async function FinanzasPage() {
+  const [transactions, summaryRes] = await Promise.all([
+    getFinances(),
+    getFinanceSummary(),
+  ]);
+
   return (
-    <ModulePlaceholder
-      title="Finanzas"
-      description="Control de ingresos, gastos y resumen financiero."
-      features={[
-        "Registro de ingresos y gastos",
-        "Categorización y etiquetas",
-        "Balance diario / mensual",
-        "Exportación de reportes",
-      ]}
+    <FinanzasClient
+      transactions={normalizeFinances(transactions)}
+      summary={summaryRes.summary ?? []}
     />
   );
 }

@@ -1,20 +1,14 @@
-import { ModulePlaceholder } from "@/components/dashboard/ModulePlaceholder";
+import { getFocusStatus, getWeightLogs } from "@/app/actions/health";
+import { SaludClient } from "./salud-client";
 
 export const metadata = {
   title: "Salud — El Escudo",
 };
 
-export default function SaludPage() {
-  return (
-    <ModulePlaceholder
-      title="Salud"
-      description="Seguimiento de peso, ejercicio y hábitos de bienestar."
-      features={[
-        "Registro de peso",
-        "Historial de ejercicio",
-        "Indicadores de bienestar",
-        "Consejos personalizados",
-      ]}
-    />
-  );
+export default async function SaludPage() {
+  const [weightLogs, focusStatus] = await Promise.all([
+    getWeightLogs(),
+    getFocusStatus(),
+  ]);
+  return <SaludClient weightLogs={weightLogs} focusStatus={focusStatus} />;
 }

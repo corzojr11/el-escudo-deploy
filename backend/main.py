@@ -85,10 +85,12 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 _frontend_url = os.getenv("FRONTEND_URL")
 _frontend_urls = os.getenv("FRONTEND_URLS")
 _cors_origins = [
+    "http://localhost:3000",
     "http://localhost:8081",
     "http://localhost:8083",
     "http://localhost:19006",
     "http://localhost:5173",
+    "http://127.0.0.1:3000",
     "http://127.0.0.1:8081",
     "http://127.0.0.1:8083",
     "http://127.0.0.1:19006",

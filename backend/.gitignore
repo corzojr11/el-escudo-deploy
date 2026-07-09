@@ -19,3 +19,5 @@ ENV/
 DEBUG_OMNI.txt
 debug_*.txt
 backend_errors.log
+
+.vercel

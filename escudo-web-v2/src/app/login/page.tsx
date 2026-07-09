@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState } from "react";
-import Link from "next/link";
 import { Shield, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,12 +83,6 @@ export default function LoginPage() {
               )}
             </Button>
 
-            <Link
-              href="/"
-              className="inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              Volver al dashboard
-            </Link>
           </form>
         </CardContent>
       </Card>

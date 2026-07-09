@@ -4,7 +4,7 @@
 
 - Cliente de navegador en `client.ts` (createBrowserClient).
 - Cliente de servidor en `server.ts` (createServerSupabaseClient).
-- Proxy de protección de rutas en `src/proxy.ts`.
+- Proxy de protección de rutas en `src/proxy.ts` (Next.js 16).
 - Server Actions de login/logout en `src/app/actions/auth.ts`.
 - Página de login funcional en `src/app/login/page.tsx`.
 - Topbar con info de usuario y botón de logout.
@@ -12,15 +12,20 @@
 
 ## Flujo de autenticación
 
-1. **Login**: El formulario en `/login` envía credenciales via Server Action → Supabase Auth → redirect a `/`.
-2. **Protección de rutas**: `proxy.ts` verifica la sesión en cada request. Sin sesión → redirect a `/login`. Con sesión en `/login` → redirect a `/`.
+1. **Login**: Formulario en `/login` → Server Action `login(prevState, formData)` → Supabase Auth → redirect a `/`.
+2. **Protección de rutas**: `src/proxy.ts` verifica sesión Supabase en cada request. Sin sesión → redirect a `/login`. Con sesión en `/login` → redirect a `/`.
 3. **Logout**: Botón en Topbar → Server Action `logout()` → Supabase signOut → redirect a `/login`.
-4. **Sesión**: Gestionada por Supabase SSR con cookies httpOnly. El middleware refresca tokens automáticamente.
+4. **Sesión**: Gestionada por Supabase SSR con cookies httpOnly. El proxy refresca tokens automáticamente.
 
 ## Variables de entorno requeridas
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_API_BASE_URL=
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key-publico
+
+# Backend El Escudo
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
 ```
+
+Copia `.env.example` a `.env.local` y completa los valores reales. `.env.local` es ignorado por git.

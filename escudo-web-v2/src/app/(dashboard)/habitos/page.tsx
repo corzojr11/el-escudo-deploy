@@ -1,20 +1,11 @@
-import { ModulePlaceholder } from "@/components/dashboard/ModulePlaceholder";
+import { getHabits } from "@/app/actions/habits";
+import { HabitosClient } from "./habitos-client";
 
 export const metadata = {
   title: "Hábitos — El Escudo",
 };
 
-export default function HabitosPage() {
-  return (
-    <ModulePlaceholder
-      title="Hábitos"
-      description="Construcción de rutinas positivas y seguimiento de rachas."
-      features={[
-        "Lista de hábitos diarios",
-        "Rachas y calendario",
-        "Recordatorios",
-        "Recompensas por constancia",
-      ]}
-    />
-  );
+export default async function HabitosPage() {
+  const habits = await getHabits();
+  return <HabitosClient habits={habits} />;
 }
