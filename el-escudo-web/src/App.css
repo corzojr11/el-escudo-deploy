@@ -1,0 +1,10 @@
+.sidebar {
+  background-color: #151a22 !important;
+  border-right: 1px solid #2a2f38;
+}
+
+.sidebar-item:hover {
+  color: #00FF9D !important;
+  background-color: rgba(0, 255, 157, 0.05);
+  border-radius: 6px;
+}

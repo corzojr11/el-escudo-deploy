@@ -1,0 +1,149 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+body, html, #root {
+  background-color: #0c0f12 !important;
+  color: #ffffff !important;
+  font-family: 'Space Grotesk', -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* Imposición de fuente monoespaciada cyberpunk */
+.mono-font,
+.p-card-title,
+.p-accordion-header-text,
+.btn,
+input,
+select,
+textarea,
+.card-title,
+.transaction-amount,
+.badge,
+pre,
+code,
+.sidebar-item,
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Space Mono', monospace !important;
+}
+
+/* ===== RESTAURACIÓN CYBERPUNK — TARJETAS PREMIUM ===== */
+
+/* Sobrescritura global de tarjetas PrimeReact */
+.p-card {
+  background: #12161a !important;
+  border: 1px solid rgba(0, 255, 157, 0.12) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4) !important;
+}
+
+.p-card .p-card-body {
+  padding: 1.25rem !important;
+}
+
+.p-card .p-card-content {
+  padding: 0 !important;
+}
+
+.p-card-title {
+  color: #00FF9D !important;
+  font-size: 0.85rem !important;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+
+/* Sobrescritura del Accordion de PrimeReact */
+.p-accordion .p-accordion-header .p-accordion-header-link {
+  background: #12161a !important;
+  border: 1px solid rgba(0, 255, 157, 0.08) !important;
+  color: #FFB800 !important;
+}
+
+.p-accordion .p-accordion-content {
+  background: #0c0f12 !important;
+  border: 1px solid rgba(0, 255, 157, 0.08) !important;
+  color: #ffffff !important;
+}
+
+/* ===== PÍLDORAS CYBERPUNK ===== */
+.cyber-pill {
+  border: 1.5px solid #00ff9d !important;
+  border-radius: 50px !important;
+  background-color: rgba(0, 255, 157, 0.05) !important;
+  color: #00ff9d !important;
+  font-family: 'Space Mono', monospace !important;
+  font-weight: 600;
+  padding: 6px 18px !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.cyber-pill:hover {
+  background-color: #00ff9d !important;
+  color: #0c0f12 !important;
+  box-shadow: 0 0 18px rgba(0, 255, 157, 0.4);
+}
+
+.cyber-pill-cyan {
+  border-color: #00E5FF !important;
+  color: #00E5FF !important;
+  background-color: rgba(0, 229, 255, 0.05) !important;
+}
+
+.cyber-pill-cyan:hover {
+  background-color: #00E5FF !important;
+  color: #0c0f12 !important;
+  box-shadow: 0 0 18px rgba(0, 229, 255, 0.4);
+}
+
+/* Progreso animado neón */
+.progress {
+  background-color: #1a1f2a !important;
+  border-radius: 4px !important;
+}
+
+.progress-bar {
+  background-color: #00FF9D !important;
+  border-radius: 4px !important;
+  box-shadow: 0 0 8px rgba(0, 255, 157, 0.3);
+}
+
+/* ===== ANIMACIÓN LED PULSANTE CYBERPUNK ===== */
+@keyframes pulse-led {
+  0% { opacity: 0.3; box-shadow: 0 0 2px #00ff9d; }
+  50% { opacity: 1; box-shadow: 0 0 10px #00ff9d, 0 0 20px rgba(0, 255, 157, 0.5); }
+  100% { opacity: 0.3; box-shadow: 0 0 2px #00ff9d; }
+}
+
+.pulsing-led {
+  animation: pulse-led 2s infinite;
+}
+
+/* ===== ESTILO TERMINAL — GLOBOS DE CHAT CYBERPUNK ===== */
+.terminal-msg-user {
+  background-color: rgba(0, 255, 157, 0.04) !important;
+  color: #00FF9D !important;
+  border: 1px solid rgba(0, 255, 157, 0.3) !important;
+  border-radius: 4px !important;
+  font-family: 'Space Mono', monospace !important;
+  font-size: 0.78rem !important;
+  line-height: 1.5;
+}
+
+.terminal-msg-omni {
+  background-color: rgba(0, 229, 255, 0.04) !important;
+  color: #00E5FF !important;
+  border: 1px solid rgba(0, 229, 255, 0.3) !important;
+  border-radius: 4px !important;
+  font-family: 'Space Mono', monospace !important;
+  font-size: 0.78rem !important;
+  line-height: 1.5;
+}
+
+.terminal-msg-time {
+  color: #4a5568 !important;
+  font-size: 0.62rem !important;
+  font-family: 'Space Mono', monospace !important;
+  letter-spacing: 0.5px;
+}
