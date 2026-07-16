@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Modal,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -16,32 +15,24 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../theme/colors';
 import { FontFamily, FontSize } from '../../theme/typography';
 import { BorderRadius, Spacing } from '../../theme/spacing';
-import { apiPost } from '../../api/requests';
+import { supabase } from '../../utils/supabase';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
 }
 
-type Step = 'email' | 'code' | 'password' | 'success';
+type Step = 'email' | 'success';
 
 const ForgotPasswordModal: React.FC<Props> = ({ visible, onClose }) => {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [devCode, setDevCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const resetForm = () => {
     setStep('email');
     setEmail('');
-    setCode('');
-    setDevCode('');
-    setNewPassword('');
-    setConfirmPassword('');
     setError(null);
     setLoading(false);
   };
@@ -51,62 +42,27 @@ const ForgotPasswordModal: React.FC<Props> = ({ visible, onClose }) => {
     onClose();
   };
 
-  const handleSendCode = async () => {
-    if (!email.trim()) {
+  const handleSendResetLink = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
       setError('Ingresa tu correo electrónico.');
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const res = await apiPost('/api/v1/auth/forgot-password', { email: email.trim() });
-      const data = await res.json();
-      if (res.ok) {
-        if (data.dev_code) {
-          setDevCode(data.dev_code);
+      // El flujo de recuperación ahora es nativo de Supabase Auth.
+      // El usuario recibe un enlace seguro por correo para definir una nueva contraseña.
+      const { error: supaError } = await supabase.auth.resetPasswordForEmail(
+        trimmedEmail,
+        {
+          redirectTo: 'https://el-escudo.vercel.app/auth/callback?next=/reset-password',
         }
-        setStep('code');
+      );
+      if (supaError) {
+        setError(supaError.message || 'Error enviando el enlace de recuperación.');
       } else {
-        setError(data.detail || 'Error enviando código.');
-      }
-    } catch (e: any) {
-      setError('Error de conexión. Intenta de nuevo.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyCode = () => {
-    if (!code.trim() || code.trim().length !== 6) {
-      setError('Ingresa el código de 6 dígitos.');
-      return;
-    }
-    setError(null);
-    setStep('password');
-  };
-
-  const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError('Las contraseñas no coinciden.');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiPost('/api/v1/auth/reset-password', {
-        email: email.trim(),
-        code: code.trim(),
-        new_password: newPassword,
-      });
-      const data = await res.json();
-      if (res.ok) {
         setStep('success');
-      } else {
-        setError(data.detail || 'Error restableciendo contraseña.');
       }
     } catch (e: any) {
       setError('Error de conexión. Intenta de nuevo.');
@@ -122,7 +78,7 @@ const ForgotPasswordModal: React.FC<Props> = ({ visible, onClose }) => {
           <>
             <Text style={styles.modalTitle}>RECUPERAR ACCESO</Text>
             <Text style={styles.modalSubtitle}>
-              Ingresa tu correo y te enviaremos un código de recuperación.
+              Te enviaremos un enlace seguro a tu correo para restablecer tu contraseña.
             </Text>
 
             <View style={styles.inputWrapper}>
@@ -146,120 +102,13 @@ const ForgotPasswordModal: React.FC<Props> = ({ visible, onClose }) => {
               </View>
             )}
 
-            <TouchableOpacity style={styles.actionBtn} onPress={handleSendCode} disabled={loading}>
-              <LinearGradient
-                colors={[Colors.accent.cyan, '#0891B2']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.btnGradient}
-              >
-                {loading ? (
-                  <ActivityIndicator color={Colors.text.inverse} size="small" />
-                ) : (
-                  <Text style={styles.btnText}>ENVIAR CÓDIGO</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </>
-        );
-
-      case 'code':
-        return (
-          <>
-            <Text style={styles.modalTitle}>VERIFICAR CÓDIGO</Text>
-            <Text style={styles.modalSubtitle}>
-              {devCode
-                ? `Código de desarrollo: ${devCode}\nIngrésalo abajo para continuar.`
-                : 'Ingresa el código de 6 dígitos que enviamos a tu correo.'}
-            </Text>
-
-            <View style={styles.inputWrapper}>
-              <Ionicons name="keypad-outline" size={20} color={Colors.text.muted} />
-              <TextInput
-                style={styles.input}
-                placeholder="000000"
-                placeholderTextColor={Colors.text.muted}
-                value={code}
-                onChangeText={setCode}
-                keyboardType="number-pad"
-                maxLength={6}
-                editable={!loading}
-              />
-            </View>
-
-            {error && (
-              <View style={styles.errorRow}>
-                <Ionicons name="alert-circle" size={16} color="#F87171" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-
-            <TouchableOpacity style={styles.actionBtn} onPress={handleVerifyCode} disabled={loading}>
-              <LinearGradient
-                colors={[Colors.accent.cyan, '#0891B2']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.btnGradient}
-              >
-                <Text style={styles.btnText}>VERIFICAR</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionBtn, { marginTop: Spacing.md }]}
-              onPress={() => setStep('email')}
-            >
-              <Text style={[styles.btnText, { color: Colors.text.muted }]}>REENVIAR CÓDIGO</Text>
-            </TouchableOpacity>
-          </>
-        );
-
-      case 'password':
-        return (
-          <>
-            <Text style={styles.modalTitle}>NUEVA CONTRASEÑA</Text>
-            <Text style={styles.modalSubtitle}>Crea una contraseña segura.</Text>
-
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={20} color={Colors.text.muted} />
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor={Colors.text.muted}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-                editable={!loading}
-              />
-            </View>
-
-            <View style={[styles.inputWrapper, { marginTop: Spacing.md }]}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={Colors.text.muted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Confirmar contraseña"
-                placeholderTextColor={Colors.text.muted}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                editable={!loading}
-              />
-            </View>
-
-            {error && (
-              <View style={styles.errorRow}>
-                <Ionicons name="alert-circle" size={16} color="#F87171" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-
             <TouchableOpacity
               style={styles.actionBtn}
-              onPress={handleResetPassword}
-              disabled={loading}
+              onPress={handleSendResetLink}
+              disabled={loading || !email.trim()}
             >
               <LinearGradient
-                colors={[Colors.accent.green, '#059669']}
+                colors={[Colors.accent.cyan, '#0891B2']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.btnGradient}
@@ -267,7 +116,7 @@ const ForgotPasswordModal: React.FC<Props> = ({ visible, onClose }) => {
                 {loading ? (
                   <ActivityIndicator color={Colors.text.inverse} size="small" />
                 ) : (
-                  <Text style={styles.btnText}>ACTUALIZAR CONTRASEÑA</Text>
+                  <Text style={styles.btnText}>ENVIAR ENLACE SEGURO</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>
@@ -282,7 +131,7 @@ const ForgotPasswordModal: React.FC<Props> = ({ visible, onClose }) => {
             </View>
             <Text style={styles.modalTitle}>¡LISTO!</Text>
             <Text style={styles.modalSubtitle}>
-              Tu contraseña fue actualizada. Ahora puedes iniciar sesión.
+              Si tu correo está registrado, recibirás un enlace seguro para restablecer tu contraseña.
             </Text>
             <TouchableOpacity style={styles.actionBtn} onPress={handleClose}>
               <LinearGradient

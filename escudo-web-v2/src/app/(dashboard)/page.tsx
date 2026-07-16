@@ -68,7 +68,7 @@ export default function DashboardPage() {
   const xp = profile?.xp ?? 0;
   const xpToNextLevel = profile?.xp_to_next_level ?? 100;
   const xpPercent = xpToNextLevel ? Math.min((xp / xpToNextLevel) * 100, 100) : 0;
-  const streak = data?.focus_status?.current_streak ?? 0;
+  const streak = data?.focus_status?.focus_streak ?? 0;
   const activeGoals = goals.filter((goal) => goal.status === "active" || !goal.status);
   const completedMissions = missions.filter((mission) => mission.status === "completed").length;
   const currentWeight = [...weightLogs].sort((a, b) =>

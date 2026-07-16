@@ -1,12 +1,10 @@
 import asyncio
-import json
 import logging
 import uuid
-from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from auth import get_current_user
 from database import supabase
@@ -15,14 +13,12 @@ from trm import get_trm
 from postgrest.exceptions import APIError
 
 from services.omni_service import (
-    process_single_command,
     _persist_messages,
     _check_omni_rate_limit,
     _get_daily_cost,
     DAILY_COST_LIMIT,
-    split_multi_intent,
-    _MUTATION_INTENTS,
 )
+from services.omni_proposals import create_proposal, confirm_proposal, cancel_proposal
 from services.agent_service import run_agent_checks, get_patterns_insights
 from services.observability import track_event
 
@@ -39,11 +35,30 @@ class OmniRecipePayload(BaseModel):
 
 
 class ProcessCommandPayload(BaseModel):
-    command: str
+    command: str = Field(..., min_length=1)
     user_profile: dict | None = None
     available_equipment: list[str] | None = None
     context_tasks: list | None = None
     session_id: str | None = None
+
+
+class ConfirmProposalPayload(BaseModel):
+    session_id: str | None = None
+
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+def _lite_profile(payload: ProcessCommandPayload) -> dict:
+    user_prof = payload.user_profile or {}
+    return {"name": user_prof.get("name"), "goal": user_prof.get("goal")}
+
+
+def _equipment(payload: ProcessCommandPayload, lite_profile: dict) -> list:
+    return payload.available_equipment or lite_profile.get("equipment") or []
+
+
+def _tasks(payload: ProcessCommandPayload) -> list:
+    return [t.get("title") for t in (payload.context_tasks or [])] if payload.context_tasks else []
 
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
@@ -52,105 +67,135 @@ class ProcessCommandPayload(BaseModel):
 @router.post("/api/v1/process-command")
 async def process_command(payload: ProcessCommandPayload, user = Depends(get_current_user)):
     _check_omni_rate_limit(user.id)
-    command = payload.command
+
     from services.omni_service import _omni_client
     if not _omni_client:
-        return {"intent": "NONE", "mensaje_sistema": "Offline", "xp_ganada": 0}
+        return {"kind": "response", "response": "Offline", "xp_ganada": 0, "interaction_cost_cop": 0}
 
     trm = await get_trm()
     if not trm:
-        return JSONResponse(status_code=503, content={"detail": "Error crítico: API de divisas inaccesible. No se puede calcular costo estricto."})
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Error crítico: API de divisas inaccesible. No se puede calcular costo estricto."},
+        )
 
-    user_prof = payload.user_profile or {}
-    lite_profile = {"name": user_prof.get("name"), "goal": user_prof.get("goal")}
-    equipment = payload.available_equipment or user_prof.get("equipment") or []
-    tasks = [t.get("title") for t in (payload.context_tasks or [])] if payload.context_tasks else []
+    lite_profile = _lite_profile(payload)
+    equipment = _equipment(payload, lite_profile)
+    tasks = _tasks(payload)
     session_id = payload.session_id or str(uuid.uuid4())
 
-    sub_commands = split_multi_intent(command)
     await track_event(
         module="omni",
         event="process_command_received",
         user_id=user.id,
         metadata={
             "session_id": session_id,
-            "command_length": len(command),
-            "sub_commands": len(sub_commands),
+            "command_length": len(payload.command),
         },
     )
 
-    if len(sub_commands) == 1:
-        try:
-            result = await process_single_command(command, user, trm, lite_profile, tasks, equipment)
-            assistant_message = (result.get("respuesta_usuario") or result.get("mensaje_sistema") or "").strip()
-            await _persist_messages(user.id, session_id, [
-                {"role": "user", "content": command},
-                {"role": "assistant", "content": assistant_message},
-            ])
-            await track_event(
-                module="omni",
-                event="process_command_completed",
-                user_id=user.id,
-                metadata={
-                    "session_id": session_id,
-                    "intent": result.get("intent", "NONE"),
-                    "multi_intent": False,
-                },
-            )
-            return result
-        except Exception as e:
-            logger.error(f"OMNI Error: {e}")
-            await track_event(
-                module="omni",
-                event="process_command_failed",
-                status="error",
-                user_id=user.id,
-                metadata={"session_id": session_id, "error": str(e)[:160]},
-            )
-            return {"intent": "NONE", "mensaje_sistema": "Error en enlace neuronal.", "xp_ganada": 0, "interaction_cost_cop": 0, "current_trm": trm}
-
-    responses = []
-    mutation_count = 0
-    for sub_cmd in sub_commands:
-        try:
-            result = await process_single_command(sub_cmd, user, trm, lite_profile, tasks, equipment)
-            responses.append(result)
-            if result.get("intent") in _MUTATION_INTENTS:
-                mutation_count += 1
-        except Exception as e:
-            logger.error(f"OMNI sub-command error: {e}")
-            responses.append({"intent": "NONE", "mensaje_sistema": f"Error en subcomando: {sub_cmd}", "xp_ganada": 0})
-
-    await _persist_messages(user.id, session_id, [
-        {"role": "user", "content": command},
-        *[{"role": "assistant", "content": (r.get("respuesta_usuario") or r.get("mensaje_sistema") or "").strip()} for r in responses],
-    ])
-
-    if mutation_count > 1:
+    try:
+        result = await create_proposal(
+            user=user,
+            session_id=session_id,
+            command=payload.command,
+            trm=trm,
+            lite_profile=lite_profile,
+            tasks=tasks,
+            equipment=equipment,
+        )
+    except Exception as e:
+        logger.error(f"OMNI proposal creation error: {e}")
         await track_event(
             module="omni",
-            event="process_command_multi_intent",
+            event="process_command_failed",
+            status="error",
+            user_id=user.id,
+            metadata={"session_id": session_id, "error": str(e)[:160]},
+        )
+        return {
+            "kind": "response",
+            "response": "Error al preparar la propuesta. Intenta de nuevo.",
+            "is_error": True,
+            "interaction_cost_cop": 0,
+            "current_trm": trm,
+        }
+
+    if result["kind"] == "response":
+        # Consulta pura: persistir historial directamente
+        try:
+            await _persist_messages(user.id, session_id, [
+                {"role": "user", "content": payload.command},
+                {"role": "assistant", "content": result["response"]},
+            ])
+        except Exception as e:
+            logger.warning(f"Error persistiendo mensaje OMNI de consulta: {e}")
+
+        await track_event(
+            module="omni",
+            event="process_command_completed",
             user_id=user.id,
             metadata={
                 "session_id": session_id,
-                "sub_commands": len(sub_commands),
-                "mutations": mutation_count,
-                "requires_confirmation": True,
+                "kind": "response",
+                "cost_cop": result.get("cost_cop", 0),
             },
         )
-        return {"multi_intent": True, "actions": responses, "requires_confirmation": True}
+
+    else:
+        # Mutación: se requiere confirmación
+        await track_event(
+            module="omni",
+            event="process_command_proposal_created",
+            user_id=user.id,
+            metadata={
+                "session_id": session_id,
+                "proposal_id": result.get("proposal_id"),
+                "multi_intent": result.get("multi_intent", False),
+                "actions_count": len(result.get("actions", [])),
+                "cost_cop": result.get("cost_cop", 0),
+            },
+        )
+
+    return result
+
+
+@router.post("/api/v1/process-command/{proposal_id}/confirm")
+async def confirm_command(
+    proposal_id: str = Path(..., min_length=36),
+    payload: ConfirmProposalPayload | None = None,
+    user = Depends(get_current_user),
+):
+    _check_omni_rate_limit(user.id)
+    try:
+        result = await confirm_proposal(user, proposal_id, payload.session_id if payload else None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     await track_event(
         module="omni",
-        event="process_command_completed",
+        event="process_command_confirmed",
         user_id=user.id,
         metadata={
-            "session_id": session_id,
-            "multi_intent": False,
-            "sub_commands": len(sub_commands),
+            "proposal_id": proposal_id,
+            "already_executed": result.get("already_executed", False),
+            "success": result.get("result", {}).get("success", False),
         },
     )
-    return {"multi_intent": False, "actions": responses}
+    return result
+
+
+@router.post("/api/v1/process-command/{proposal_id}/cancel")
+async def cancel_command(
+    proposal_id: str = Path(..., min_length=36),
+    user = Depends(get_current_user),
+):
+    try:
+        return await cancel_proposal(user, proposal_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/api/v1/omni/agent-check")
@@ -203,10 +248,18 @@ async def omni_usage(user = Depends(get_current_user)):
 
 
 @router.get("/api/v1/omni/messages")
-async def list_omni_messages(user = Depends(get_current_user), limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0)):
+async def list_omni_messages(
+    user = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    session_id: str | None = Query(None),
+):
     try:
+        query = supabase.table("omni_messages").select("*").eq("user_id", user.id)
+        if session_id:
+            query = query.eq("session_id", session_id)
         res = await asyncio.to_thread(
-            lambda: supabase.table("omni_messages").select("*").eq("user_id", user.id).order("created_at", desc=False).range(offset, offset + limit - 1).execute()
+            lambda: query.order("created_at", desc=False).range(offset, offset + limit - 1).execute()
         )
         return {"data": res.data or [], "limit": limit, "offset": offset}
     except APIError:

@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send, Loader2, AlertTriangle, Zap, Sparkles } from "lucide-react";
+import { Send, Loader2, AlertTriangle, Zap, Sparkles, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { sendOmniCommand, getOmniMessages } from "@/app/actions/omni";
+import {
+  sendOmniCommand,
+  confirmOmniProposal,
+  cancelOmniProposal,
+  getOmniMessages,
+} from "@/app/actions/omni";
+import {
+  isOmniProposal,
+  isOmniQuery,
+  isOmniConfirmResult,
+} from "@/lib/api/omni-helpers";
 import type { OmniCommandResult, OmniMessage } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +31,14 @@ interface LocalMessage {
   cost?: number;
   time: string;
   isError?: boolean;
+}
+
+interface PendingProposal {
+  proposalId: string;
+  command: string;
+  preview: string;
+  actions: OmniCommandResult[];
+  costCOP?: number;
 }
 
 function formatTime(): string {
@@ -63,20 +81,33 @@ const intentLabels: Record<string, string> = {
   RESET_FOCUS: "Racha reiniciada",
   CREATE_ROUTINE: "Rutina creada",
   COMPLETE_ROUTINE: "Rutina completada",
+  LOG_METRIC: "Metrica registrada",
 };
+
+function formatActionList(actions: OmniCommandResult[]): string {
+  return actions
+    .map(
+      (a) =>
+        `• ${intentLabels[a.intent] || a.intent.replace(/_/g, " ")}: ${a.respuesta_usuario || a.mensaje_sistema || ""}`
+    )
+    .join("\n");
+}
 
 export default function OmniPage() {
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(null);
   const sessionIdRef = useRef(generateSessionId());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef("");
 
   useEffect(() => {
-    getOmniMessages(30)
+    getOmniMessages(30, 0, sessionIdRef.current)
       .then((res) => setMessages(mapHistoryToLocal(res.data ?? [])))
       .catch((err) => {
         setError(err instanceof Error ? err.message : "Error al cargar historial");
@@ -88,11 +119,35 @@ export default function OmniPage() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, pendingProposal]);
+
+  const addAssistantMessage = (
+    text: string,
+    options?: { intent?: string; xp?: number; cost?: number; isError?: boolean }
+  ) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `omni-${Date.now()}`,
+        role: "assistant",
+        text,
+        intent: options?.intent,
+        xp: options?.xp,
+        cost: options?.cost,
+        time: formatTime(),
+        isError: options?.isError,
+      },
+    ]);
+  };
 
   const handleSend = async () => {
     const text = inputRef.current.trim();
-    if (!text || sending) return;
+    if (!text || sending || confirming || cancelling) return;
+
+    // Si hay una propuesta pendiente, enviar un nuevo comando la cancela implícitamente en UI
+    if (pendingProposal) {
+      setPendingProposal(null);
+    }
 
     setInput("");
     setError(null);
@@ -105,76 +160,86 @@ export default function OmniPage() {
     try {
       const result = await sendOmniCommand(text, sessionIdRef.current);
 
-      if ("multi_intent" in result && result.multi_intent) {
-        if (result.requires_confirmation) {
-          const actionList = result.actions
-            .map((a) => `• ${a.intent ?? "Accion"}: ${a.respuesta_usuario || a.mensaje_sistema || ""}`)
-            .join("\n");
-
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `omni-${Date.now()}`,
-              role: "assistant",
-              text: `Se detectaron multiples acciones.\n\n${actionList}\n\nReenvia el comando si deseas confirmar.`,
-              time: formatTime(),
-            },
-          ]);
-        } else {
-          const texts = result.actions
-            .map((a) => a.respuesta_usuario || a.mensaje_sistema || "")
-            .filter(Boolean);
-          const combinedText = texts.length > 0 ? texts.join("\n\n") : "Procesado.";
-          const costs = result.actions.reduce((sum, a) => sum + (a.interaction_cost_cop ?? 0), 0);
-          const xps = result.actions.reduce((sum, a) => sum + (a.xp_ganada ?? 0), 0);
-          const intents = result.actions.map((a) => a.intent).filter((i) => i && i !== "NONE");
-
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `omni-${Date.now()}`,
-              role: "assistant",
-              text: combinedText,
-              intent: intents.join(", "),
-              xp: xps > 0 ? xps : undefined,
-              cost: costs > 0 ? costs : undefined,
-              time: formatTime(),
-            },
-          ]);
-        }
-      } else {
-        const single = result as OmniCommandResult;
-        setMessages((prev) => [
-          ...prev,
+      if (isOmniQuery(result)) {
+        addAssistantMessage(result.response, {
+          cost: result.cost_cop,
+          isError: result.is_error,
+        });
+      } else if (isOmniProposal(result)) {
+        setPendingProposal({
+          proposalId: result.proposal_id,
+          command: result.command,
+          preview: result.preview,
+          actions: result.actions,
+          costCOP: result.cost_cop,
+        });
+      } else if (isOmniConfirmResult(result)) {
+        // Reconfirmación de una propuesta ya ejecutada
+        addAssistantMessage(
+          result.already_executed
+            ? `Esta acción ya fue ejecutada. ${result.result.response}`
+            : result.result.response,
           {
-            id: `omni-${Date.now()}`,
-            role: "assistant",
-            text: single.respuesta_usuario || single.mensaje_sistema || "Procesado.",
-            intent: single.intent !== "NONE" ? single.intent : undefined,
-            xp: single.xp_ganada && single.xp_ganada > 0 ? single.xp_ganada : undefined,
-            cost:
-              single.interaction_cost_cop && single.interaction_cost_cop > 0
-                ? single.interaction_cost_cop
-                : undefined,
-            time: formatTime(),
-          },
-        ]);
+            xp: result.result.xp_ganada,
+          }
+        );
+      } else {
+        addAssistantMessage("Respuesta inesperada de OMNI.", { isError: true });
       }
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `err-${Date.now()}`,
-          role: "assistant",
-          text: err instanceof Error ? err.message : "Error al comunicarse con OMNI.",
-          isError: true,
-          time: formatTime(),
-        },
-      ]);
+      addAssistantMessage(err instanceof Error ? err.message : "Error al comunicarse con OMNI.", {
+        isError: true,
+      });
     } finally {
       setSending(false);
     }
   };
+
+  const handleConfirm = async () => {
+    if (!pendingProposal || confirming || cancelling) return;
+    setConfirming(true);
+    setError(null);
+
+    try {
+      const result = await confirmOmniProposal(
+        pendingProposal.proposalId,
+        sessionIdRef.current
+      );
+      setPendingProposal(null);
+
+      const intent = result.result.actions
+        .map((a) => a.intent)
+        .filter((i) => i && i !== "NONE")
+        .join(", ");
+
+      addAssistantMessage(result.result.response, {
+        intent,
+        xp: result.result.xp_ganada,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al confirmar la acción.");
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!pendingProposal || confirming || cancelling) return;
+    setCancelling(true);
+    setError(null);
+
+    try {
+      await cancelOmniProposal(pendingProposal.proposalId);
+      setPendingProposal(null);
+      addAssistantMessage("Propuesta cancelada. Nada se modificó.", { isError: false });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cancelar la propuesta.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const isBusy = sending || confirming || cancelling;
 
   return (
     <div className="flex flex-col gap-4">
@@ -205,7 +270,7 @@ export default function OmniPage() {
                 <AlertTriangle className="h-8 w-8 text-escudo-red" />
                 <p className="text-sm text-muted-foreground">{error}</p>
               </div>
-            ) : messages.length === 0 ? (
+            ) : messages.length === 0 && !pendingProposal ? (
               <div className="flex flex-col items-center gap-3 py-12 text-center">
                 <Sparkles className="h-10 w-10 text-escudo-green/40" />
                 <p className="text-sm text-muted-foreground">
@@ -263,11 +328,75 @@ export default function OmniPage() {
                   </div>
                 ))}
 
+                {pendingProposal && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[90%] rounded-2xl border border-escudo-gold/30 bg-escudo-gold/10 px-4 py-4 text-sm text-foreground">
+                      <div className="mb-2 flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-escudo-gold" />
+                        <span className="font-semibold">Acción pendiente de confirmación</span>
+                      </div>
+                      <p className="mb-3 whitespace-pre-wrap leading-relaxed">{pendingProposal.preview}</p>
+
+                      <div className="mb-3 rounded-lg border border-border/40 bg-background/60 p-2">
+                        <p className="text-xs text-muted-foreground">Acciones propuestas:</p>
+                        <p className="mt-1 whitespace-pre-wrap text-xs">
+                          {formatActionList(pendingProposal.actions)}
+                        </p>
+                      </div>
+
+                      {pendingProposal.costCOP != null && pendingProposal.costCOP > 0 && (
+                        <p className="mb-3 text-[11px] text-muted-foreground">
+                          Costo estimado: ${pendingProposal.costCOP.toFixed(2)} COP
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleConfirm}
+                          disabled={isBusy}
+                          className="gap-1 bg-escudo-green text-background hover:bg-escudo-green/90"
+                        >
+                          {confirming ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          )}
+                          Confirmar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleCancel}
+                          disabled={isBusy}
+                          className="gap-1"
+                        >
+                          {cancelling ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <XCircle className="h-3.5 w-3.5" />
+                          )}
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {sending && (
                   <div className="flex justify-start">
                     <div className="flex items-center gap-2 rounded-2xl border border-accent/15 bg-background/45 px-4 py-3">
                       <Loader2 className="h-4 w-4 animate-spin text-escudo-green" />
-                      <span className="text-sm text-muted-foreground">Procesando...</span>
+                      <span className="text-sm text-muted-foreground">Interpretando comando...</span>
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="flex justify-center">
+                    <div className="flex items-center gap-2 rounded-xl border border-escudo-red/30 bg-escudo-red/10 px-3 py-2 text-xs text-escudo-red">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {error}
                     </div>
                   </div>
                 )}
@@ -286,13 +415,13 @@ export default function OmniPage() {
                 }}
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                 placeholder="Escribe un comando para OMNI..."
-                disabled={sending}
+                disabled={isBusy}
                 className={cn(
                   "h-11 flex-1 rounded-xl border border-border/80 bg-input/80 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all",
                   "focus:border-escudo-green/50 focus:ring-3 focus:ring-escudo-green/20 disabled:opacity-50"
                 )}
               />
-              <Button onClick={handleSend} disabled={!input.trim() || sending} size="icon" className="h-11 w-11 shrink-0">
+              <Button onClick={handleSend} disabled={!input.trim() || isBusy} size="icon" className="h-11 w-11 shrink-0">
                 <Send className="h-4 w-4" />
               </Button>
             </div>

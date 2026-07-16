@@ -300,10 +300,11 @@ class TestMockGeminiAPI:
 
             assert resp.status_code == 200
             data = resp.json()
-            assert data["intent"] == "NONE"
-            assert data["respuesta_usuario"] == "Entendido"
-            assert data["xp_ganada"] == 5
-            assert "interaction_cost_cop" in data
+            assert data["kind"] == "response"
+            assert data["response"] == "Entendido"
+            assert data["actions"][0]["intent"] == "NONE"
+            assert data["actions"][0]["xp_ganada"] == 5
+            assert "cost_cop" in data
             assert data["current_trm"] == 4000.0
 
             # Verificar que Gemini fue llamado

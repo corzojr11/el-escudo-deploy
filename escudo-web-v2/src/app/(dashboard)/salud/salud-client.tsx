@@ -122,13 +122,13 @@ export function SaludClient({ weightLogs, focusStatus }: SaludClientProps) {
               <Activity className="h-4 w-4" /> Racha de enfoque
             </CardDescription>
             <CardTitle className="text-3xl text-foreground">
-              {focusStatus?.current_streak ?? 0}{" "}
+              {focusStatus?.focus_streak ?? 0}{" "}
               <span className="text-base font-normal text-muted-foreground">dias</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <Badge variant="outline" className="border-escudo-green/30 bg-escudo-green/10 text-escudo-green">
-              {(focusStatus?.current_streak ?? 0) > 0 ? "Racha activa" : "Empieza hoy"}
+              {(focusStatus?.focus_streak ?? 0) > 0 ? "Racha activa" : "Empieza hoy"}
             </Badge>
           </CardContent>
         </Card>
@@ -228,18 +228,18 @@ export function SaludClient({ weightLogs, focusStatus }: SaludClientProps) {
         <CardContent className="space-y-4">
           <div className="rounded-xl border border-escudo-green/20 bg-escudo-green/8 p-4">
             <p className="text-sm text-escudo-green">
-              Racha actual: {focusStatus?.current_streak ?? 0} dias
+              Racha actual: {focusStatus?.focus_streak ?? 0} dias
             </p>
             <p className="text-xs text-muted-foreground">
-              {(focusStatus?.current_streak ?? 0) > 0
+              {(focusStatus?.focus_streak ?? 0) > 0
                 ? "Sigue manteniendo tu constancia."
                 : "Cada dia cuenta. Empieza con un pequeno habito."}
             </p>
           </div>
-          {focusStatus?.status && (
+          {(focusStatus?.focus_best ?? 0) > 0 && (
             <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Estado</span>
-              <p className="text-sm font-medium text-foreground capitalize">{focusStatus.status}</p>
+              <span className="text-xs text-muted-foreground">Mejor racha</span>
+              <p className="text-sm font-medium text-foreground">{focusStatus?.focus_best} dias</p>
             </div>
           )}
         </CardContent>

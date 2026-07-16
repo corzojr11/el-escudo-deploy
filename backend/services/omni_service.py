@@ -246,7 +246,8 @@ async def _get_user_context(user) -> str:
     return "\n".join(lines)
 
 
-async def process_single_command(command_text: str, user, trm: float, lite_profile: dict, tasks: list, equipment: list | None = None) -> dict:
+async def _interpret_command(command_text: str, user, trm: float, lite_profile: dict, tasks: list, equipment: list | None = None) -> dict:
+    """Llama al modelo generativo y devuelve la interpretación SIN ejecutar mutaciones."""
     _check_omni_daily_limit(user.id)
     user_ctx = await _get_user_context(user)
     equipment_ctx = ", ".join([str(item).strip() for item in (equipment or []) if str(item).strip()]) or "No especificado"
@@ -268,13 +269,6 @@ async def process_single_command(command_text: str, user, trm: float, lite_profi
     cost_usd = (usage.prompt_token_count * 0.000000075) + (usage.candidates_token_count * 0.0000003)
     cost_cop = cost_usd * trm
 
-    try:
-        res_prof = await asyncio.to_thread(lambda: supabase.table("profiles").select("ai_cost_cop").eq("user_id", user.id).single().execute())
-        current_cost = res_prof.data.get("ai_cost_cop", 0) if res_prof.data else 0
-        await asyncio.to_thread(lambda: supabase.table("profiles").update({"ai_cost_cop": current_cost + cost_cop}).eq("user_id", user.id).execute())
-    except Exception as e:
-        logger.warning(f"Error actualizando costo de OMNI para usuario {user.id}: {e}")
-
     _record_omni_daily_cost(user.id, cost_cop)
 
     res_json = json.loads(response.text.strip().replace("```json", "").replace("```", ""))
@@ -284,13 +278,19 @@ async def process_single_command(command_text: str, user, trm: float, lite_profi
     if os.getenv("OMNI_DEBUG_RAW_RESPONSE", "false").lower() == "true":
         logger.debug("RAW GEMINI RESPONSE: %s", json.dumps(res_json, indent=2, ensure_ascii=False))
 
-    intent = res_json.get("intent", "NONE")
-    ext = res_json.get("extracted_data", {})
     if not res_json.get("mensaje_sistema"):
         res_json["mensaje_sistema"] = res_json.get("respuesta_usuario", "").strip()
     if not res_json.get("mensaje_sistema"):
         # Fallback conversacional para evitar respuestas vacías o robóticas.
         res_json["mensaje_sistema"] = "Te leo. ¿Quieres que lo convierta en un plan corto de hoy o en pasos detallados?"
+
+    return res_json
+
+
+async def _execute_interpreted_command(res_json: dict, user) -> dict:
+    """Ejecuta los handlers de mutación sobre una interpretación ya generada."""
+    intent = res_json.get("intent", "NONE")
+    ext = res_json.get("extracted_data", {})
 
     if await handle_task_intent(intent, ext, user, res_json):
         return res_json
@@ -314,6 +314,13 @@ async def process_single_command(command_text: str, user, trm: float, lite_profi
         return res_json
 
     return res_json
+
+
+async def process_single_command(command_text: str, user, trm: float, lite_profile: dict, tasks: list, equipment: list | None = None) -> dict:
+    """Flujo legacy: interpreta + ejecuta en un solo paso. Usado por tests y compatibilidad."""
+    res_json = await _interpret_command(command_text, user, trm, lite_profile, tasks, equipment)
+    return await _execute_interpreted_command(res_json, user)
+
 
 
 async def _persist_messages(user_id: str, session_id: str, messages: list[dict]):

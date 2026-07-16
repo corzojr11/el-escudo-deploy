@@ -1,6 +1,8 @@
 export interface Profile {
   user_id: string;
+  email?: string;
   name?: string;
+  avatar_url?: string;
   level?: number;
   xp?: number;
   xp_to_next_level?: number;
@@ -118,8 +120,12 @@ export interface Metric {
 export interface FocusStatus {
   id: string;
   user_id: string;
-  current_streak?: number;
-  status?: string;
+  focus_streak?: number;
+  focus_best?: number;
+  urge_count?: number;
+  last_check_date?: string;
+  updated_at?: string;
+  created_at?: string;
 }
 
 export interface Habit {
@@ -150,6 +156,28 @@ export interface BioSettings {
   work_end?: string;
 }
 
+export interface RoutineExercise {
+  name: string;
+  suggestedSets?: number;
+  suggestedReps?: string;
+  equipment?: string[];
+  muscles?: string[];
+}
+
+export interface Routine {
+  id: string;
+  user_id: string;
+  day_index: number;
+  day_name: string;
+  objective?: string;
+  estimated_minutes?: number;
+  notes?: string[];
+  exercises: RoutineExercise[];
+  completed_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface OmniCommandResult {
   intent: string;
   extracted_data?: Record<string, unknown>;
@@ -160,13 +188,43 @@ export interface OmniCommandResult {
   current_trm?: number;
 }
 
-export interface OmniMultiIntentResult {
-  multi_intent: true;
-  actions: OmniCommandResult[];
-  requires_confirmation: boolean;
+export interface OmniQueryResponse {
+  kind: "response";
+  multi_intent?: boolean;
+  actions?: OmniCommandResult[];
+  response: string;
+  cost_cop?: number;
+  current_trm?: number;
+  is_error?: boolean;
 }
 
-export type OmniResponse = OmniCommandResult | OmniMultiIntentResult;
+export interface OmniProposalResponse {
+  kind: "proposal";
+  proposal_id: string;
+  multi_intent: boolean;
+  requires_confirmation: true;
+  command: string;
+  preview: string;
+  actions: OmniCommandResult[];
+  cost_cop?: number;
+  current_trm?: number;
+  expires_at?: string;
+}
+
+export interface OmniConfirmResult {
+  kind: "result";
+  proposal_id: string;
+  already_executed: boolean;
+  result: {
+    actions: OmniCommandResult[];
+    errors: string[];
+    xp_ganada: number;
+    response: string;
+    success: boolean;
+  };
+}
+
+export type OmniResponse = OmniQueryResponse | OmniProposalResponse | OmniConfirmResult;
 
 export interface OmniMessage {
   id: string;
@@ -194,7 +252,7 @@ export interface SyncResponse {
   finances: FinanceEntry[];
   missions: Mission[];
   shifts: WorkShift[];
-  routines: unknown[];
+  routines: Routine[];
   weight_logs: WeightLog[];
   exercise_logs: unknown[];
   personal_records: unknown[];

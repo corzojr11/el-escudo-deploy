@@ -24,6 +24,7 @@ class GoalCreatePayload(BaseModel):
     description: str = ""
     goal_type: str = "custom"
     target_value: Optional[float] = None
+    current_value: Optional[float] = None
     unit: str = ""
     deadline: Optional[str] = None
     priority: int = 2
@@ -34,6 +35,7 @@ class GoalUpdatePayload(BaseModel):
     description: Optional[str] = None
     goal_type: Optional[str] = None
     target_value: Optional[float] = None
+    current_value: Optional[float] = None
     unit: Optional[str] = None
     deadline: Optional[str] = None
     status: Optional[str] = None
