@@ -217,6 +217,31 @@ class TestPasswordResetSecurity:
         policy_block = sql.split("DROP POLICY IF EXISTS", 1)[0]
         assert "tbl_exists" in policy_block or "IF EXISTS" in policy_block
 
+    def test_migration_027_is_idempotent_when_routines_table_missing(self):
+        """Verifica que 027 protege el caso de tabla inexistente: la crea completa."""
+        repo_root = Path(__file__).resolve().parents[2]
+        migration_path = repo_root / "supabase" / "migrations" / "027_routines_columns.sql"
+        assert migration_path.exists(), "No se encontró la migración 027"
+        sql = migration_path.read_text(encoding="utf-8")
+
+        assert "information_schema.tables" in sql, (
+            "027 debe consultar information_schema.tables para saber si routines existe"
+        )
+        assert "CREATE TABLE public.routines" in sql, (
+            "027 debe contener un CREATE TABLE para el caso de tabla inexistente"
+        )
+        assert "objective" in sql
+        assert "estimated_minutes" in sql
+        assert "notes" in sql
+        assert "ENABLE ROW LEVEL SECURITY" in sql
+        assert "idx_routines_user_day" in sql
+        assert "set_updated_at" in sql
+        assert "trg_routines_updated_at" in sql
+        # Las sentencias ALTER deben estar dentro del bloque ELSE (tabla existente)
+        assert "ALTER TABLE public.routines ADD COLUMN" in sql
+        # El trigger debe estar protegido por verificación de existencia de la tabla
+        assert "DROP TRIGGER IF EXISTS trg_routines_updated_at" in sql
+
 
 def _build_atomic_mock_supabase(proposal_id: str, initial_status: str = "pending"):
     """Mock de Supabase con claim atómico entre tareas para tests de concurrencia."""
