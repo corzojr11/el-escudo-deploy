@@ -59,7 +59,6 @@ export function FinanzasClient({ transactions, summary }: FinanzasClientProps) {
   return (
     <div className="flex flex-col gap-6">
       <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_center,rgba(255,209,102,0.14),transparent_62%)]" />
         <div className="relative flex flex-col gap-3">
           <span className="hud-label text-escudo-gold">Financial Grid</span>
           <h2 className="font-heading text-3xl font-black tracking-[0.1em] text-glow text-foreground md:text-4xl">

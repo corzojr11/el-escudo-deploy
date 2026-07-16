@@ -179,7 +179,6 @@ export default function OmniPage() {
   return (
     <div className="flex flex-col gap-4">
       <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_center,rgba(42,245,152,0.12),transparent_62%)]" />
         <div className="relative flex items-center gap-3">
           <span className="relative inline-flex">
             <Zap className="h-7 w-7 text-escudo-green" />

@@ -104,8 +104,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="panel-neon relative overflow-hidden rounded-[28px] p-6 md:p-8">
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_center,rgba(255,100,34,0.14),transparent_62%)]" />
+      <section className="panel-neon relative overflow-hidden p-6 md:p-8">
         <div className="relative flex flex-col gap-3">
           <span className="hud-label text-primary">Panorama personal</span>
           <h2 className="font-heading text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
