@@ -2,7 +2,9 @@
 
 import sys
 import asyncio
+import threading
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 sys.modules["google.genai"] = MagicMock()
@@ -200,6 +202,103 @@ class TestPasswordResetSecurity:
         data = resp.json()
         assert "dev_code" not in data
 
+    def test_migration_024_is_conditional_on_table_existence(self):
+        """Verifica que 024 no dropee políticas sobre una tabla que podría no existir."""
+        repo_root = Path(__file__).resolve().parents[2]
+        migration_path = repo_root / "supabase" / "migrations" / "024_password_reset_deprecation.sql"
+        assert migration_path.exists(), "No se encontró la migración 024"
+        sql = migration_path.read_text(encoding="utf-8")
+
+        # Debe verificar la existencia de la tabla antes de tocar políticas
+        assert "SELECT EXISTS (" in sql or "to_regclass" in sql
+        assert "DROP POLICY IF EXISTS" in sql
+        assert "password_reset_codes" in sql
+        # Las políticas deben estar dentro del bloque condicional
+        policy_block = sql.split("DROP POLICY IF EXISTS", 1)[0]
+        assert "tbl_exists" in policy_block or "IF EXISTS" in policy_block
+
+
+def _build_atomic_mock_supabase(proposal_id: str, initial_status: str = "pending"):
+    """Mock de Supabase con claim atómico entre tareas para tests de concurrencia."""
+
+    stored_proposals = {
+        proposal_id: {
+            "id": proposal_id,
+            "user_id": MOCK_USER_ID,
+            "session_id": "session-1",
+            "command": "registra ingreso",
+            "intent": "REGISTER_INCOME",
+            "extracted_data": {"amount": 100000},
+            "actions": [
+                {
+                    "intent": "REGISTER_INCOME",
+                    "extracted_data": {"amount": 100000},
+                    "respuesta_usuario": "Listo",
+                    "mensaje_sistema": "Listo",
+                }
+            ],
+            "status": initial_status,
+            "trm": 4000.0,
+            "expires_at": (datetime.now(timezone.utc).replace(microsecond=0) + timedelta(minutes=30)).isoformat(),
+            "result": None,
+        }
+    }
+
+    claim_lock = threading.Lock()
+
+    class TableResult:
+        def __init__(self, data):
+            self.data = data
+
+    def table_side(name):
+        tbl = MagicMock()
+        if name == "omni_proposals":
+            def select_execute():
+                return TableResult([stored_proposals[proposal_id]])
+
+            select_chain = MagicMock()
+            select_chain.eq.return_value = select_chain
+            select_chain.limit.return_value = select_chain
+            select_chain.execute.side_effect = select_execute
+            tbl.select.return_value = select_chain
+
+            def update_execute():
+                args, _ = tbl.update.call_args
+                payload = args[0] if args else {}
+                stored_proposals[proposal_id].update(payload)
+                return TableResult([stored_proposals[proposal_id]])
+
+            update_chain = MagicMock()
+            update_chain.eq.return_value = update_chain
+            update_chain.execute.side_effect = update_execute
+            tbl.update.return_value = update_chain
+        return tbl
+
+    mock_supa = MagicMock()
+    mock_supa.table.side_effect = table_side
+
+    def rpc_side(function_name, params):
+        rpc_mock = MagicMock()
+        if function_name == "claim_omni_proposal":
+            def execute():
+                # Claim atómico real entre threads
+                with claim_lock:
+                    prop = stored_proposals[proposal_id]
+                    expires_at = datetime.fromisoformat(prop["expires_at"].replace("Z", "+00:00"))
+                    if (
+                        prop["status"] == "pending"
+                        and prop["user_id"] == params["user_uuid"]
+                        and datetime.now(timezone.utc) <= expires_at
+                    ):
+                        prop["status"] = "processing"
+                        return TableResult([prop])
+                    return TableResult([])
+            rpc_mock.execute.side_effect = execute
+        return rpc_mock
+
+    mock_supa.rpc.side_effect = rpc_side
+    return mock_supa, stored_proposals
+
 
 class TestOmniSecureFlow:
     """C. OMNI seguro e idempotente."""
@@ -253,28 +352,8 @@ class TestOmniSecureFlow:
     def test_confirm_proposal_is_idempotent(self, monkeypatch):
         """confirm_proposal ejecuta una sola vez y devuelve already_executed en reintentos."""
         proposal_id = "22222222-2222-2222-2222-222222222222"
-        stored_proposals = {
-            proposal_id: {
-                "id": proposal_id,
-                "user_id": MOCK_USER_ID,
-                "session_id": "session-1",
-                "command": "registra ingreso",
-                "intent": "REGISTER_INCOME",
-                "extracted_data": {"amount": 100000},
-                "actions": [
-                    {
-                        "intent": "REGISTER_INCOME",
-                        "extracted_data": {"amount": 100000},
-                        "respuesta_usuario": "Listo",
-                        "mensaje_sistema": "Listo",
-                    }
-                ],
-                "status": "pending",
-                "trm": 4000.0,
-                "expires_at": (datetime.now(timezone.utc).replace(microsecond=0) + timedelta(minutes=30)).isoformat(),
-                "result": None,
-            }
-        }
+        mock_supa, stored_proposals = _build_atomic_mock_supabase(proposal_id, "pending")
+        monkeypatch.setattr(omni_proposals_module, "supabase", mock_supa)
 
         execution_count = {"n": 0}
 
@@ -286,96 +365,137 @@ class TestOmniSecureFlow:
 
         monkeypatch.setattr(omni_proposals_module, "_execute_interpreted_command", fake_execute)
 
-        # Mock de Supabase que registra el cambio de status
-        def table_side(name):
-            tbl = MagicMock()
-            if name == "omni_proposals":
-                def select_execute():
-                    return TableResult([stored_proposals[proposal_id]])
-
-                select_chain = MagicMock()
-                select_chain.eq.return_value = select_chain
-                select_chain.limit.return_value = select_chain
-                select_chain.execute.side_effect = select_execute
-                tbl.select.return_value = select_chain
-
-                def update_execute():
-                    args, _ = tbl.update.call_args
-                    payload = args[0] if args else {}
-                    stored_proposals[proposal_id].update(payload)
-                    return TableResult([stored_proposals[proposal_id]])
-
-                update_chain = MagicMock()
-                update_chain.eq.return_value = update_chain
-                update_chain.execute.side_effect = update_execute
-                tbl.update.return_value = update_chain
-            return tbl
-
-        mock_supa = MagicMock()
-        mock_supa.table.side_effect = table_side
-        monkeypatch.setattr(omni_proposals_module, "supabase", mock_supa)
-
         user = type("User", (), {"id": MOCK_USER_ID})()
 
-        loop = asyncio.new_event_loop()
-        try:
-            result1 = loop.run_until_complete(omni_proposals_module.confirm_proposal(user, proposal_id))
+        async def run():
+            result1 = await omni_proposals_module.confirm_proposal(user, proposal_id)
             assert result1["already_executed"] is False
             assert result1["result"]["success"] is True
             assert stored_proposals[proposal_id]["status"] == "confirmed"
 
-            result2 = loop.run_until_complete(omni_proposals_module.confirm_proposal(user, proposal_id))
+            result2 = await omni_proposals_module.confirm_proposal(user, proposal_id)
             assert result2["already_executed"] is True
-        finally:
-            loop.close()
 
+        asyncio.run(run())
         assert execution_count["n"] == 1
 
-    def test_cancel_proposal_prevents_execution(self, monkeypatch):
-        """cancel_proposal marca la propuesta como cancelled."""
-        proposal_id = "33333333-3333-3333-3333-333333333333"
-        stored_proposals = {
-            proposal_id: {
-                "id": proposal_id,
-                "user_id": MOCK_USER_ID,
-                "status": "pending",
-            }
-        }
+    def test_concurrent_confirmations_only_one_executes(self, monkeypatch):
+        """Dos confirmaciones concurrentes de la misma propuesta: solo una ejecuta."""
+        proposal_id = "44444444-4444-4444-4444-444444444444"
+        mock_supa, stored_proposals = _build_atomic_mock_supabase(proposal_id, "pending")
+        monkeypatch.setattr(omni_proposals_module, "supabase", mock_supa)
 
-        def table_side(name):
-            tbl = MagicMock()
-            if name == "omni_proposals":
-                select_chain = MagicMock()
-                select_chain.eq.return_value = select_chain
-                select_chain.limit.return_value = select_chain
-                select_chain.execute.return_value = TableResult([stored_proposals[proposal_id]])
-                tbl.select.return_value = select_chain
+        execution_count = {"n": 0}
+        lock = threading.Lock()
 
-                def update_execute():
-                    args, _ = tbl.update.call_args
-                    payload = args[0] if args else {}
-                    stored_proposals[proposal_id].update(payload)
-                    return TableResult([stored_proposals[proposal_id]])
+        async def fake_execute(res_json, user):
+            # Simula trabajo que toma tiempo para aumentar la ventana de carrera
+            await asyncio.sleep(0.01)
+            with lock:
+                execution_count["n"] += 1
+            res_json["executed"] = True
+            res_json["respuesta_usuario"] = "Ingreso registrado"
+            return res_json
 
-                update_chain = MagicMock()
-                update_chain.eq.return_value = update_chain
-                update_chain.execute.side_effect = update_execute
-                tbl.update.return_value = update_chain
-            return tbl
+        monkeypatch.setattr(omni_proposals_module, "_execute_interpreted_command", fake_execute)
 
-        mock_supa = MagicMock()
-        mock_supa.table.side_effect = table_side
+        user = type("User", (), {"id": MOCK_USER_ID})()
+
+        async def run():
+            results = await asyncio.gather(
+                omni_proposals_module.confirm_proposal(user, proposal_id),
+                omni_proposals_module.confirm_proposal(user, proposal_id),
+            )
+
+            # Una ejecutó, la otra recibió already_executed o processing
+            kinds = {r["kind"] for r in results}
+            assert "result" in kinds
+
+            executed_results = [r for r in results if r["kind"] == "result" and not r["already_executed"]]
+            assert len(executed_results) == 1, f"Solo una ejecución real era esperada: {results}"
+
+            # El handler real solo se ejecutó una vez
+            assert execution_count["n"] == 1
+            assert stored_proposals[proposal_id]["status"] == "confirmed"
+
+        asyncio.run(run())
+
+    def test_confirm_processing_returns_processing_status(self, monkeypatch):
+        """Si la propuesta está en processing, confirm devuelve processing sin ejecutar."""
+        proposal_id = "55555555-5555-5555-5555-555555555555"
+        mock_supa, stored_proposals = _build_atomic_mock_supabase(proposal_id, "processing")
+        monkeypatch.setattr(omni_proposals_module, "supabase", mock_supa)
+
+        execution_count = {"n": 0}
+
+        async def fake_execute(res_json, user):
+            execution_count["n"] += 1
+            return res_json
+
+        monkeypatch.setattr(omni_proposals_module, "_execute_interpreted_command", fake_execute)
+
+        user = type("User", (), {"id": MOCK_USER_ID})()
+
+        async def run():
+            result = await omni_proposals_module.confirm_proposal(user, proposal_id)
+            assert result["kind"] == "processing"
+
+        asyncio.run(run())
+        assert execution_count["n"] == 0
+
+    def test_confirm_other_user_proposal_fails(self, monkeypatch):
+        """No se puede reclamar una propuesta que no pertenece al usuario."""
+        proposal_id = "66666666-6666-6666-6666-666666666666"
+        mock_supa, stored_proposals = _build_atomic_mock_supabase(proposal_id, "pending")
+        monkeypatch.setattr(omni_proposals_module, "supabase", mock_supa)
+
+        # Alterar user_id para simular propiedad de otro usuario
+        stored_proposals[proposal_id]["user_id"] = "other-user-id"
+
+        user = type("User", (), {"id": MOCK_USER_ID})()
+
+        async def run():
+            with pytest.raises(ValueError):
+                await omni_proposals_module.confirm_proposal(user, proposal_id)
+
+        asyncio.run(run())
+
+    def test_confirm_expired_proposal_fails(self, monkeypatch):
+        """No se ejecuta una propuesta expirada."""
+        proposal_id = "77777777-7777-7777-7777-777777777777"
+        mock_supa, stored_proposals = _build_atomic_mock_supabase(proposal_id, "pending")
+        stored_proposals[proposal_id]["expires_at"] = (
+            datetime.now(timezone.utc).replace(microsecond=0) - timedelta(minutes=1)
+        ).isoformat()
         monkeypatch.setattr(omni_proposals_module, "supabase", mock_supa)
 
         user = type("User", (), {"id": MOCK_USER_ID})()
 
-        loop = asyncio.new_event_loop()
-        try:
-            result = loop.run_until_complete(omni_proposals_module.cancel_proposal(user, proposal_id))
+        async def run():
+            with pytest.raises(ValueError):
+                await omni_proposals_module.confirm_proposal(user, proposal_id)
+            assert stored_proposals[proposal_id]["status"] == "expired"
+
+        asyncio.run(run())
+
+    def test_cancel_proposal_prevents_execution(self, monkeypatch):
+        """cancel_proposal marca la propuesta como cancelled."""
+        proposal_id = "33333333-3333-3333-3333-333333333333"
+        mock_supa, stored_proposals = _build_atomic_mock_supabase(proposal_id, "pending")
+        monkeypatch.setattr(omni_proposals_module, "supabase", mock_supa)
+
+        user = type("User", (), {"id": MOCK_USER_ID})()
+
+        async def run():
+            result = await omni_proposals_module.cancel_proposal(user, proposal_id)
             assert result["status"] == "cancelled"
             assert stored_proposals[proposal_id]["status"] == "cancelled"
-        finally:
-            loop.close()
+
+            # Tras cancelar, confirmar debe fallar
+            with pytest.raises(ValueError):
+                await omni_proposals_module.confirm_proposal(user, proposal_id)
+
+        asyncio.run(run())
 
 
 class TestProfileBootstrap:

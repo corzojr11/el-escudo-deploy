@@ -14,6 +14,7 @@ import {
   isOmniProposal,
   isOmniQuery,
   isOmniConfirmResult,
+  isOmniProcessing,
 } from "@/lib/api/omni-helpers";
 import type { OmniCommandResult, OmniMessage } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -205,17 +206,25 @@ export default function OmniPage() {
         pendingProposal.proposalId,
         sessionIdRef.current
       );
-      setPendingProposal(null);
 
-      const intent = result.result.actions
-        .map((a) => a.intent)
-        .filter((i) => i && i !== "NONE")
-        .join(", ");
+      if (isOmniProcessing(result)) {
+        // Otra pestaña/solicitud está ejecutando la propuesta.
+        // Mostramos mensaje informativo; no limpiamos pendingProposal para
+        // permitir que el usuario espere o vuelva a intentar.
+        addAssistantMessage(result.message, { isError: false });
+      } else {
+        setPendingProposal(null);
 
-      addAssistantMessage(result.result.response, {
-        intent,
-        xp: result.result.xp_ganada,
-      });
+        const intent = result.result.actions
+          .map((a) => a.intent)
+          .filter((i) => i && i !== "NONE")
+          .join(", ");
+
+        addAssistantMessage(result.result.response, {
+          intent,
+          xp: result.result.xp_ganada,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al confirmar la acción.");
     } finally {

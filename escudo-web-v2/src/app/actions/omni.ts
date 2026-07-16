@@ -5,6 +5,7 @@ import { fetchFromBackend, postToBackend } from "@/lib/api/server";
 import type {
   OmniResponse,
   OmniConfirmResult,
+  OmniProcessingResponse,
   OmniMessagesResponse,
 } from "@/lib/api/types";
 
@@ -23,7 +24,7 @@ export async function sendOmniCommand(
 export async function confirmOmniProposal(
   proposalId: string,
   sessionId?: string
-): Promise<OmniConfirmResult> {
+): Promise<OmniConfirmResult | OmniProcessingResponse> {
   const result = await postToBackend<OmniConfirmResult>(
     `/api/v1/process-command/${encodeURIComponent(proposalId)}/confirm`,
     { session_id: sessionId }

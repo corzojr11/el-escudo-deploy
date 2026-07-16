@@ -3,6 +3,7 @@ import type {
   OmniProposalResponse,
   OmniQueryResponse,
   OmniConfirmResult,
+  OmniProcessingResponse,
 } from "./types";
 
 export function isOmniProposal(
@@ -21,4 +22,10 @@ export function isOmniConfirmResult(
   response: OmniResponse
 ): response is OmniConfirmResult {
   return "kind" in response && response.kind === "result";
+}
+
+export function isOmniProcessing(
+  response: OmniResponse
+): response is OmniProcessingResponse {
+  return "kind" in response && response.kind === "processing";
 }

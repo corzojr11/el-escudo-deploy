@@ -174,15 +174,20 @@ async def confirm_command(
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+    event_name = "process_command_confirmed"
+    track_metadata = {"proposal_id": proposal_id}
+    if result.get("kind") == "processing":
+        event_name = "process_command_processing"
+        track_metadata["status"] = "processing"
+    else:
+        track_metadata["already_executed"] = result.get("already_executed", False)
+        track_metadata["success"] = result.get("result", {}).get("success", False)
+
     await track_event(
         module="omni",
-        event="process_command_confirmed",
+        event=event_name,
         user_id=user.id,
-        metadata={
-            "proposal_id": proposal_id,
-            "already_executed": result.get("already_executed", False),
-            "success": result.get("result", {}).get("success", False),
-        },
+        metadata=track_metadata,
     )
     return result
 

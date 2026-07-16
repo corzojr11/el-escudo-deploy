@@ -224,7 +224,17 @@ export interface OmniConfirmResult {
   };
 }
 
-export type OmniResponse = OmniQueryResponse | OmniProposalResponse | OmniConfirmResult;
+export interface OmniProcessingResponse {
+  kind: "processing";
+  proposal_id: string;
+  message: string;
+}
+
+export type OmniResponse =
+  | OmniQueryResponse
+  | OmniProposalResponse
+  | OmniConfirmResult
+  | OmniProcessingResponse;
 
 export interface OmniMessage {
   id: string;
