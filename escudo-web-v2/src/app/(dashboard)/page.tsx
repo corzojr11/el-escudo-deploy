@@ -2,30 +2,37 @@
 
 import { useEffect, useState } from "react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import {
-  Zap,
-  Wallet,
-  Target,
-  Heart,
   CalendarClock,
-  CheckSquare,
-  TrendingUp,
-  TrendingDown,
+  Check,
+  Circle,
+  Heart,
   Shield,
+  Sparkles,
+  Target,
+  Wallet,
+  Zap,
 } from "lucide-react";
 import { getDashboardData } from "@/app/actions/dashboard";
 import { LoadingState } from "@/components/dashboard/LoadingState";
 import { ErrorState } from "@/components/dashboard/ErrorState";
+import { Progress } from "@/components/ui/progress";
 import { normalizeFinances } from "@/lib/api/helpers";
 import type { SyncResponse } from "@/lib/api/types";
+
+function Metric({ label, value, detail, tone = "text-foreground" }: {
+  label: string;
+  value: string | number;
+  detail: string;
+  tone?: string;
+}) {
+  return (
+    <div className="border border-border bg-card p-4">
+      <p className="hud-label">{label}</p>
+      <p className={`mt-2 font-heading text-3xl font-bold tracking-tight ${tone}`}>{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [data, setData] = useState<SyncResponse | null>(null);
@@ -48,340 +55,154 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return <LoadingState message="Conectando con el centro de comando..." />;
-  }
-
-  if (error) {
-    return <ErrorState message={error} onRetry={loadData} />;
-  }
+  if (loading) return <LoadingState message="Abriendo tu bitacora personal..." />;
+  if (error) return <ErrorState message={error} onRetry={loadData} />;
 
   const profile = data?.profile;
-  const rawFinances = data?.finances ?? [];
-  const finances = normalizeFinances(rawFinances);
+  const goals = (data?.goals ?? []).filter((goal) => goal.status !== "archived");
+  const missions = data?.missions ?? [];
+  const finances = normalizeFinances(data?.finances ?? []);
   const shifts = data?.shifts ?? [];
   const weightLogs = data?.weight_logs ?? [];
-  const missions = data?.missions ?? [];
-  const goals = data?.goals ?? [];
-  const quote = data?.daily_quote;
-
   const level = profile?.level ?? 0;
   const xp = profile?.xp ?? 0;
   const xpToNextLevel = profile?.xp_to_next_level ?? 100;
-  const xpPercent = xpToNextLevel > 0 ? (xp / xpToNextLevel) * 100 : 0;
+  const xpPercent = xpToNextLevel ? Math.min((xp / xpToNextLevel) * 100, 100) : 0;
   const streak = data?.focus_status?.current_streak ?? 0;
-
-  const today = new Date().toISOString().split("T")[0];
-  const todayFinances = finances.filter((f) => f.date?.startsWith(today));
-  const todayIncome = todayFinances
-    .filter((f) => f.type === "income")
-    .reduce((sum, f) => sum + (f.amount ?? 0), 0);
-  const todayExpense = todayFinances
-    .filter((f) => f.type === "expense")
-    .reduce((sum, f) => sum + (f.amount ?? 0), 0);
-  const balance = todayIncome - todayExpense;
-
-  const sortedWeight = [...weightLogs].sort(
-    (a, b) =>
-      new Date(b.date ?? b.timestamp ?? b.created_at ?? 0).getTime() -
-      new Date(a.date ?? a.timestamp ?? a.created_at ?? 0).getTime()
-  );
-  const latestWeight = sortedWeight[0]?.weight ?? null;
-  const previousWeight = sortedWeight.length >= 2 ? sortedWeight[1].weight : null;
-  const weightTrend =
-    latestWeight != null && previousWeight != null ? latestWeight - previousWeight : null;
-
-  const completedMissions = missions.filter((m) => m.status === "completed").length;
-  const activeMissions = missions.filter(
-    (m) => m.status !== "completed" && m.status !== "archived"
-  ).length;
-  const totalMissions = completedMissions + activeMissions;
-
-  const displayGoals =
-    goals.length > 0 ? goals.filter((g) => g.status !== "archived").slice(0, 4) : [];
-
-  const isEmpty = !profile || Object.keys(profile).length === 0;
+  const activeGoals = goals.filter((goal) => goal.status === "active" || !goal.status);
+  const completedMissions = missions.filter((mission) => mission.status === "completed").length;
+  const currentWeight = [...weightLogs].sort((a, b) =>
+    new Date(b.date ?? b.timestamp ?? b.created_at ?? 0).getTime() -
+    new Date(a.date ?? a.timestamp ?? a.created_at ?? 0).getTime()
+  )[0]?.weight;
+  const today = new Date().toISOString().slice(0, 10);
+  const balance = finances
+    .filter((item) => item.date?.startsWith(today))
+    .reduce((total, item) => total + (item.type === "income" ? item.amount ?? 0 : -(item.amount ?? 0)), 0);
+  const routeItems = activeGoals.slice(0, 3);
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="panel-neon relative overflow-hidden p-6 md:p-8">
-        <div className="relative flex flex-col gap-3">
-          <span className="hud-label text-primary">Panorama personal</span>
-          <h2 className="font-heading text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
-            {profile?.name ? `Bienvenido, ${profile.name}` : "Bienvenido de vuelta"}
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-8">
+      <section className="grid gap-5 border-b border-border pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div>
+          <p className="hud-label text-primary">Commander log // 024</p>
+          <h2 className="mt-3 max-w-xl font-heading text-4xl font-extrabold uppercase leading-[0.94] tracking-[-0.05em] text-foreground sm:text-6xl">
+            Bitacora de<br />viaje
           </h2>
-          <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-            {isEmpty
-              ? "Activa tu perfil para desbloquear el panel completo."
-              : "Tu progreso, energía, finanzas y bienestar en un solo lugar."}
-          </p>
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Badge className="border border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">
-              Todo en orden
-            </Badge>
-            <Badge className="border border-border bg-white/5 text-muted-foreground hover:bg-white/5">
-              Un día a la vez
-            </Badge>
-            {quote && (
-              <Badge className="max-w-full border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/5">
-                &ldquo;{quote}&rdquo;
-              </Badge>
+          <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
+            <span className="border border-[#5a5122] bg-[#292515] px-2 py-1 font-mono text-[11px] uppercase text-[#ffe476]">
+              Estado: activo
+            </span>
+            <span className="text-muted-foreground">Tu ruta de evolucion personal</span>
+          </div>
+        </div>
+        <div className="border-l-2 border-primary pl-4 lg:mb-1">
+          <p className="hud-label">Expedicion actual</p>
+          <p className="mt-1 font-heading text-3xl font-bold text-[#bcaeff]">{level || "--"} / 12</p>
+          <p className="font-mono text-[11px] uppercase text-muted-foreground">Fases de progreso</p>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="border border-border bg-card p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="hud-label">Rango actual</p>
+              <h3 className="mt-1 font-heading text-2xl font-bold text-foreground">
+                {profile?.name ? `Agente ${profile.name}` : "Tu siguiente nivel"}
+              </h3>
+            </div>
+            <div className="text-right">
+              <p className="hud-label">Nivel</p>
+              <p className="font-heading text-4xl font-bold text-[#bcaeff]">{level || "--"}</p>
+            </div>
+          </div>
+          <div className="mt-12 space-y-2">
+            <div className="flex justify-between font-mono text-[11px] text-muted-foreground">
+              <span>XP: {xp.toLocaleString()} / {xpToNextLevel.toLocaleString()}</span>
+              <span>{xpPercent.toFixed(0)}% AL SIGUIENTE NIVEL</span>
+            </div>
+            <Progress value={xpPercent} className="h-2 rounded-none bg-secondary [&_[data-slot=progress-indicator]]:bg-[#ffd700]" />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
+          <Metric label="Racha actual" value={streak} detail="dias consecutivos" tone="text-[#ffd700]" />
+          <Metric label="Misiones listas" value={activeGoals.length} detail="objetivos activos" tone="text-[#bcaeff]" />
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
+        <div className="border border-border bg-card p-5">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <p className="hud-label">Ruta semanal</p>
+              <h3 className="mt-1 font-heading text-lg font-bold">Proximos hitos</h3>
+            </div>
+            <Target className="h-5 w-5 text-primary" />
+          </div>
+          <div className="mt-4 space-y-0">
+            {routeItems.length ? routeItems.map((goal, index) => (
+              <div key={goal.id} className="grid grid-cols-[24px_1fr_auto] gap-3 border-b border-border py-4 last:border-0">
+                {index === 0 ? <Circle className="mt-0.5 h-4 w-4 text-[#ffd700]" /> : <Circle className="mt-0.5 h-4 w-4 text-[#7c5dff]" />}
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{goal.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{goal.description || "Siguiente paso de tu ruta personal"}</p>
+                </div>
+                <span className="font-mono text-[10px] uppercase text-muted-foreground">Activa</span>
+              </div>
+            )) : (
+              <div className="flex min-h-44 flex-col items-center justify-center text-center">
+                <Target className="h-7 w-7 text-primary" />
+                <p className="mt-3 text-sm text-muted-foreground">Crea una meta para iniciar tu primera ruta.</p>
+              </div>
             )}
+          </div>
+        </div>
+
+        <div className="border border-border bg-card p-5">
+          <p className="hud-label">Recursos de hoy</p>
+          <div className="mt-4 grid gap-3">
+            <div className="flex items-center gap-3 border-b border-border pb-3">
+              <Wallet className="h-5 w-5 text-[#ffd700]" />
+              <div><p className="text-xs text-muted-foreground">Balance diario</p><p className="font-heading text-xl font-bold">${balance.toLocaleString()}</p></div>
+            </div>
+            <div className="flex items-center gap-3 border-b border-border pb-3">
+              <Heart className="h-5 w-5 text-[#bcaeff]" />
+              <div><p className="text-xs text-muted-foreground">Peso actual</p><p className="font-heading text-xl font-bold">{currentWeight ?? "--"} {currentWeight != null ? "kg" : ""}</p></div>
+            </div>
+            <div className="flex items-center gap-3">
+              <CalendarClock className="h-5 w-5 text-primary" />
+              <div><p className="text-xs text-muted-foreground">Turnos</p><p className="font-heading text-xl font-bold">{shifts.length} activos</p></div>
+            </div>
           </div>
         </div>
       </section>
 
-      <div className="flex flex-col gap-1">
-        <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground">
-          Tu resumen de hoy
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {isEmpty
-            ? "Completa tu perfil para ver tu resumen completo."
-            : "Una mirada rápida a lo que importa."}
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-escudo-gold">
-              <Zap className="h-4 w-4" /> Nivel del jugador
-            </CardDescription>
-            <CardTitle className="text-3xl text-foreground">
-              {isEmpty ? "--" : level}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>XP</span>
-                <span>
-                  {isEmpty ? "-- / --" : `${xp.toLocaleString()} / ${xpToNextLevel.toLocaleString()}`}
-                </span>
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
+        <div className="border border-border bg-card p-5">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div><p className="hud-label">Misiones diarias</p><h3 className="mt-1 font-heading text-lg font-bold">Acciones de hoy</h3></div>
+            <span className="font-mono text-[11px] text-muted-foreground">{completedMissions} COMPLETADAS</span>
+          </div>
+          <div className="mt-1">
+            {routeItems.length ? routeItems.map((goal, index) => (
+              <div key={`mission-${goal.id}`} className="flex items-center gap-3 border-b border-border py-4 last:border-0">
+                {index < completedMissions ? <Check className="h-4 w-4 text-[#7c5dff]" /> : <span className="h-4 w-4 border border-muted-foreground" />}
+                <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{goal.name}</p><p className="font-mono text-[10px] uppercase text-muted-foreground">Progreso en curso</p></div>
+                <span className="font-mono text-[10px] text-[#ffd700]">+ XP</span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full rounded-full bg-escudo-green transition-all"
-                  style={{ width: `${isEmpty ? 0 : Math.min(xpPercent, 100)}%` }}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-escudo-gold">
-              <Target className="h-4 w-4" /> Racha actual
-            </CardDescription>
-            <CardTitle className="text-3xl text-foreground">
-              {isEmpty ? "--" : streak}{" "}
-              <span className="text-base font-normal text-muted-foreground">dias</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Badge variant="outline" className="border-escudo-green/30 text-escudo-green">
-              {streak > 0 ? "En racha activa" : "Empieza tu racha hoy"}
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-escudo-gold">
-              <Wallet className="h-4 w-4" /> Balance del dia
-            </CardDescription>
-            <CardTitle
-              className={`text-3xl ${balance >= 0 ? "text-escudo-green" : "text-escudo-red"}`}
-            >
-              {balance >= 0 ? "+" : "-"}${Math.abs(balance).toLocaleString()}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Ingresos: +${todayIncome.toLocaleString()} · Gastos: -${todayExpense.toLocaleString()}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-escudo-gold">
-              <Heart className="h-4 w-4" /> Peso actual
-            </CardDescription>
-            <CardTitle className="text-3xl text-foreground">
-              {latestWeight != null ? latestWeight : "--"}{" "}
-              <span className="text-base font-normal text-muted-foreground">kg</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center gap-1 text-xs">
-            {weightTrend != null ? (
-              weightTrend < 0 ? (
-                <>
-                  <TrendingDown className="h-3 w-3 text-escudo-green" />
-                  <span className="text-escudo-green">
-                    {weightTrend.toFixed(1)} kg vs anterior
-                  </span>
-                </>
-              ) : (
-                <>
-                  <TrendingUp className="h-3 w-3 text-escudo-red" />
-                  <span className="text-escudo-red">
-                    +{weightTrend.toFixed(1)} kg vs anterior
-                  </span>
-                </>
-              )
-            ) : (
-              <span className="text-muted-foreground">Sin datos suficientes</span>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="flex flex-col gap-6 lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <CheckSquare className="h-5 w-5 text-escudo-green" /> Resumen diario
-              </CardTitle>
-              <CardDescription>Progreso de tareas y habitos de hoy</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Misiones completadas</span>
-                  <span className="font-medium text-escudo-green">
-                    {completedMissions} / {totalMissions || "--"}
-                  </span>
-                </div>
-                <Progress
-                  value={totalMissions > 0 ? (completedMissions / totalMissions) * 100 : 0}
-                  className="h-2 bg-secondary"
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Metas activas</span>
-                  <span className="font-medium text-escudo-cyan">
-                    {goals.filter((g) => g.status === "active").length}
-                  </span>
-                </div>
-                <Progress
-                  value={
-                    goals.length > 0
-                      ? (goals.filter((g) => g.status === "completed").length / goals.length) *
-                        100
-                      : 0
-                  }
-                  className="h-2 bg-secondary"
-                />
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <CalendarClock className="h-4 w-4 text-escudo-cyan" />
-                <span>Turnos activos: {shifts.length}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Target className="h-5 w-5 text-escudo-gold" /> Metas activas
-              </CardTitle>
-              <CardDescription>Seguimiento de metas y objetivos</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {displayGoals.length > 0 ? (
-                displayGoals.map((goal) => {
-                  const latestMetric = goal.recent_metrics?.[0];
-                  const progressValue = goal.target_value
-                    ? ((latestMetric?.value ?? 0) / goal.target_value) * 100
-                    : goal.status === "completed"
-                      ? 100
-                      : 0;
-
-                  return (
-                    <div key={goal.id} className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-foreground">{goal.name}</span>
-                        <span className="font-medium text-escudo-green">
-                          {Math.min(progressValue, 100).toFixed(0)}%
-                        </span>
-                      </div>
-                      <Progress
-                        value={Math.min(progressValue, 100)}
-                        className="h-2 bg-secondary"
-                      />
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <Shield className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    No hay metas activas. Crea tu primera meta desde OMNI o la seccion Metas.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            )) : <p className="py-8 text-center text-sm text-muted-foreground">Tu tablero esta listo para la primera mision.</p>}
+          </div>
         </div>
-
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-5 w-5 text-escudo-cyan" /> Gastos recientes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {finances.length > 0 ? (
-                <div className="space-y-3">
-                  {finances
-                    .filter((f) => f.type === "expense")
-                    .sort(
-                      (a, b) =>
-                        new Date(b.date ?? b.created_at ?? 0).getTime() -
-                        new Date(a.date ?? a.created_at ?? 0).getTime()
-                    )
-                    .slice(0, 5)
-                    .map((tx) => (
-                      <div key={tx.id} className="flex justify-between text-sm">
-                        <span className="max-w-[160px] truncate text-foreground">
-                          {tx.description || tx.category || "Sin categoria"}
-                        </span>
-                        <span className="font-medium text-escudo-red">
-                          -${(tx.amount ?? 0).toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <Wallet className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    No hay gastos registrados aun.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Zap className="h-5 w-5 text-escudo-green" /> OMNI
-              </CardTitle>
-              <CardDescription>Asistente de comando</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-escudo-green/20 bg-escudo-green/8 p-3 text-sm text-escudo-green">
-                <p>OMNI esta listo para recibir comandos.</p>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="border border-border bg-card p-5">
+          <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-[#7c5dff]" /><p className="hud-label">OMNI insights</p></div>
+          <p className="mt-5 font-heading text-lg font-semibold leading-snug text-foreground">Tu progreso se construye con una accion clara cada dia.</p>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">OMNI puede ayudarte a convertir una meta en el siguiente paso concreto.</p>
+          <div className="mt-6 flex items-center gap-2 border-t border-border pt-4 text-xs text-[#ffd700]"><Zap className="h-4 w-4" /> Sistema listo para continuar</div>
         </div>
-      </div>
+      </section>
+
+      <footer className="flex items-center gap-2 border-t border-border pt-4 font-mono text-[10px] uppercase tracking-wide text-muted-foreground"><Shield className="h-3.5 w-3.5 text-primary" /> El Escudo // bitacora sincronizada</footer>
     </div>
   );
 }

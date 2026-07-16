@@ -14,10 +14,10 @@ interface SidebarProps {
 }
 
 const GROUP_TONES = {
-  inicio: "text-orange-400",
-  productividad: "text-blue-400",
-  finanzas: "text-yellow-300",
-  bienestar: "text-fuchsia-400",
+  inicio: "text-[#bcaeff]",
+  productividad: "text-[#bcaeff]",
+  finanzas: "text-[#ffd700]",
+  bienestar: "text-[#bcaeff]",
 } as const;
 
 function getNavTone(module: NavModule) {
@@ -30,20 +30,20 @@ function getNavTone(module: NavModule) {
 
   return {
     inicio: {
-      active: "border-orange-400/60 bg-orange-400/10 text-orange-300",
-      idle: "text-muted-foreground hover:border-orange-400/40 hover:bg-orange-400/10 hover:text-orange-300",
+      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
+      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
     },
     productividad: {
-      active: "border-blue-400/60 bg-blue-400/10 text-blue-300",
-      idle: "text-muted-foreground hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-blue-300",
+      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
+      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
     },
     finanzas: {
-      active: "border-yellow-300/60 bg-yellow-300/10 text-yellow-200",
-      idle: "text-muted-foreground hover:border-yellow-300/40 hover:bg-yellow-300/10 hover:text-yellow-200",
+      active: "border-[#ffd700] bg-[#ffd700]/10 text-[#ffe980]",
+      idle: "text-muted-foreground hover:border-[#ffd700]/50 hover:bg-[#ffd700]/10 hover:text-[#ffe980]",
     },
     bienestar: {
-      active: "border-fuchsia-400/60 bg-fuchsia-400/10 text-fuchsia-300",
-      idle: "text-muted-foreground hover:border-fuchsia-400/40 hover:bg-fuchsia-400/10 hover:text-fuchsia-300",
+      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
+      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
     },
   }[module.group];
 }
@@ -65,8 +65,7 @@ function NavLink({
     <Link
       href={mod.href}
       className={cn(
-        "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
-        "border",
+        "group flex items-center gap-3 rounded-none border px-3 py-2.5 text-sm transition-colors duration-200",
         active ? tone.active : tone.idle,
         collapsed && "justify-center px-2",
         isOmni && "text-lime-400"
@@ -95,7 +94,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     <aside
       className={cn(
         "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 md:flex",
-        collapsed ? "w-[4.5rem]" : "w-64"
+        collapsed ? "w-[4.5rem]" : "w-56"
       )}
     >
       <div className="flex h-16 items-center justify-between px-4">
@@ -112,7 +111,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             variant="ghost"
             size="icon"
             onClick={onToggle}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 rounded-none text-muted-foreground hover:bg-secondary hover:text-foreground"
             aria-label="Colapsar sidebar"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -126,7 +125,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             variant="ghost"
             size="icon"
             onClick={onToggle}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 rounded-none text-muted-foreground hover:bg-secondary hover:text-foreground"
             aria-label="Expandir sidebar"
           >
             <ChevronRight className="h-4 w-4" />
@@ -165,9 +164,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       <div className={cn("p-3", collapsed && "flex justify-center")}>
         {!collapsed ? (
-          <div className="border border-primary/25 bg-primary/8 px-3 py-2 text-xs text-muted-foreground">
+          <div className="border border-border bg-secondary px-3 py-2 text-xs text-muted-foreground">
             <p className="font-mono text-sm font-bold text-primary">v2.0.0</p>
-            <p>Modo arcade</p>
+            <p>Bitacora personal</p>
           </div>
         ) : (
           <span className="text-[10px] text-muted-foreground">v2</span>

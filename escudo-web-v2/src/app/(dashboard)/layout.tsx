@@ -12,7 +12,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const pathname = usePathname();
   const activeModule = NAV_MODULES.find((module) => module.href === pathname);
 
@@ -23,7 +23,7 @@ export default function DashboardLayout({
       <div
         className={cn(
           "relative z-10 flex flex-1 flex-col transition-all duration-300 md:ml-[4.5rem]",
-          !collapsed && "md:ml-64"
+          !collapsed && "md:ml-56"
         )}
       >
         <Topbar />
