@@ -2,31 +2,17 @@ import { createServerSupabaseClient } from "@/lib/auth/server";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
+function getApiUrl(path: string) {
+  const baseUrl = API_BASE_URL.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  return baseUrl.endsWith("/api/v1") && normalizedPath.startsWith("/api/v1/")
+    ? `${baseUrl}${normalizedPath.slice("/api/v1".length)}`
+    : `${baseUrl}${normalizedPath}`;
+}
+
 export async function fetchFromBackend<T>(path: string): Promise<T> {
-  const supabase = await createServerSupabaseClient();
-  const { data } = await supabase.auth.getSession();
-
-  if (!data.session?.access_token) {
-    throw new Error("No hay sesión activa.");
-  }
-
-  const url = `${API_BASE_URL.replace(/\/+$/, "")}${path}`;
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${data.session.access_token}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(
-      `Error del backend (${response.status}): ${body.slice(0, 120) || response.statusText}`
-    );
-  }
-
-  return response.json() as Promise<T>;
+  return apiRequest<T>("GET", path);
 }
 
 export async function postToBackend<T>(path: string, body: unknown): Promise<T> {
@@ -49,7 +35,7 @@ export async function apiRequest<T>(
     throw new Error("No hay sesión activa.");
   }
 
-  const url = `${API_BASE_URL.replace(/\/+$/, "")}${path}`;
+  const url = getApiUrl(path);
   const response = await fetch(url, {
     method,
     headers: {
@@ -58,6 +44,7 @@ export async function apiRequest<T>(
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
   });
 
   if (!response.ok) {
