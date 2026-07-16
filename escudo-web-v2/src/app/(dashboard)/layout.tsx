@@ -14,8 +14,8 @@ export default function DashboardLayout({
 
   return (
     <div className="relative flex min-h-screen overflow-hidden">
-      <div className="pointer-events-none absolute -left-40 top-24 h-96 w-96 rounded-full bg-orange-500/10 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-500/8 blur-[140px]" />
+      <div className="pointer-events-none absolute -left-40 top-24 h-96 w-96 rounded-full bg-orange-500/15 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-96 w-96 rounded-full bg-cyan-400/12 blur-[140px]" />
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
 
       <div
