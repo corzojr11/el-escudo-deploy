@@ -57,6 +57,11 @@ scheduler = BackgroundScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if os.getenv("VERCEL"):
+        # Vercel functions are short-lived; scheduled jobs belong in a worker/cron service.
+        yield
+        return
+
     scheduler.add_job(send_contextual_notifications, "interval", minutes=5)
     scheduler.add_job(analyze_user_patterns, "cron", hour=3, minute=0)
     scheduler.add_job(schedule_reminders, "cron", hour=6, minute=0)
