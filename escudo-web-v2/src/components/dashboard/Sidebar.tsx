@@ -16,15 +16,15 @@ interface SidebarProps {
 const GROUP_TONES = {
   inicio: "text-[#bcaeff]",
   productividad: "text-[#bcaeff]",
-  finanzas: "text-[#ffd700]",
+  finanzas: "text-[#bcaeff]",
   bienestar: "text-[#bcaeff]",
 } as const;
 
 function getNavTone(module: NavModule) {
   if (module.id === "omni") {
     return {
-      active: "border-lime-400/60 bg-lime-400/10 text-lime-300",
-      idle: "text-lime-400 hover:border-lime-400/40 hover:bg-lime-400/10 hover:text-lime-300",
+      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
+      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
     };
   }
 
@@ -38,8 +38,8 @@ function getNavTone(module: NavModule) {
       idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
     },
     finanzas: {
-      active: "border-[#ffd700] bg-[#ffd700]/10 text-[#ffe980]",
-      idle: "text-muted-foreground hover:border-[#ffd700]/50 hover:bg-[#ffd700]/10 hover:text-[#ffe980]",
+      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
+      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
     },
     bienestar: {
       active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
@@ -68,14 +68,13 @@ function NavLink({
         "group flex items-center gap-3 rounded-none border px-3 py-2.5 text-sm transition-colors duration-200",
         active ? tone.active : tone.idle,
         collapsed && "justify-center px-2",
-        isOmni && "text-lime-400"
       )}
       title={collapsed ? mod.label : undefined}
     >
       <span className="relative inline-flex">
         <Icon className="h-5 w-5 shrink-0" />
         {isOmni && (
-          <span className="animate-pulse-led absolute -right-1 -top-1 h-2 w-2 rounded-full bg-lime-400" />
+          <span className="animate-pulse-led absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[#7c5dff]" />
         )}
       </span>
       {!collapsed && (

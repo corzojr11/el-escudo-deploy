@@ -27,14 +27,7 @@ function MobileNavLink({
 }) {
   const Icon = mod.icon;
   const isOmni = mod.id === "omni";
-  const tone = isOmni
-    ? "text-lime-400"
-    : {
-        inicio: "text-orange-400",
-        productividad: "text-blue-400",
-        finanzas: "text-yellow-300",
-        bienestar: "text-fuchsia-400",
-      }[mod.group];
+  const tone = "text-[#bcaeff]";
 
   return (
     <Link
@@ -49,7 +42,7 @@ function MobileNavLink({
       <span className="relative inline-flex">
         <Icon className="h-5 w-5" />
         {isOmni && (
-          <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-lime-400 animate-pulse-led" />
+          <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[#7c5dff] animate-pulse-led" />
         )}
       </span>
       <span className="font-medium">{isOmni ? "> OMNI_" : mod.label}</span>
