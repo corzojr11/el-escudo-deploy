@@ -23,26 +23,26 @@ const GROUP_TONES = {
 function getNavTone(module: NavModule) {
   if (module.id === "omni") {
     return {
-      active: "border-lime-400/60 bg-lime-400/10 text-lime-300 shadow-[0_0_18px_rgba(108,242,76,0.16)]",
+      active: "border-lime-400/60 bg-lime-400/10 text-lime-300",
       idle: "text-lime-400 hover:border-lime-400/40 hover:bg-lime-400/10 hover:text-lime-300",
     };
   }
 
   return {
     inicio: {
-      active: "border-orange-400/60 bg-orange-400/10 text-orange-300 shadow-[0_0_18px_rgba(255,157,0,0.14)]",
+      active: "border-orange-400/60 bg-orange-400/10 text-orange-300",
       idle: "text-muted-foreground hover:border-orange-400/40 hover:bg-orange-400/10 hover:text-orange-300",
     },
     productividad: {
-      active: "border-blue-400/60 bg-blue-400/10 text-blue-300 shadow-[0_0_18px_rgba(58,123,255,0.16)]",
+      active: "border-blue-400/60 bg-blue-400/10 text-blue-300",
       idle: "text-muted-foreground hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-blue-300",
     },
     finanzas: {
-      active: "border-yellow-300/60 bg-yellow-300/10 text-yellow-200 shadow-[0_0_18px_rgba(255,211,53,0.14)]",
+      active: "border-yellow-300/60 bg-yellow-300/10 text-yellow-200",
       idle: "text-muted-foreground hover:border-yellow-300/40 hover:bg-yellow-300/10 hover:text-yellow-200",
     },
     bienestar: {
-      active: "border-fuchsia-400/60 bg-fuchsia-400/10 text-fuchsia-300 shadow-[0_0_18px_rgba(242,74,223,0.16)]",
+      active: "border-fuchsia-400/60 bg-fuchsia-400/10 text-fuchsia-300",
       idle: "text-muted-foreground hover:border-fuchsia-400/40 hover:bg-fuchsia-400/10 hover:text-fuchsia-300",
     },
   }[module.group];
@@ -94,13 +94,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl transition-all duration-300 md:flex",
+        "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 md:flex",
         collapsed ? "w-[4.5rem]" : "w-64"
       )}
     >
       <div className="flex h-16 items-center justify-between px-4">
         <div className={cn("flex items-center gap-2", collapsed && "w-full justify-center")}>
-          <Shield className="h-6 w-6 text-primary drop-shadow-[0_0_12px_rgba(255,122,0,0.58)]" />
+          <Shield className="h-6 w-6 text-primary" />
           {!collapsed && (
             <span className="font-heading text-lg font-bold tracking-[0.16em] text-glow text-foreground">
               EL ESCUDO

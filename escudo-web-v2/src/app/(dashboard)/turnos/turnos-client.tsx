@@ -93,7 +93,7 @@ export function TurnosClient({ shifts, currentStatus }: TurnosClientProps) {
         </div>
       </section>
 
-      <Card className={cn(inShift && "border-escudo-green/30 shadow-[0_0_24px_rgba(42,245,152,0.12)]")}>
+      <Card className={cn(inShift && "border-escudo-green/30")}>
         <CardHeader className="pb-3">
           <span className="hud-label text-accent">Live Status</span>
           <CardTitle className="flex items-center gap-2 text-base">

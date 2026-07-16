@@ -25,7 +25,7 @@ export function Topbar() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 mx-3 mt-3 flex h-16 items-center justify-between border border-accent/25 bg-background/70 px-4 shadow-[0_0_26px_rgba(53,244,255,0.08)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/55 md:mx-6 md:px-6">
+    <header className="sticky top-0 z-30 mx-3 mt-3 flex h-16 items-center justify-between border border-accent/25 bg-background px-4 md:mx-6 md:px-6">
       <div className="flex items-center gap-3">
         <MobileNav />
         <div>

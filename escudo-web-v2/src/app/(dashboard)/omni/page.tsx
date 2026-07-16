@@ -236,7 +236,7 @@ export default function OmniPage() {
                       className={cn(
                         "max-w-[82%] rounded-2xl border px-4 py-3 text-sm",
                         msg.role === "user"
-                          ? "border-primary/40 bg-primary/16 text-foreground shadow-[0_0_20px_rgba(124,58,237,0.18)]"
+                          ? "border-primary/40 bg-primary/16 text-foreground"
                           : msg.isError
                             ? "border-escudo-red/20 bg-escudo-red/10 text-escudo-red"
                             : "border-accent/15 bg-background/45 text-foreground"

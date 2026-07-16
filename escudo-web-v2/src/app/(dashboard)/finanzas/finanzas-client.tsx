@@ -169,7 +169,7 @@ export function FinanzasClient({ transactions, summary }: FinanzasClientProps) {
                           </div>
                           <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                             <div
-                              className="h-full rounded-full bg-escudo-red shadow-[0_0_16px_rgba(255,77,141,0.4)]"
+                              className="h-full rounded-full bg-escudo-red"
                               style={{ width: `${expense > 0 ? Math.min((item.total / expense) * 100, 100) : 0}%` }}
                             />
                           </div>
@@ -191,7 +191,7 @@ export function FinanzasClient({ transactions, summary }: FinanzasClientProps) {
                             </div>
                             <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                               <div
-                                className="h-full rounded-full bg-escudo-green shadow-[0_0_16px_rgba(42,245,152,0.4)]"
+                                className="h-full rounded-full bg-escudo-green"
                                 style={{ width: `${income > 0 ? Math.min((item.total / income) * 100, 100) : 0}%` }}
                               />
                             </div>

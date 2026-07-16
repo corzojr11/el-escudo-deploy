@@ -84,7 +84,7 @@ function HabitCard({
                     className={cn(
                       "flex aspect-square w-full items-center justify-center rounded-xl border text-xs font-medium",
                       completed
-                        ? "border-escudo-green/30 bg-escudo-green/20 text-escudo-green shadow-[0_0_14px_rgba(42,245,152,0.24)]"
+                        ? "border-escudo-green/30 bg-escudo-green/20 text-escudo-green"
                         : "border-border bg-secondary/70 text-muted-foreground"
                     )}
                   >

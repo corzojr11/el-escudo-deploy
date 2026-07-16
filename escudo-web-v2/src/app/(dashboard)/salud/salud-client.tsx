@@ -187,7 +187,7 @@ export function SaludClient({ weightLogs, focusStatus }: SaludClientProps) {
                     return (
                       <div key={log.id} className="flex flex-col items-center gap-1">
                         <div
-                          className="w-6 rounded-t-sm bg-escudo-cyan/80 shadow-[0_0_18px_rgba(45,226,230,0.25)] transition-all"
+                          className="w-6 rounded-t-sm bg-escudo-cyan/80 transition-all"
                           style={{ height: `${heightPct}%` }}
                           title={`${log.weight} kg`}
                         />
