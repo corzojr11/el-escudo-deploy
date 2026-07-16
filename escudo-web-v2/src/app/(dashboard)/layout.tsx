@@ -13,9 +13,9 @@ export default function DashboardLayout({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="bg-grid-mask relative flex min-h-screen overflow-hidden">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_top,rgba(45,226,230,0.18),transparent_60%)]" />
-      <div className="pointer-events-none absolute right-0 top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(124,58,237,0.22),transparent_68%)] blur-3xl" />
+    <div className="relative flex min-h-screen overflow-hidden">
+      <div className="pointer-events-none absolute -left-40 top-24 h-96 w-96 rounded-full bg-orange-500/10 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-500/8 blur-[140px]" />
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
 
       <div

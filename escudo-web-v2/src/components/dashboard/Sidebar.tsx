@@ -31,17 +31,17 @@ function NavLink({
       className={cn(
         "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
         active
-          ? "border border-accent/40 bg-accent/14 text-accent shadow-[0_0_16px_rgba(45,226,230,0.16)]"
-          : "border border-transparent text-muted-foreground hover:border-primary/25 hover:bg-primary/10 hover:text-foreground",
+          ? "border border-primary/30 bg-primary/12 text-primary shadow-[0_8px_24px_rgba(255,100,34,0.12)]"
+          : "border border-transparent text-muted-foreground hover:border-primary/20 hover:bg-primary/8 hover:text-foreground",
         collapsed && "justify-center px-2",
-        isOmni && "text-escudo-green hover:bg-escudo-green/10 hover:text-escudo-green"
+        isOmni && "text-primary hover:bg-primary/10 hover:text-primary"
       )}
       title={collapsed ? mod.label : undefined}
     >
       <span className="relative inline-flex">
-        <Icon className={cn("h-5 w-5 shrink-0", isOmni && "text-escudo-green")} />
+        <Icon className={cn("h-5 w-5 shrink-0", isOmni && "text-primary")} />
         {isOmni && (
-          <span className="animate-pulse-led absolute -right-1 -top-1 h-2 w-2 rounded-full bg-escudo-green" />
+          <span className="animate-pulse-led absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />
         )}
       </span>
       {!collapsed && (
@@ -65,9 +65,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     >
       <div className="flex h-16 items-center justify-between px-4">
         <div className={cn("flex items-center gap-2", collapsed && "w-full justify-center")}>
-          <Shield className="h-6 w-6 text-accent drop-shadow-[0_0_10px_rgba(45,226,230,0.45)]" />
+          <Shield className="h-6 w-6 text-primary drop-shadow-[0_0_12px_rgba(255,100,34,0.45)]" />
           {!collapsed && (
-            <span className="font-heading text-lg font-black tracking-[0.18em] text-glow text-white">
+            <span className="font-heading text-xl font-semibold tracking-tight text-foreground">
               EL ESCUDO
             </span>
           )}
@@ -110,7 +110,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             return (
               <div key={group.key} className="flex flex-col gap-1">
                 {!collapsed && (
-                  <span className="hud-label px-3 text-accent/80">{group.label}</span>
+                  <span className="hud-label px-3 text-primary/80">{group.label}</span>
                 )}
                 {items.map((mod) => (
                   <NavLink
@@ -130,9 +130,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       <div className={cn("p-3", collapsed && "flex justify-center")}>
         {!collapsed ? (
-          <div className="rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs text-muted-foreground">
-            <p className="font-heading text-sm font-bold tracking-[0.18em] text-white">v2.0.0</p>
-            <p>Modo neon tactical</p>
+          <div className="rounded-2xl border border-border bg-white/[0.025] px-3 py-2 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">El Escudo</p>
+            <p>Tu espacio personal</p>
           </div>
         ) : (
           <span className="text-[10px] text-muted-foreground">v2</span>

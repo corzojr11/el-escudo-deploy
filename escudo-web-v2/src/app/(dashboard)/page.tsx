@@ -104,24 +104,24 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_center,rgba(45,226,230,0.12),transparent_62%)]" />
+      <section className="panel-neon relative overflow-hidden rounded-[28px] p-6 md:p-8">
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_center,rgba(255,100,34,0.14),transparent_62%)]" />
         <div className="relative flex flex-col gap-3">
-          <span className="hud-label text-accent">Neon Command Center</span>
-          <h2 className="font-heading text-3xl font-black tracking-[0.1em] text-glow text-foreground md:text-4xl">
-            {profile?.name ? `BIENVENIDO, ${profile.name.toUpperCase()}` : "BIENVENIDO DE VUELTA"}
+          <span className="hud-label text-primary">Panorama personal</span>
+          <h2 className="font-heading text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
+            {profile?.name ? `Bienvenido, ${profile.name}` : "Bienvenido de vuelta"}
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
             {isEmpty
               ? "Activa tu perfil para desbloquear el panel completo."
-              : "Tu base de operaciones: progreso, energia, finanzas y estado tactico en un solo tablero."}
+              : "Tu progreso, energía, finanzas y bienestar en un solo lugar."}
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
-            <Badge className="border border-accent/40 bg-accent/10 text-accent hover:bg-accent/10">
-              Sistema online
+            <Badge className="border border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">
+              Todo en orden
             </Badge>
-            <Badge className="border border-primary/40 bg-primary/10 text-primary-foreground hover:bg-primary/10">
-              Modo gamer
+            <Badge className="border border-border bg-white/5 text-muted-foreground hover:bg-white/5">
+              Un día a la vez
             </Badge>
             {quote && (
               <Badge className="max-w-full border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/5">
@@ -133,13 +133,13 @@ export default function DashboardPage() {
       </section>
 
       <div className="flex flex-col gap-1">
-        <h2 className="font-heading text-2xl font-bold tracking-[0.08em] text-foreground">
-          {profile?.name ? `Bienvenido, ${profile.name}` : "Bienvenido de vuelta"}
+        <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground">
+          Tu resumen de hoy
         </h2>
         <p className="text-sm text-muted-foreground">
           {isEmpty
             ? "Completa tu perfil para ver tu resumen completo."
-            : "Resumen de tu dia, progreso y comandos rapidos."}
+            : "Una mirada rápida a lo que importa."}
         </p>
       </div>
 
