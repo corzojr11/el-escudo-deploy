@@ -126,6 +126,67 @@
   --sidebar-ring: #3a7bff;
 }
 
+/* Cada módulo activa su propia energía visual sin alterar el layout. */
+[data-theme="dashboard"] {
+  --module-color: #ff9d00;
+  --primary: #ff9d00;
+  --accent: #ff9d00;
+  --border: #a96600;
+  --ring: #ff9d00;
+  --color-escudo-gold: #ff9d00;
+  --color-escudo-green: #ff9d00;
+  --color-escudo-cyan: #ff9d00;
+}
+
+[data-theme="omni"] {
+  --module-color: #6cf24c;
+  --primary: #6cf24c;
+  --accent: #6cf24c;
+  --accent-foreground: #071b08;
+  --border: #33872b;
+  --ring: #6cf24c;
+  --color-escudo-gold: #6cf24c;
+  --color-escudo-green: #6cf24c;
+  --color-escudo-cyan: #6cf24c;
+}
+
+[data-theme="metas"],
+[data-theme="habitos"],
+[data-theme="turnos"] {
+  --module-color: #3a7bff;
+  --primary: #3a7bff;
+  --accent: #3a7bff;
+  --border: #3156a3;
+  --ring: #3a7bff;
+  --color-escudo-gold: #3a7bff;
+  --color-escudo-green: #3a7bff;
+  --color-escudo-cyan: #3a7bff;
+}
+
+[data-theme="finanzas"] {
+  --module-color: #ffd335;
+  --primary: #ffd335;
+  --accent: #ffd335;
+  --primary-foreground: #1d1800;
+  --accent-foreground: #1d1800;
+  --border: #9f7e00;
+  --ring: #ffd335;
+  --color-escudo-gold: #ffd335;
+  --color-escudo-green: #ffd335;
+  --color-escudo-cyan: #ffd335;
+}
+
+[data-theme="salud"] {
+  --module-color: #f24adf;
+  --primary: #f24adf;
+  --accent: #f24adf;
+  --border: #a53c9a;
+  --ring: #f24adf;
+  --color-escudo-gold: #f24adf;
+  --color-escudo-green: #f24adf;
+  --color-escudo-cyan: #f24adf;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -154,13 +215,13 @@
 /* Utilidades de marca */
 @layer utilities {
   .text-escudo-gold {
-    color: #ff9d00;
+    color: var(--module-color, #ff9d00);
   }
   .text-escudo-green {
-    color: #6cf24c;
+    color: var(--module-color, #6cf24c);
   }
   .text-escudo-cyan {
-    color: #3a7bff;
+    color: var(--module-color, #3a7bff);
   }
   .text-escudo-red {
     color: #ff3b5c;

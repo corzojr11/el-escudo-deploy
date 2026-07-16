@@ -13,6 +13,41 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
+const GROUP_TONES = {
+  inicio: "text-orange-400",
+  productividad: "text-blue-400",
+  finanzas: "text-yellow-300",
+  bienestar: "text-fuchsia-400",
+} as const;
+
+function getNavTone(module: NavModule) {
+  if (module.id === "omni") {
+    return {
+      active: "border-lime-400/60 bg-lime-400/10 text-lime-300 shadow-[0_0_18px_rgba(108,242,76,0.16)]",
+      idle: "text-lime-400 hover:border-lime-400/40 hover:bg-lime-400/10 hover:text-lime-300",
+    };
+  }
+
+  return {
+    inicio: {
+      active: "border-orange-400/60 bg-orange-400/10 text-orange-300 shadow-[0_0_18px_rgba(255,157,0,0.14)]",
+      idle: "text-muted-foreground hover:border-orange-400/40 hover:bg-orange-400/10 hover:text-orange-300",
+    },
+    productividad: {
+      active: "border-blue-400/60 bg-blue-400/10 text-blue-300 shadow-[0_0_18px_rgba(58,123,255,0.16)]",
+      idle: "text-muted-foreground hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-blue-300",
+    },
+    finanzas: {
+      active: "border-yellow-300/60 bg-yellow-300/10 text-yellow-200 shadow-[0_0_18px_rgba(255,211,53,0.14)]",
+      idle: "text-muted-foreground hover:border-yellow-300/40 hover:bg-yellow-300/10 hover:text-yellow-200",
+    },
+    bienestar: {
+      active: "border-fuchsia-400/60 bg-fuchsia-400/10 text-fuchsia-300 shadow-[0_0_18px_rgba(242,74,223,0.16)]",
+      idle: "text-muted-foreground hover:border-fuchsia-400/40 hover:bg-fuchsia-400/10 hover:text-fuchsia-300",
+    },
+  }[module.group];
+}
+
 function NavLink({
   module: mod,
   collapsed,
@@ -24,24 +59,24 @@ function NavLink({
 }) {
   const Icon = mod.icon;
   const isOmni = mod.id === "omni";
+  const tone = getNavTone(mod);
 
   return (
     <Link
       href={mod.href}
       className={cn(
         "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
-        active
-          ? "border border-accent/50 bg-accent/10 text-accent shadow-[0_0_22px_rgba(53,244,255,0.2)]"
-          : "border border-transparent text-muted-foreground hover:border-primary/45 hover:bg-primary/10 hover:text-foreground",
+        "border",
+        active ? tone.active : tone.idle,
         collapsed && "justify-center px-2",
-        isOmni && "text-escudo-green hover:bg-escudo-green/10 hover:text-escudo-green"
+        isOmni && "text-lime-400"
       )}
       title={collapsed ? mod.label : undefined}
     >
       <span className="relative inline-flex">
-        <Icon className={cn("h-5 w-5 shrink-0", isOmni && "text-escudo-green")} />
+        <Icon className="h-5 w-5 shrink-0" />
         {isOmni && (
-          <span className="animate-pulse-led absolute -right-1 -top-1 h-2 w-2 rounded-full bg-escudo-green" />
+          <span className="animate-pulse-led absolute -right-1 -top-1 h-2 w-2 rounded-full bg-lime-400" />
         )}
       </span>
       {!collapsed && (
@@ -110,7 +145,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             return (
               <div key={group.key} className="flex flex-col gap-1">
                 {!collapsed && (
-                  <span className="hud-label px-3 text-accent/80">{group.label}</span>
+                  <span className={cn("hud-label px-3", GROUP_TONES[group.key])}>{group.label}</span>
                 )}
                 {items.map((mod) => (
                   <NavLink
