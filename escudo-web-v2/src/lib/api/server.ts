@@ -44,7 +44,8 @@ export async function apiRequest<T>(
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
+    // Render Free puede tardar cerca de un minuto al reactivar el backend dormido.
+    signal: AbortSignal.timeout(70_000),
   });
 
   if (!response.ok) {
