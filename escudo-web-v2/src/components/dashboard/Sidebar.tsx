@@ -29,19 +29,19 @@ function NavLink({
     <Link
       href={mod.href}
       className={cn(
-        "group flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+        "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
         active
-          ? "bg-accent/10 text-accent"
-          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+          ? "border border-accent/40 bg-accent/14 text-accent shadow-[0_0_16px_rgba(45,226,230,0.16)]"
+          : "border border-transparent text-muted-foreground hover:border-primary/25 hover:bg-primary/10 hover:text-foreground",
         collapsed && "justify-center px-2",
-        isOmni && "bg-escudo-green/5 text-escudo-green hover:bg-escudo-green/10 hover:text-escudo-green"
+        isOmni && "text-escudo-green hover:bg-escudo-green/10 hover:text-escudo-green"
       )}
       title={collapsed ? mod.label : undefined}
     >
       <span className="relative inline-flex">
         <Icon className={cn("h-5 w-5 shrink-0", isOmni && "text-escudo-green")} />
         {isOmni && (
-          <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-escudo-green animate-pulse-led" />
+          <span className="animate-pulse-led absolute -right-1 -top-1 h-2 w-2 rounded-full bg-escudo-green" />
         )}
       </span>
       {!collapsed && (
@@ -59,16 +59,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-border bg-sidebar transition-all duration-300 md:flex",
+        "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl transition-all duration-300 md:flex",
         collapsed ? "w-[4.5rem]" : "w-64"
       )}
     >
-      {/* Header */}
       <div className="flex h-16 items-center justify-between px-4">
-        <div className={cn("flex items-center gap-2", collapsed && "justify-center w-full")}>
-          <Shield className="h-6 w-6 text-escudo-gold" />
+        <div className={cn("flex items-center gap-2", collapsed && "w-full justify-center")}>
+          <Shield className="h-6 w-6 text-accent drop-shadow-[0_0_10px_rgba(45,226,230,0.45)]" />
           {!collapsed && (
-            <span className="font-mono text-lg font-bold tracking-tight text-escudo-gold">
+            <span className="font-heading text-lg font-black tracking-[0.18em] text-glow text-white">
               EL ESCUDO
             </span>
           )}
@@ -102,7 +101,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       <Separator className="bg-sidebar-border" />
 
-      {/* Navegación */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="flex flex-col gap-6">
           {NAV_GROUPS.map((group) => {
@@ -112,9 +110,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             return (
               <div key={group.key} className="flex flex-col gap-1">
                 {!collapsed && (
-                  <span className="px-3 text-[10px] font-bold uppercase tracking-wider text-escudo-gold/80">
-                    {group.label}
-                  </span>
+                  <span className="hud-label px-3 text-accent/80">{group.label}</span>
                 )}
                 {items.map((mod) => (
                   <NavLink
@@ -132,12 +128,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       <Separator className="bg-sidebar-border" />
 
-      {/* Footer */}
       <div className={cn("p-3", collapsed && "flex justify-center")}>
         {!collapsed ? (
-          <div className="rounded-md bg-secondary px-3 py-2 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">v2.0.0-alpha</p>
-            <p>Modo preparación</p>
+          <div className="rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs text-muted-foreground">
+            <p className="font-heading text-sm font-bold tracking-[0.18em] text-white">v2.0.0</p>
+            <p>Modo neon tactical</p>
           </div>
         ) : (
           <span className="text-[10px] text-muted-foreground">v2</span>

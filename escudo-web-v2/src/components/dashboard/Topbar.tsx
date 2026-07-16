@@ -25,11 +25,12 @@ export function Topbar() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:px-6">
+    <header className="sticky top-0 z-30 mx-3 mt-3 flex h-16 items-center justify-between rounded-2xl border border-border/70 bg-background/70 px-4 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 md:mx-6 md:px-6">
       <div className="flex items-center gap-3">
         <MobileNav />
         <div>
-          <h1 className="text-base font-semibold text-foreground md:text-lg">
+          <p className="hud-label mb-1 hidden md:block">Command Deck</p>
+          <h1 className="font-heading text-base font-bold tracking-[0.12em] text-foreground md:text-lg">
             {activeModule ? activeModule.label : "El Escudo"}
           </h1>
           <p className="hidden text-xs text-muted-foreground md:block">

@@ -2,13 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
@@ -26,39 +20,29 @@ interface MetasClientProps {
 }
 
 function GoalCard({ goal }: { goal: Goal }) {
-  const latestMetric: Metric | undefined | null =
-    goal.latest_metric ?? goal.recent_metrics?.[0];
+  const latestMetric: Metric | undefined | null = goal.latest_metric ?? goal.recent_metrics?.[0];
   const currentValue = goal.current_value ?? latestMetric?.value ?? 0;
   const targetValue = goal.target_value ?? 0;
-  const progress =
-    targetValue > 0 ? Math.min((currentValue / targetValue) * 100, 100) : 0;
+  const progress = targetValue > 0 ? Math.min((currentValue / targetValue) * 100, 100) : 0;
   const unit = goal.unit || latestMetric?.unit || "";
 
   const statusConfig = {
-    active: {
-      label: "Activa",
-      className: "border-escudo-cyan/30 text-escudo-cyan",
-    },
-    completed: {
-      label: "Completada",
-      className: "border-escudo-green/30 text-escudo-green",
-    },
-    archived: {
-      label: "Archivada",
-      className: "border-muted-foreground/30 text-muted-foreground",
-    },
+    active: { label: "Activa", className: "border-escudo-cyan/30 bg-escudo-cyan/10 text-escudo-cyan" },
+    completed: { label: "Completada", className: "border-escudo-green/30 bg-escudo-green/10 text-escudo-green" },
+    archived: { label: "Archivada", className: "border-muted-foreground/30 bg-muted/20 text-muted-foreground" },
   };
+
   const status = (goal.status ?? "active") as keyof typeof statusConfig;
   const config = statusConfig[status] ?? statusConfig.active;
 
   return (
-    <Card className="border-border bg-card">
+    <Card>
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div>
             <CardTitle className="text-base text-foreground">{goal.name}</CardTitle>
             <CardDescription className="line-clamp-2">
-              {goal.description || "Sin descripción"}
+              {goal.description || "Sin descripcion"}
             </CardDescription>
           </div>
           <Badge variant="outline" className={config.className}>
@@ -72,14 +56,11 @@ function GoalCard({ goal }: { goal: Goal }) {
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Progreso</span>
               <span className="font-medium text-escudo-green">
-                {currentValue.toLocaleString("es-CO")} /{" "}
-                {targetValue.toLocaleString("es-CO")} {unit}
+                {currentValue.toLocaleString("es-CO")} / {targetValue.toLocaleString("es-CO")} {unit}
               </span>
             </div>
             <Progress value={progress} className="h-2 bg-secondary" />
-            <p className="text-right text-xs text-muted-foreground">
-              {progress.toFixed(0)}%
-            </p>
+            <p className="text-right text-xs text-muted-foreground">{progress.toFixed(0)}%</p>
           </div>
         )}
 
@@ -146,169 +127,76 @@ export function MetasClient({ goals }: MetasClientProps) {
   const completedGoals = goals.filter((g) => g.status === "completed");
   const archivedGoals = goals.filter((g) => g.status === "archived");
 
-  if (goals.length === 0) {
-    // Show inline empty state with form accessible
-    return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Metas</h2>
-          <p className="text-sm text-muted-foreground">
-            Define y haz seguimiento de tus objetivos personales.
-          </p>
-        </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="flex flex-col gap-6 lg:col-span-1">
-            <EmptyState
-              title="No tienes metas aún"
-              message="Crea tu primera meta para comenzar a medir tu progreso."
-            />
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Plus className="h-5 w-5 text-escudo-gold" /> Nueva meta
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form ref={createFormRef} action={handleCreateGoal} className="flex flex-col gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nombre</Label>
-                    <Input id="name" name="name" placeholder="Ej. Leer 12 libros" required className="border-input bg-secondary" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Descripción</Label>
-                    <Input id="description" name="description" placeholder="Opcional" className="border-input bg-secondary" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="target_value">Objetivo</Label>
-                      <Input id="target_value" name="target_value" type="number" step="0.01" min="0" placeholder="0" className="border-input bg-secondary" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="unit">Unidad</Label>
-                      <Input id="unit" name="unit" placeholder="kg, libros..." className="border-input bg-secondary" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="deadline">Fecha límite</Label>
-                    <Input id="deadline" name="deadline" type="date" className="border-input bg-secondary" />
-                  </div>
-                  <FormStatus {...createStatus} />
-                  <SubmitButton className="w-full bg-escudo-gold text-primary-foreground hover:bg-escudo-gold/90">
-                    Crear meta
-                  </SubmitButton>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="lg:col-span-2" />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Metas</h2>
-        <p className="text-sm text-muted-foreground">
-          {activeGoals.length} activas · {completedGoals.length} completadas ·{" "}
-          {archivedGoals.length} archivadas
-        </p>
-      </div>
+      <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_center,rgba(45,226,230,0.12),transparent_62%)]" />
+        <div className="relative flex flex-col gap-3">
+          <span className="hud-label text-accent">Mission Board</span>
+          <h2 className="font-heading text-3xl font-black tracking-[0.1em] text-glow text-foreground md:text-4xl">
+            METAS
+          </h2>
+          <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+            Define objetivos, registra progreso y visualiza estados en un tablero de misiones.
+          </p>
+        </div>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Formularios */}
         <div className="flex flex-col gap-6 lg:col-span-1">
-          <Card className="border-border bg-card">
+          <Card>
             <CardHeader>
+              <span className="hud-label text-accent">New Goal</span>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Plus className="h-5 w-5 text-escudo-gold" /> Nueva meta
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form
-                ref={createFormRef}
-                action={handleCreateGoal}
-                className="flex flex-col gap-4"
-              >
+              <form ref={createFormRef} action={handleCreateGoal} className="flex flex-col gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Nombre</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    placeholder="Ej. Leer 12 libros"
-                    required
-                    className="border-input bg-secondary"
-                  />
+                  <Input id="name" name="name" placeholder="Ej. Leer 12 libros" required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Descripción</Label>
-                  <Input
-                    id="description"
-                    name="description"
-                    placeholder="Opcional"
-                    className="border-input bg-secondary"
-                  />
+                  <Label htmlFor="description">Descripcion</Label>
+                  <Input id="description" name="description" placeholder="Opcional" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="target_value">Objetivo</Label>
-                    <Input
-                      id="target_value"
-                      name="target_value"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0"
-                      className="border-input bg-secondary"
-                    />
+                    <Input id="target_value" name="target_value" type="number" step="0.01" min="0" placeholder="0" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="unit">Unidad</Label>
-                    <Input
-                      id="unit"
-                      name="unit"
-                      placeholder="kg, libros..."
-                      className="border-input bg-secondary"
-                    />
+                    <Input id="unit" name="unit" placeholder="kg, libros..." />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="deadline">Fecha límite</Label>
-                  <Input
-                    id="deadline"
-                    name="deadline"
-                    type="date"
-                    className="border-input bg-secondary"
-                  />
+                  <Label htmlFor="deadline">Fecha limite</Label>
+                  <Input id="deadline" name="deadline" type="date" />
                 </div>
                 <FormStatus {...createStatus} />
-                <SubmitButton className="w-full bg-escudo-gold text-primary-foreground hover:bg-escudo-gold/90">
-                  Crear meta
-                </SubmitButton>
+                <SubmitButton className="w-full">Crear meta</SubmitButton>
               </form>
             </CardContent>
           </Card>
 
-          <Card className="border-border bg-card">
+          <Card>
             <CardHeader>
+              <span className="hud-label text-accent">Update Progress</span>
               <CardTitle className="flex items-center gap-2 text-base">
                 <TrendingUp className="h-5 w-5 text-escudo-cyan" /> Registrar progreso
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form
-                ref={metricFormRef}
-                action={handleAddMetric}
-                className="flex flex-col gap-4"
-              >
+              <form ref={metricFormRef} action={handleAddMetric} className="flex flex-col gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="goal_id">Meta</Label>
                   <select
                     id="goal_id"
                     name="goal_id"
                     required
-                    className="flex h-10 w-full rounded-md border border-input bg-secondary px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="h-11 w-full rounded-xl border border-border/80 bg-input/80 px-3 py-2 text-sm text-foreground outline-none transition-all focus-visible:border-accent/60 focus-visible:ring-3 focus-visible:ring-accent/20"
                   >
                     <option value="">Selecciona una meta</option>
                     {activeGoals.map((goal) => (
@@ -320,68 +208,54 @@ export function MetasClient({ goals }: MetasClientProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="value">Valor</Label>
-                  <Input
-                    id="value"
-                    name="value"
-                    type="number"
-                    step="0.01"
-                    required
-                    placeholder="0"
-                    className="border-input bg-secondary"
-                  />
+                  <Input id="value" name="value" type="number" step="0.01" required placeholder="0" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="unit">Unidad</Label>
-                  <Input
-                    id="unit"
-                    name="unit"
-                    placeholder="Opcional"
-                    className="border-input bg-secondary"
-                  />
+                  <Input id="unit" name="unit" placeholder="Opcional" />
                 </div>
                 <FormStatus {...metricStatus} />
-                <SubmitButton className="w-full bg-escudo-cyan text-primary-foreground hover:bg-escudo-cyan/90">
-                  Registrar progreso
-                </SubmitButton>
+                <SubmitButton className="w-full">Registrar progreso</SubmitButton>
               </form>
             </CardContent>
           </Card>
         </div>
 
-        {/* Listado de metas */}
         <div className="flex flex-col gap-6 lg:col-span-2">
-          {activeGoals.length > 0 && (
-            <div className="grid gap-4 md:grid-cols-2">
-              {activeGoals.map((goal) => (
-                <GoalCard key={goal.id} goal={goal} />
-              ))}
-            </div>
-          )}
+          {goals.length === 0 ? (
+            <EmptyState title="No tienes metas aun" message="Crea tu primera meta para comenzar a medir tu progreso." />
+          ) : (
+            <>
+              {activeGoals.length > 0 && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {activeGoals.map((goal) => (
+                    <GoalCard key={goal.id} goal={goal} />
+                  ))}
+                </div>
+              )}
 
-          {completedGoals.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-escudo-gold">
-                Completadas
-              </h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                {completedGoals.map((goal) => (
-                  <GoalCard key={goal.id} goal={goal} />
-                ))}
-              </div>
-            </div>
-          )}
+              {completedGoals.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="hud-label text-escudo-gold">Completadas</h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {completedGoals.map((goal) => (
+                      <GoalCard key={goal.id} goal={goal} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {archivedGoals.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                Archivadas
-              </h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                {archivedGoals.map((goal) => (
-                  <GoalCard key={goal.id} goal={goal} />
-                ))}
-              </div>
-            </div>
+              {archivedGoals.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="hud-label text-muted-foreground">Archivadas</h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {archivedGoals.map((goal) => (
+                      <GoalCard key={goal.id} goal={goal} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-jetbrains-mono);
+  --font-mono: var(--font-jetbrains-mono);
+  --font-heading: var(--font-orbitron);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,82 +48,82 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   /* Colores de marca El Escudo */
-  --color-escudo-gold: #ffb800;
-  --color-escudo-green: #00ff9d;
-  --color-escudo-cyan: #00e5ff;
-  --color-escudo-red: #ff3b5c;
-  --color-escudo-surface: #151a22;
-  --color-escudo-border: #2a2f38;
+  --color-escudo-gold: #ffd166;
+  --color-escudo-green: #2af598;
+  --color-escudo-cyan: #2de2e6;
+  --color-escudo-red: #ff4d8d;
+  --color-escudo-violet: #7c3aed;
+  --color-escudo-surface: #101427;
+  --color-escudo-border: #43316b;
 }
 
 :root {
-  /* Tema oscuro por defecto: El Escudo */
-  --background: #0b0f14;
-  --foreground: #f2f4f7;
-  --card: #151a22;
-  --card-foreground: #f2f4f7;
-  --popover: #151a22;
-  --popover-foreground: #f2f4f7;
-  --primary: #ffb800;
-  --primary-foreground: #0b0f14;
-  --secondary: #1e242d;
-  --secondary-foreground: #f2f4f7;
-  --muted: #1e242d;
-  --muted-foreground: #a0a5b0;
-  --accent: #00ff9d;
-  --accent-foreground: #0b0f14;
-  --destructive: #ff3b5c;
-  --border: #2a2f38;
-  --input: #2a2f38;
-  --ring: #ffb800;
-  --chart-1: #ffb800;
-  --chart-2: #00ff9d;
-  --chart-3: #00e5ff;
-  --chart-4: #ff3b5c;
-  --chart-5: #a855f7;
+  --background: #060816;
+  --foreground: #edf6ff;
+  --card: rgba(13, 18, 39, 0.82);
+  --card-foreground: #edf6ff;
+  --popover: rgba(8, 12, 28, 0.96);
+  --popover-foreground: #edf6ff;
+  --primary: #7c3aed;
+  --primary-foreground: #f7f4ff;
+  --secondary: #11182f;
+  --secondary-foreground: #cde3ff;
+  --muted: #0f1730;
+  --muted-foreground: #93a4c8;
+  --accent: #2de2e6;
+  --accent-foreground: #041016;
+  --destructive: #ff4d8d;
+  --border: rgba(113, 84, 199, 0.45);
+  --input: rgba(13, 18, 39, 0.92);
+  --ring: #2de2e6;
+  --chart-1: #7c3aed;
+  --chart-2: #2de2e6;
+  --chart-3: #2af598;
+  --chart-4: #ff4d8d;
+  --chart-5: #ffd166;
   --radius: 0.625rem;
-  --sidebar: #0f1318;
-  --sidebar-foreground: #f2f4f7;
-  --sidebar-primary: #ffb800;
-  --sidebar-primary-foreground: #0b0f14;
-  --sidebar-accent: #1e242d;
-  --sidebar-accent-foreground: #f2f4f7;
-  --sidebar-border: #2a2f38;
-  --sidebar-ring: #ffb800;
+  --sidebar: rgba(7, 10, 24, 0.92);
+  --sidebar-foreground: #edf6ff;
+  --sidebar-primary: #7c3aed;
+  --sidebar-primary-foreground: #f7f4ff;
+  --sidebar-accent: rgba(45, 226, 230, 0.12);
+  --sidebar-accent-foreground: #edf6ff;
+  --sidebar-border: rgba(113, 84, 199, 0.4);
+  --sidebar-ring: #2de2e6;
 }
 
 .dark {
-  --background: #0b0f14;
-  --foreground: #f2f4f7;
-  --card: #151a22;
-  --card-foreground: #f2f4f7;
-  --popover: #151a22;
-  --popover-foreground: #f2f4f7;
-  --primary: #ffb800;
-  --primary-foreground: #0b0f14;
-  --secondary: #1e242d;
-  --secondary-foreground: #f2f4f7;
-  --muted: #1e242d;
-  --muted-foreground: #a0a5b0;
-  --accent: #00ff9d;
-  --accent-foreground: #0b0f14;
-  --destructive: #ff3b5c;
-  --border: #2a2f38;
-  --input: #2a2f38;
-  --ring: #ffb800;
-  --chart-1: #ffb800;
-  --chart-2: #00ff9d;
-  --chart-3: #00e5ff;
-  --chart-4: #ff3b5c;
-  --chart-5: #a855f7;
-  --sidebar: #0f1318;
-  --sidebar-foreground: #f2f4f7;
-  --sidebar-primary: #ffb800;
-  --sidebar-primary-foreground: #0b0f14;
-  --sidebar-accent: #1e242d;
-  --sidebar-accent-foreground: #f2f4f7;
-  --sidebar-border: #2a2f38;
-  --sidebar-ring: #ffb800;
+  --background: #060816;
+  --foreground: #edf6ff;
+  --card: rgba(13, 18, 39, 0.82);
+  --card-foreground: #edf6ff;
+  --popover: rgba(8, 12, 28, 0.96);
+  --popover-foreground: #edf6ff;
+  --primary: #7c3aed;
+  --primary-foreground: #f7f4ff;
+  --secondary: #11182f;
+  --secondary-foreground: #cde3ff;
+  --muted: #0f1730;
+  --muted-foreground: #93a4c8;
+  --accent: #2de2e6;
+  --accent-foreground: #041016;
+  --destructive: #ff4d8d;
+  --border: rgba(113, 84, 199, 0.45);
+  --input: rgba(13, 18, 39, 0.92);
+  --ring: #2de2e6;
+  --chart-1: #7c3aed;
+  --chart-2: #2de2e6;
+  --chart-3: #2af598;
+  --chart-4: #ff4d8d;
+  --chart-5: #ffd166;
+  --sidebar: rgba(7, 10, 24, 0.92);
+  --sidebar-foreground: #edf6ff;
+  --sidebar-primary: #7c3aed;
+  --sidebar-primary-foreground: #f7f4ff;
+  --sidebar-accent: rgba(45, 226, 230, 0.12);
+  --sidebar-accent-foreground: #edf6ff;
+  --sidebar-border: rgba(113, 84, 199, 0.4);
+  --sidebar-ring: #2de2e6;
 }
 
 @layer base {
@@ -132,9 +132,31 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at top left, rgba(124, 58, 237, 0.28), transparent 28%),
+      radial-gradient(circle at top right, rgba(45, 226, 230, 0.2), transparent 24%),
+      radial-gradient(circle at bottom center, rgba(255, 77, 141, 0.14), transparent 26%),
+      linear-gradient(180deg, #080b18 0%, #060816 100%);
+    min-height: 100vh;
   }
   html {
     @apply font-sans;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(45, 226, 230, 0.05) 1px, transparent 1px);
+    background-size: 100% 4px, 72px 72px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.66), transparent 92%);
+    opacity: 0.45;
+  }
+  ::selection {
+    background: rgba(45, 226, 230, 0.28);
+    color: #fff;
   }
 }
 
@@ -161,6 +183,35 @@
   .shadow-glow-green {
     box-shadow: 0 0 12px rgba(0, 255, 157, 0.15);
   }
+  .panel-neon {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+      rgba(13, 18, 39, 0.82);
+    border: 1px solid rgba(113, 84, 199, 0.45);
+    box-shadow:
+      0 0 0 1px rgba(45, 226, 230, 0.08) inset,
+      0 0 24px rgba(124, 58, 237, 0.16),
+      0 24px 60px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(18px);
+  }
+  .hud-label {
+    color: #93a4c8;
+    font-family: var(--font-orbitron);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .text-glow {
+    text-shadow:
+      0 0 8px rgba(45, 226, 230, 0.45),
+      0 0 18px rgba(124, 58, 237, 0.35);
+  }
+  .bg-grid-mask {
+    background-image:
+      linear-gradient(rgba(45, 226, 230, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
 }
 
 /* Animación sutil del LED OMNI */
@@ -176,4 +227,10 @@
 
 .animate-pulse-led {
   animation: pulse-led 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-led {
+    animation: none;
+  }
 }

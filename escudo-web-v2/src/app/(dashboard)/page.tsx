@@ -59,7 +59,6 @@ export default function DashboardPage() {
   const profile = data?.profile;
   const rawFinances = data?.finances ?? [];
   const finances = normalizeFinances(rawFinances);
-
   const shifts = data?.shifts ?? [];
   const weightLogs = data?.weight_logs ?? [];
   const missions = data?.missions ?? [];
@@ -82,8 +81,6 @@ export default function DashboardPage() {
     .reduce((sum, f) => sum + (f.amount ?? 0), 0);
   const balance = todayIncome - todayExpense;
 
-  const activeShiftCount = shifts.length;
-
   const sortedWeight = [...weightLogs].sort(
     (a, b) =>
       new Date(b.date ?? b.timestamp ?? b.created_at ?? 0).getTime() -
@@ -91,45 +88,66 @@ export default function DashboardPage() {
   );
   const latestWeight = sortedWeight[0]?.weight ?? null;
   const previousWeight = sortedWeight.length >= 2 ? sortedWeight[1].weight : null;
-  const weightTrend = latestWeight != null && previousWeight != null
-    ? latestWeight - previousWeight
-    : null;
+  const weightTrend =
+    latestWeight != null && previousWeight != null ? latestWeight - previousWeight : null;
 
   const completedMissions = missions.filter((m) => m.status === "completed").length;
-  const activeMissions = missions.filter((m) => m.status !== "completed" && m.status !== "archived").length;
+  const activeMissions = missions.filter(
+    (m) => m.status !== "completed" && m.status !== "archived"
+  ).length;
   const totalMissions = completedMissions + activeMissions;
 
-  const displayGoals = goals.length > 0
-    ? goals.filter((g) => g.status !== "archived").slice(0, 4)
-    : [];
+  const displayGoals =
+    goals.length > 0 ? goals.filter((g) => g.status !== "archived").slice(0, 4) : [];
 
   const isEmpty = !profile || Object.keys(profile).length === 0;
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Encabezado */}
+      <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_center,rgba(45,226,230,0.12),transparent_62%)]" />
+        <div className="relative flex flex-col gap-3">
+          <span className="hud-label text-accent">Neon Command Center</span>
+          <h2 className="font-heading text-3xl font-black tracking-[0.1em] text-glow text-foreground md:text-4xl">
+            {profile?.name ? `BIENVENIDO, ${profile.name.toUpperCase()}` : "BIENVENIDO DE VUELTA"}
+          </h2>
+          <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+            {isEmpty
+              ? "Activa tu perfil para desbloquear el panel completo."
+              : "Tu base de operaciones: progreso, energia, finanzas y estado tactico en un solo tablero."}
+          </p>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Badge className="border border-accent/40 bg-accent/10 text-accent hover:bg-accent/10">
+              Sistema online
+            </Badge>
+            <Badge className="border border-primary/40 bg-primary/10 text-primary-foreground hover:bg-primary/10">
+              Modo gamer
+            </Badge>
+            {quote && (
+              <Badge className="max-w-full border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/5">
+                &ldquo;{quote}&rdquo;
+              </Badge>
+            )}
+          </div>
+        </div>
+      </section>
+
       <div className="flex flex-col gap-1">
-        <h2 className="text-2xl font-bold text-foreground">
+        <h2 className="font-heading text-2xl font-bold tracking-[0.08em] text-foreground">
           {profile?.name ? `Bienvenido, ${profile.name}` : "Bienvenido de vuelta"}
         </h2>
         <p className="text-sm text-muted-foreground">
           {isEmpty
             ? "Completa tu perfil para ver tu resumen completo."
-            : "Resumen de tu día, progreso y comandos rápidos."}
+            : "Resumen de tu dia, progreso y comandos rapidos."}
         </p>
-        {quote && (
-          <p className="mt-1 text-xs italic text-muted-foreground">
-            &ldquo;{quote}&rdquo;
-          </p>
-        )}
       </div>
 
-      {/* KPIs principales */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border bg-card">
+        <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2 text-escudo-gold">
-              <Zap className="h-4 w-4" /> Nivel del Jugador
+              <Zap className="h-4 w-4" /> Nivel del jugador
             </CardDescription>
             <CardTitle className="text-3xl text-foreground">
               {isEmpty ? "--" : level}
@@ -139,7 +157,9 @@ export default function DashboardPage() {
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>XP</span>
-                <span>{isEmpty ? "-- / --" : `${xp.toLocaleString()} / ${xpToNextLevel.toLocaleString()}`}</span>
+                <span>
+                  {isEmpty ? "-- / --" : `${xp.toLocaleString()} / ${xpToNextLevel.toLocaleString()}`}
+                </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                 <div
@@ -151,30 +171,27 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card">
+        <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2 text-escudo-gold">
-              <Target className="h-4 w-4" /> Racha Actual
+              <Target className="h-4 w-4" /> Racha actual
             </CardDescription>
             <CardTitle className="text-3xl text-foreground">
               {isEmpty ? "--" : streak}{" "}
-              <span className="text-base font-normal text-muted-foreground">días</span>
+              <span className="text-base font-normal text-muted-foreground">dias</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge
-              variant="outline"
-              className="border-escudo-green/30 text-escudo-green"
-            >
+            <Badge variant="outline" className="border-escudo-green/30 text-escudo-green">
               {streak > 0 ? "En racha activa" : "Empieza tu racha hoy"}
             </Badge>
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card">
+        <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2 text-escudo-gold">
-              <Wallet className="h-4 w-4" /> Balance del Día
+              <Wallet className="h-4 w-4" /> Balance del dia
             </CardDescription>
             <CardTitle
               className={`text-3xl ${balance >= 0 ? "text-escudo-green" : "text-escudo-red"}`}
@@ -183,15 +200,14 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            Ingresos: +${todayIncome.toLocaleString()} ·
-            Gastos: -${todayExpense.toLocaleString()}
+            Ingresos: +${todayIncome.toLocaleString()} · Gastos: -${todayExpense.toLocaleString()}
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card">
+        <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2 text-escudo-gold">
-              <Heart className="h-4 w-4" /> Peso Actual
+              <Heart className="h-4 w-4" /> Peso actual
             </CardDescription>
             <CardTitle className="text-3xl text-foreground">
               {latestWeight != null ? latestWeight : "--"}{" "}
@@ -222,16 +238,14 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Sección central */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Columna principal */}
         <div className="flex flex-col gap-6 lg:col-span-2">
-          <Card className="border-border bg-card">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <CheckSquare className="h-5 w-5 text-escudo-green" /> Resumen Diario
+                <CheckSquare className="h-5 w-5 text-escudo-green" /> Resumen diario
               </CardTitle>
-              <CardDescription>Progreso de tareas y hábitos de hoy</CardDescription>
+              <CardDescription>Progreso de tareas y habitos de hoy</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
@@ -249,24 +263,31 @@ export default function DashboardPage() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Metas activas</span>
-                  <span className="font-medium text-escudo-cyan">{goals.filter((g) => g.status === "active").length}</span>
+                  <span className="font-medium text-escudo-cyan">
+                    {goals.filter((g) => g.status === "active").length}
+                  </span>
                 </div>
                 <Progress
-                  value={goals.length > 0 ? (goals.filter((g) => g.status === "completed").length / goals.length) * 100 : 0}
+                  value={
+                    goals.length > 0
+                      ? (goals.filter((g) => g.status === "completed").length / goals.length) *
+                        100
+                      : 0
+                  }
                   className="h-2 bg-secondary"
                 />
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CalendarClock className="h-4 w-4 text-escudo-cyan" />
-                <span>Turnos activos: {activeShiftCount}</span>
+                <span>Turnos activos: {shifts.length}</span>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-border bg-card">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Target className="h-5 w-5 text-escudo-gold" /> Metas Activas
+                <Target className="h-5 w-5 text-escudo-gold" /> Metas activas
               </CardTitle>
               <CardDescription>Seguimiento de metas y objetivos</CardDescription>
             </CardHeader>
@@ -279,6 +300,7 @@ export default function DashboardPage() {
                     : goal.status === "completed"
                       ? 100
                       : 0;
+
                   return (
                     <div key={goal.id} className="space-y-2">
                       <div className="flex justify-between text-sm">
@@ -287,7 +309,10 @@ export default function DashboardPage() {
                           {Math.min(progressValue, 100).toFixed(0)}%
                         </span>
                       </div>
-                      <Progress value={Math.min(progressValue, 100)} className="h-2 bg-secondary" />
+                      <Progress
+                        value={Math.min(progressValue, 100)}
+                        className="h-2 bg-secondary"
+                      />
                     </div>
                   );
                 })
@@ -295,7 +320,7 @@ export default function DashboardPage() {
                 <div className="flex flex-col items-center gap-2 py-6 text-center">
                   <Shield className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
-                    No hay metas activas. Crea tu primera meta desde OMNI o la sección Metas.
+                    No hay metas activas. Crea tu primera meta desde OMNI o la seccion Metas.
                   </p>
                 </div>
               )}
@@ -303,12 +328,11 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Columna lateral */}
         <div className="flex flex-col gap-6">
-          <Card className="border-border bg-card">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-5 w-5 text-escudo-cyan" /> Gastos Recientes
+                <TrendingUp className="h-5 w-5 text-escudo-cyan" /> Gastos recientes
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -316,12 +340,16 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {finances
                     .filter((f) => f.type === "expense")
-                    .sort((a, b) => new Date(b.date ?? b.created_at ?? 0).getTime() - new Date(a.date ?? a.created_at ?? 0).getTime())
+                    .sort(
+                      (a, b) =>
+                        new Date(b.date ?? b.created_at ?? 0).getTime() -
+                        new Date(a.date ?? a.created_at ?? 0).getTime()
+                    )
                     .slice(0, 5)
                     .map((tx) => (
                       <div key={tx.id} className="flex justify-between text-sm">
-                        <span className="text-foreground truncate max-w-[160px]">
-                          {tx.description || tx.category || "Sin categoría"}
+                        <span className="max-w-[160px] truncate text-foreground">
+                          {tx.description || tx.category || "Sin categoria"}
                         </span>
                         <span className="font-medium text-escudo-red">
                           -${(tx.amount ?? 0).toLocaleString()}
@@ -333,14 +361,14 @@ export default function DashboardPage() {
                 <div className="flex flex-col items-center gap-2 py-6 text-center">
                   <Wallet className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
-                    No hay gastos registrados aún.
+                    No hay gastos registrados aun.
                   </p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="border-border bg-card">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Zap className="h-5 w-5 text-escudo-green" /> OMNI
@@ -348,8 +376,8 @@ export default function DashboardPage() {
               <CardDescription>Asistente de comando</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md bg-escudo-green/5 p-3 text-sm text-escudo-green">
-                <p>OMNI está listo para recibir comandos.</p>
+              <div className="rounded-xl border border-escudo-green/20 bg-escudo-green/8 p-3 text-sm text-escudo-green">
+                <p>OMNI esta listo para recibir comandos.</p>
               </div>
             </CardContent>
           </Card>
