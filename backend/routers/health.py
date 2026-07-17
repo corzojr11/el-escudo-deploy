@@ -99,9 +99,9 @@ class WeightLogUpdatePayload(BaseModel):
 class ExerciseLogPayload(BaseModel):
     extracted_data: Optional[dict] = None
     exercise_name: str = Field(..., min_length=1, max_length=200)
-    weight: float = Field(default=0, ge=0, le=999)
-    reps: int = Field(default=0, ge=0, le=999)
-    sets: int = Field(default=0, ge=0, le=99)
+    weight: float = Field(..., gt=0, le=999)
+    reps: int = Field(..., gt=0, le=999)
+    sets: int = Field(..., gt=0, le=99)
     rpe: int = Field(default=8, ge=1, le=10)
     date: Optional[str] = None
 
@@ -206,48 +206,81 @@ async def add_weight(payload: WeightLogPayload, user = Depends(get_current_user)
 # ─── Exercise ───────────────────────────────────────────────────────────────
 
 
-@router.post("/api/v1/log-exercise")
-async def log_exercise(payload: ExerciseLogPayload, user = Depends(get_current_user)):
-    data = payload.extracted_data if payload.extracted_data is not None else payload.model_dump(exclude_unset=True)
-    exercise_name = data.get("exercise_name")
-    weight = float(data.get("weight", 0))
-    reps = int(data.get("reps", 0))
-    sets = int(data.get("sets", 0))
-    rpe = int(data.get("rpe", 8))
+async def _upsert_exercise_log(
+    user_id: str,
+    exercise_name: str,
+    weight: float,
+    reps: int,
+    sets: int,
+    rpe: int = 8,
+    log_date: Optional[str] = None,
+) -> dict:
+    """Inserta un log de ejercicio y actualiza el record personal si corresponde.
+    Solo mejora el record si el nuevo peso es estrictamente mayor.
+    Usa condicion en DB (max_weight < nuevo_peso) para evitar race conditions."""
 
     res_log = await asyncio.to_thread(lambda: supabase.table("exercises_logs").insert({
-        "user_id": user.id,
+        "user_id": user_id,
         "exercise_name": exercise_name,
         "weight": weight,
         "reps": reps,
         "sets": sets,
         "rpe": rpe,
-        "date": payload.date or _today_str(),
+        "date": log_date or _today_str(),
     }).execute())
 
-    res_pr = await asyncio.to_thread(lambda: supabase.table("personal_records").select("*").eq("user_id", user.id).eq("exercise_name", exercise_name).execute())
-    if res_pr.data:
-        if weight > float(res_pr.data[0]["max_weight"]):
-            await asyncio.to_thread(lambda: supabase.table("personal_records").update({
+    if weight > 0:
+        res_pr = await asyncio.to_thread(
+            lambda: supabase.table("personal_records").select("*")
+            .eq("user_id", user_id).eq("exercise_name", exercise_name).execute()
+        )
+        if res_pr.data:
+            current_max = float(res_pr.data[0].get("max_weight", 0))
+            if weight > current_max:
+                pr_id = res_pr.data[0]["id"]
+                await asyncio.to_thread(
+                    lambda: supabase.table("personal_records")
+                    .update({"max_weight": weight, "date": datetime.now(timezone.utc).isoformat()})
+                    .eq("id", pr_id)
+                    .lt("max_weight", weight)
+                    .execute()
+                )
+        else:
+            await asyncio.to_thread(lambda: supabase.table("personal_records").insert({
+                "user_id": user_id,
+                "exercise_name": exercise_name,
                 "max_weight": weight,
-                "date": datetime.now(timezone.utc).isoformat()
-            }).eq("id", res_pr.data[0]["id"]).execute())
-    else:
-        await asyncio.to_thread(lambda: supabase.table("personal_records").insert({
-            "user_id": user.id,
-            "exercise_name": exercise_name,
-            "max_weight": weight
-        }).execute())
+            }).execute())
 
-    if not res_log.data:
-        raise ApiException(status_code=500, detail="No se pudo registrar el ejercicio.")
+    return res_log.data[0] if res_log.data else {}
+
+
+@router.post("/api/v1/log-exercise")
+async def log_exercise(payload: ExerciseLogPayload, user = Depends(get_current_user)):
+    if payload.extracted_data is not None:
+        try:
+            validated = ExerciseLogPayload(**payload.extracted_data)
+        except Exception:
+            raise ApiException(status_code=422, detail="Datos de ejercicio invalidos en extracted_data")
+    else:
+        validated = payload
+
+    exercise_name = validated.exercise_name
+    weight = validated.weight
+    reps = validated.reps
+    sets = validated.sets
+    rpe = validated.rpe
+    log_date = validated.date
+
+    res = await _upsert_exercise_log(user.id, exercise_name, weight, reps, sets, rpe, log_date)
+
     await track_event(
         "health",
         "log_exercise",
         user_id=user.id,
         metadata={"exercise_name": exercise_name, "weight": weight, "reps": reps, "sets": sets, "rpe": rpe},
     )
-    return {"status": "success", "log": res_log.data[0]}
+    return {"status": "success", "log": res}
 
 
 @router.get("/api/v1/exercise-logs")

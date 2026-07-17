@@ -163,3 +163,82 @@ def test_record_only_improves_not_worsens(monkeypatch):
 
     assert resp.status_code == 200
     assert not pr_table.update.called, "No debe actualizar record si el peso es menor al maximo"
+
+
+def test_log_exercise_rejects_zero_weight(monkeypatch):
+    client = TestClient(app)
+    resp = client.post("/api/v1/log-exercise", json={
+        "exercise_name": "Press banca", "weight": 0, "reps": 8, "sets": 3, "rpe": 7,
+    })
+    assert resp.status_code == 422
+
+
+def test_log_exercise_rejects_zero_reps(monkeypatch):
+    client = TestClient(app)
+    resp = client.post("/api/v1/log-exercise", json={
+        "exercise_name": "Press banca", "weight": 80, "reps": 0, "sets": 3, "rpe": 7,
+    })
+    assert resp.status_code == 422
+
+
+def test_log_exercise_rejects_zero_sets(monkeypatch):
+    client = TestClient(app)
+    resp = client.post("/api/v1/log-exercise", json={
+        "exercise_name": "Press banca", "weight": 80, "reps": 8, "sets": 0, "rpe": 7,
+    })
+    assert resp.status_code == 422
+
+
+def test_extracted_data_with_invalid_values_is_rejected(monkeypatch):
+    client = TestClient(app)
+    resp = client.post("/api/v1/log-exercise", json={
+        "extracted_data": {"exercise_name": "", "weight": 0, "reps": 0, "sets": 0},
+        "exercise_name": "ignored", "weight": 100, "reps": 10, "sets": 3,
+    })
+    assert resp.status_code == 422
+
+
+def test_record_update_uses_weight_condition(monkeypatch):
+    import routers.health as health_module
+
+    existing_pr = {"id": "pr1", "user_id": MOCK_USER_ID, "exercise_name": "Press banca", "max_weight": 80}
+
+    mock_supa = MagicMock()
+    ex_table = MagicMock()
+    ex_table.insert.return_value.execute.return_value = MockResult([
+        {"id": "e1", "exercise_name": "Press banca", "weight": 100}
+    ])
+    pr_table = MagicMock()
+    pr_table.select.return_value.eq.return_value.eq.return_value.execute.return_value = MockResult([existing_pr])
+
+    update_chain = MagicMock()
+    update_chain.eq.return_value = update_chain
+    update_chain.lt.return_value = update_chain
+    update_chain.execute.return_value = MockResult([existing_pr])
+    pr_table.update.return_value = update_chain
+
+    def table_side(name):
+        if name == "exercises_logs":
+            return ex_table
+        if name == "personal_records":
+            return pr_table
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(health_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.post("/api/v1/log-exercise", json={
+        "exercise_name": "Press banca", "weight": 100, "reps": 5, "sets": 3, "rpe": 9,
+    })
+
+    assert resp.status_code == 200
+    assert pr_table.update.called
+    assert update_chain.lt.called, "Debe usar lt(max_weight, weight) para evitar race condition"
+
+
+def test_omni_handlers_imports_shared_function():
+    from services.omni_handlers import handle_health_intent
+    import inspect
+    src = inspect.getsource(handle_health_intent)
+    assert "_upsert_exercise_log" in src, "OMNI debe usar la funcion compartida de health.py"

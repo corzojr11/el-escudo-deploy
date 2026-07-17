@@ -501,49 +501,39 @@ async def handle_health_intent(intent: str, ext: dict[str, Any], user, res_json:
 
     if intent == "LOG_EXERCISE" and ext:
         try:
-            exercise_name = str(ext.get("exercise_name") or ext.get("name") or "Ejercicio").strip()
-            weight = float(ext.get("weight", 0) or 0)
-            reps = int(ext.get("reps", 0) or 0)
-            sets = int(ext.get("sets", 0) or 0)
-            rpe = int(ext.get("rpe", 8) or 8)
+            exercise_name = str(ext.get("exercise_name") or ext.get("name") or "").strip()
             if not exercise_name:
-                raise ValueError("Ejercicio invÃ¡lido")
-
-            res_log = await asyncio.to_thread(lambda: supabase.table("exercises_logs").insert({
-                "user_id": user.id,
-                "exercise_name": exercise_name,
-                "weight": weight,
-                "reps": reps,
-                "sets": sets,
-                "rpe": rpe,
-            }).execute())
+                raise ValueError("Ejercicio invalido")
 
             try:
-                res_pr = await asyncio.to_thread(lambda: supabase.table("personal_records").select("*").eq("user_id", user.id).eq("exercise_name", exercise_name).execute())
-                if res_pr.data:
-                    if weight > float(res_pr.data[0]["max_weight"]):
-                        await asyncio.to_thread(lambda: supabase.table("personal_records").update({
-                            "max_weight": weight,
-                            "date": datetime.now(timezone.utc).isoformat(),
-                        }).eq("id", res_pr.data[0]["id"]).execute())
-                else:
-                    await asyncio.to_thread(lambda: supabase.table("personal_records").insert({
-                        "user_id": user.id,
-                        "exercise_name": exercise_name,
-                        "max_weight": weight,
-                    }).execute())
-            except Exception as pr_err:
-                logger.warning(f"LOG_EXERCISE PR sync warning: {pr_err}")
+                weight = float(ext.get("weight", 0) or 0)
+            except (ValueError, TypeError):
+                weight = 0
+            try:
+                reps = int(ext.get("reps", 0) or 0)
+            except (ValueError, TypeError):
+                reps = 0
+            try:
+                sets = int(ext.get("sets", 0) or 0)
+            except (ValueError, TypeError):
+                sets = 0
+            try:
+                rpe = int(ext.get("rpe", 8) or 8)
+            except (ValueError, TypeError):
+                rpe = 8
 
-            if res_log.data and len(res_log.data) > 0:
-                reps_text = f"{sets}x{reps}" if sets and reps else "serie registrada"
-                weight_text = f" con {weight} kg" if weight else ""
-                res_json["mensaje_sistema"] = f"âœ… Ejercicio registrado: {exercise_name}{weight_text} ({reps_text})."
-                res_json["respuesta_usuario"] = res_json.get("respuesta_usuario") or f"Listo, dejÃ© registrado {exercise_name}{weight_text}."
-                res_json["xp_ganada"] = 20
-                res_json["executed"] = True
-            else:
-                res_json["mensaje_sistema"] = "âšï¸ El ejercicio se procesÃ³, pero no pude verificarlo en la base de datos."
+            if weight <= 0 or reps <= 0 or sets <= 0:
+                raise ValueError("Peso, repeticiones y series deben ser mayores a cero")
+
+            from routers.health import _upsert_exercise_log
+            await _upsert_exercise_log(user.id, exercise_name, weight, reps, sets, rpe)
+
+            reps_text = f"{sets}x{reps}" if sets and reps else "serie registrada"
+            weight_text = f" con {weight} kg" if weight else ""
+            res_json["mensaje_sistema"] = f"Ejercicio registrado: {exercise_name}{weight_text} ({reps_text})."
+            res_json["respuesta_usuario"] = res_json.get("respuesta_usuario") or f"Listo, deje registrado {exercise_name}{weight_text}."
+            res_json["xp_ganada"] = 20
+            res_json["executed"] = True
         except Exception:
             logger.error("LOG_EXERCISE error", exc_info=True)
             res_json["mensaje_sistema"] = "Error de base de datos al registrar el ejercicio."
