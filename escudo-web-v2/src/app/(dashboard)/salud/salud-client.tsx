@@ -25,10 +25,10 @@ interface SaludClientProps {
   focusStatus: FocusStatus | null;
   sleepAnalysis: {
     logs: SleepLog[];
-    avg_cycles: number;
-    avg_quality: number;
-    total_hours: number;
-    daily_debt: number;
+    average_cycles: number;
+    average_quality: number;
+    total_hours_week: number;
+    daily_debt_hours: number;
   } | null;
   bioSettings: Record<string, unknown> | null;
 }
@@ -445,9 +445,9 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
           {sleepAnalysis && sleepAnalysis.logs?.length > 0 ? (
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-2 text-xs text-gray-400 mb-2">
-                <span>Promedio: {sleepAnalysis.avg_cycles?.toFixed(1)} ciclos</span>
-                <span>Calidad: {sleepAnalysis.avg_quality?.toFixed(1)} / 5</span>
-                <span>Deuda: {sleepAnalysis.daily_debt?.toFixed(1)}h</span>
+                <span>Promedio: {sleepAnalysis.average_cycles?.toFixed(1)} ciclos</span>
+                <span>Calidad: {sleepAnalysis.average_quality?.toFixed(1)} / 5</span>
+                <span>Deuda: {sleepAnalysis.daily_debt_hours?.toFixed(1)}h</span>
               </div>
               <div className="border-t border-[#2A2A3C]" />
               {sleepAnalysis.logs.map((log) => (

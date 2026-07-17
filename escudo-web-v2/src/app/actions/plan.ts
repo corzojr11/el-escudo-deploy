@@ -17,6 +17,7 @@ export async function logSleep(data: {
   notes: string;
 }): Promise<{ sleep_log: SleepLog }> {
   const result = await postToBackend<{ sleep_log: SleepLog }>("/api/v1/sleep-log", data);
+  revalidatePath("/salud");
   revalidatePath("/turnos");
   revalidatePath("/");
   return result;
@@ -24,10 +25,10 @@ export async function logSleep(data: {
 
 export async function getSleepAnalysis(): Promise<{
   logs: SleepLog[];
-  avg_cycles: number;
-  avg_quality: number;
-  total_hours: number;
-  daily_debt: number;
+  average_cycles: number;
+  average_quality: number;
+  total_hours_week: number;
+  daily_debt_hours: number;
 }> {
   return fetchFromBackend("/api/v1/sleep-analysis");
 }

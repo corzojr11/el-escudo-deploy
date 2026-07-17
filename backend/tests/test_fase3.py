@@ -840,3 +840,33 @@ class TestMigration034:
         assert "information_schema.tables" in sql
         assert "002_bio_settings" in sql
         assert "commute_minutes" in sql
+
+
+class TestSleepAnalysisContract:
+    def test_sleep_analysis_returns_exact_keys(self, monkeypatch):
+        mock_supa = MagicMock()
+        sleep_table = MagicMock()
+        sleep_table.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(
+            data=[{"id": "s1", "user_id": MOCK_USER_ID, "date": "2026-07-17", "bed_time": "22:00", "wake_time": "06:00", "cycles": 5, "quality_score": 3, "notes": ""}]
+        )
+
+        def table_side(name):
+            if name == "sleep_logs":
+                return sleep_table
+            return MagicMock()
+
+        mock_supa.table.side_effect = table_side
+        import routers.schedule as schedule_module
+        monkeypatch.setattr(schedule_module, "supabase", mock_supa)
+
+        client = TestClient(app)
+        resp = client.get("/api/v1/sleep-analysis")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "logs" in data
+        assert "average_cycles" in data
+        assert "average_quality" in data
+        assert "total_hours_week" in data
+        assert "daily_debt_hours" in data
+        assert "recommendation" in data
