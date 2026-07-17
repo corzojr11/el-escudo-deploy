@@ -304,3 +304,30 @@ def test_no_nullslast_in_routers():
             f"{f.name} usa nulls_last, que no es compatible con todas las versiones del cliente Supabase. "
             "Usa nullsfirst=False en su lugar."
         )
+
+
+def test_migration_037_covers_core_tables():
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parents[2]
+    migration_path = repo_root / "supabase" / "migrations" / "037_reconcile_core_modules.sql"
+    assert migration_path.exists(), "No se encontro la migracion 037"
+    sql = migration_path.read_text(encoding="utf-8")
+
+    required_tables = [
+        "shifts", "user_bio_settings", "sleep_logs", "weight_logs",
+        "focus_status", "exercises_logs", "personal_records",
+        "achievements", "routines", "routine_completions",
+    ]
+
+    for table in required_tables:
+        assert f"CREATE TABLE IF NOT EXISTS public.{table}" in sql, (
+            f"037 debe contener CREATE TABLE IF NOT EXISTS para {table}"
+        )
+        assert f"ALTER TABLE IF EXISTS public.{table} ENABLE ROW LEVEL SECURITY" in sql, (
+            f"037 debe habilitar RLS para {table}"
+        )
+
+    assert "profiles" in sql
+    assert "RAISE NOTICE" not in sql, "037 no debe depender de tablas previas con RAISE NOTICE"
+    assert "DROP TABLE" not in sql, "037 no debe contener sentencias destructivas"
+    assert "pg_policies" in sql, "037 debe verificar politicas con pg_policies para no duplicarlas"
