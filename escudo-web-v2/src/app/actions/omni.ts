@@ -7,6 +7,7 @@ import type {
   OmniConfirmResult,
   OmniProcessingResponse,
   OmniMessagesResponse,
+  OmniPatternsResponse,
 } from "@/lib/api/types";
 
 export async function sendOmniCommand(
@@ -63,3 +64,6 @@ export async function getOmniMessages(
   );
 }
 
+export async function getOmniPatterns(): Promise<OmniPatternsResponse> {
+  return fetchFromBackend<OmniPatternsResponse>("/api/v1/omni/patterns-insights");
+}

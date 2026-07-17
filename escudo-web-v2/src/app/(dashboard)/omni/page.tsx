@@ -9,6 +9,7 @@ import {
   confirmOmniProposal,
   cancelOmniProposal,
   getOmniMessages,
+  getOmniPatterns,
 } from "@/app/actions/omni";
 import {
   isOmniProposal,
@@ -16,7 +17,7 @@ import {
   isOmniConfirmResult,
   isOmniProcessing,
 } from "@/lib/api/omni-helpers";
-import type { OmniCommandResult, OmniMessage } from "@/lib/api/types";
+import type { OmniCommandResult, OmniMessage, OmniPatternsResponse } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 function generateSessionId() {
@@ -103,17 +104,25 @@ export default function OmniPage() {
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(null);
+  const [patterns, setPatterns] = useState<OmniPatternsResponse | null>(null);
   const sessionIdRef = useRef(generateSessionId());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef("");
 
   useEffect(() => {
-    getOmniMessages(30, 0, sessionIdRef.current)
-      .then((res) => setMessages(mapHistoryToLocal(res.data ?? [])))
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Error al cargar historial");
-      })
-      .finally(() => setLoading(false));
+    Promise.allSettled([
+      getOmniMessages(30, 0, sessionIdRef.current),
+      getOmniPatterns(),
+    ]).then(([history, patternsResult]) => {
+      if (history.status === "fulfilled") {
+        setMessages(mapHistoryToLocal(history.value.data ?? []));
+      } else {
+        setError(history.reason instanceof Error ? history.reason.message : "Error al cargar historial");
+      }
+      if (patternsResult.status === "fulfilled") {
+        setPatterns(patternsResult.value);
+      }
+    }).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -267,6 +276,30 @@ export default function OmniPage() {
         </div>
       </section>
 
+      {(patterns?.suggestion || patterns?.patterns[0]) && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div>
+              <p className="hud-label text-escudo-green">Sugerencia personal</p>
+              <p className="mt-1 text-sm text-foreground">{patterns.suggestion || patterns.patterns[0].insight}</p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const suggestion = patterns.suggestion || patterns.patterns[0].insight;
+                inputRef.current = suggestion;
+                setInput(suggestion);
+                document.getElementById("omni-command")?.focus();
+              }}
+            >
+              Usar sugerencia
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="flex h-[calc(100vh-14rem)] flex-col overflow-hidden">
         <CardContent className="flex flex-1 flex-col gap-0 p-0">
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
@@ -416,6 +449,7 @@ export default function OmniPage() {
           <div className="border-t border-border/60 bg-background/50 px-4 py-3">
             <div className="flex items-center gap-2">
               <input
+                id="omni-command"
                 type="text"
                 value={input}
                 onChange={(e) => {

@@ -354,6 +354,21 @@ export interface OmniMessagesResponse {
   offset: number;
 }
 
+export interface OmniPatternInsight {
+  activity_type: string;
+  day_of_week: number;
+  hour_of_day: number;
+  confidence: number;
+  insight: string;
+}
+
+export interface OmniPatternsResponse {
+  patterns: OmniPatternInsight[];
+  suggestion: string;
+  next_predicted_action: string;
+  next_predicted_time: string;
+}
+
 export interface OmniUsageResponse {
   daily_cost: number;
   limit: number;

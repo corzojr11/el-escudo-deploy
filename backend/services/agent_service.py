@@ -234,15 +234,19 @@ async def get_patterns_insights(user_id: str) -> OmniPatternsResponse:
     dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"]
     alias = {"weight_log": "registrar peso", "habit_check": "completar hábitos", "exercise_log": "entrenar", "finance_log": "registrar gastos", "omni_use": "usar OMNI", "mood_log": "registrar ánimo"}
 
-    r = await asyncio.to_thread(
-        lambda: supabase.table("user_activity_patterns")
-            .select("*")
-            .eq("user_id", user_id)
-            .eq("enabled", True)
-            .gte("confidence", 0.5)
-            .order("confidence", desc=True)
-            .execute()
-    )
+    try:
+        r = await asyncio.to_thread(
+            lambda: supabase.table("user_activity_patterns")
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("enabled", True)
+                .gte("confidence", 0.5)
+                .order("confidence", desc=True)
+                .execute()
+        )
+    except Exception as exc:
+        logger.warning(f"No se pudieron cargar patrones de OMNI: {exc}")
+        return OmniPatternsResponse(patterns=[])
 
     patterns = []
     suggestion = ""

@@ -10,6 +10,7 @@ sys.modules["google.genai"] = MagicMock()
 
 import pytest
 from services import omni_service as omni_service_module
+from services import agent_service as agent_service_module
 
 MOCK_USER_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -318,3 +319,15 @@ class TestGetUserContext:
 
         assert "Nivel: 1 | XP: 0" in ctx
         assert ctx == "Nivel: 1 | XP: 0"
+
+
+class TestPatternsInsights:
+    def test_missing_patterns_source_returns_empty_response(self, monkeypatch):
+        mock_supa = MagicMock()
+        mock_supa.table.side_effect = RuntimeError("patterns source unavailable")
+        monkeypatch.setattr(agent_service_module, "supabase", mock_supa)
+
+        result = _run_async(agent_service_module.get_patterns_insights(MOCK_USER_ID))
+
+        assert result.patterns == []
+        assert result.suggestion == ""
