@@ -7,7 +7,7 @@ export const metadata = {
   title: "Finanzas — El Escudo",
 };
 
-function settle<T>(r: PromiseSettledResult<T>, fallback: T): T {
+function valueOr<T>(r: PromiseSettledResult<T>, fallback: T): T {
   return r.status === "fulfilled" ? r.value : fallback;
 }
 
@@ -21,9 +21,16 @@ export default async function FinanzasPage() {
     getDebts(),
   ]);
 
-  const transactions = settle(tx, []);
-  const summaryRes = settle(sm, { summary: [], total_income: 0, total_expense: 0, balance: 0 });
-  const monthSummaryRes = settle(mo, { summary: [], total_income: 0, total_expense: 0, balance: 0 });
+  const criticalError = tx.status === "rejected" || sm.status === "rejected";
+  const transactions = valueOr(tx, []);
+  const summaryRes = valueOr(sm, { summary: [], total_income: 0, total_expense: 0, balance: 0 });
+  const monthSummaryRes = valueOr(mo, { summary: [], total_income: 0, total_expense: 0, balance: 0 });
+  const loadErrors = [
+    mo.status === "rejected" ? "gasto mensual" : null,
+    bu.status === "rejected" ? "presupuesto" : null,
+    fe.status === "rejected" ? "gastos fijos" : null,
+    db.status === "rejected" ? "deudas" : null,
+  ].filter((section): section is string => section !== null);
 
   return (
     <FinanzasClient
@@ -36,9 +43,11 @@ export default async function FinanzasPage() {
         balance: summaryRes.balance ?? 0,
       }}
       initialMonthlyExpense={monthSummaryRes.total_expense ?? 0}
-      initialBudget={settle(bu, 0)}
-      fixedExpenses={settle(fe, []) as FixedExpense[]}
-      debts={settle(db, []) as Debt[]}
+      initialBudget={valueOr(bu, 0)}
+      fixedExpenses={valueOr(fe, []) as FixedExpense[]}
+      debts={valueOr(db, []) as Debt[]}
+      loadErrors={loadErrors}
+      criticalError={criticalError}
     />
   );
 }

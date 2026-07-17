@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   Check,
@@ -14,6 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { ErrorState } from "@/components/dashboard/ErrorState";
 import type { TodayResponse, PlanDiarioResponse, WellnessSummary } from "@/lib/api/types";
 
 function Metric({ label, value, detail, tone = "text-foreground" }: {
@@ -33,11 +35,12 @@ function Metric({ label, value, detail, tone = "text-foreground" }: {
 
 interface DashboardClientProps {
   data: TodayResponse;
-  plan: PlanDiarioResponse;
-  wellness: WellnessSummary;
+  plan: PlanDiarioResponse | null;
+  wellness: WellnessSummary | null;
 }
 
 export function DashboardClient({ data, plan, wellness }: DashboardClientProps) {
+  const router = useRouter();
   const profile = data.profile;
   const today = data.today;
   const goals = today.active_goals ?? [];
@@ -108,7 +111,7 @@ export function DashboardClient({ data, plan, wellness }: DashboardClientProps) 
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      {wellness ? <section className="grid gap-4 md:grid-cols-2">
         <div className="border border-border bg-card p-5">
           <div className="flex items-center gap-3">
             <div className="flex-shrink-0">
@@ -145,7 +148,9 @@ export function DashboardClient({ data, plan, wellness }: DashboardClientProps) 
             </a>
           )}
         </div>
-      </section>
+      </section> : (
+        <ErrorState title="No se pudo cargar Wellness" message="El resto del tablero sigue disponible. Reintenta para actualizar tu score e insight semanal." onRetry={() => router.refresh()} />
+      )}
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
         <div className="border border-border bg-card p-5">
@@ -216,7 +221,7 @@ export function DashboardClient({ data, plan, wellness }: DashboardClientProps) 
         </div>
       </section>
 
-      <section className="border border-border bg-card p-5">
+      {plan ? <section className="border border-border bg-card p-5">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div>
             <p className="hud-label">Plan del dia</p>
@@ -286,7 +291,9 @@ export function DashboardClient({ data, plan, wellness }: DashboardClientProps) 
           </div>
         )}
         <p className="mt-3 text-[10px] text-gray-600">{plan.disclaimer}</p>
-      </section>
+      </section> : (
+        <ErrorState title="No se pudo cargar el plan del dia" message="El resto del tablero sigue disponible. Reintenta para ver tu horario de sueno, turno y entrenamiento." onRetry={() => router.refresh()} />
+      )}
 
       <section className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
         <div className="border border-border bg-card p-5">

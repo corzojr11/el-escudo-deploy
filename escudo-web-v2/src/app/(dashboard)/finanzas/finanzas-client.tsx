@@ -51,6 +51,7 @@ import {
   getDebtPayments,
 } from "@/app/actions/finances";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { ErrorState } from "@/components/dashboard/ErrorState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatCurrency, formatDate, formatShortDate } from "@/lib/api/helpers";
@@ -73,6 +74,8 @@ interface FinanzasClientProps {
   initialMonthlyExpense: number;
   fixedExpenses: FixedExpense[];
   debts: Debt[];
+  loadErrors: string[];
+  criticalError: boolean;
 }
 
 const RANGE_LABELS: Record<FinanceRange, string> = {
@@ -154,6 +157,8 @@ export function FinanzasClient({
   initialMonthlyExpense,
   fixedExpenses: initialFixed,
   debts: initialDebts,
+  loadErrors,
+  criticalError,
 }: FinanzasClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -687,8 +692,19 @@ const [savingDraft, setSavingDraft] = useState(false);
   const budgetSaldo = budget - monthlyExpense;
   const budgetOver = monthlyExpense > budget && budgetConfigured;
 
+  if (criticalError) {
+    return <ErrorState title="No se pudieron cargar tus movimientos" message="No mostraremos valores incompletos como si fueran reales. Reintenta para cargar Finanzas." onRetry={() => router.refresh()} />;
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      {loadErrors.length > 0 && (
+        <ErrorState
+          title="Algunos datos de Finanzas no se pudieron cargar"
+          message={`Puedes seguir usando los movimientos disponibles. Pendiente de actualizar: ${loadErrors.join(", ")}.`}
+          onRetry={() => router.refresh()}
+        />
+      )}
       <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
         <div className="relative flex flex-col gap-3">
           <span className="hud-label text-escudo-gold">Financial Grid</span>

@@ -21,6 +21,7 @@ import { upsertBioSettings } from "@/app/actions/plan";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { ErrorState } from "@/components/dashboard/ErrorState";
 import type { Shift, CurrentStatusResponse } from "@/lib/api/types";
 
 const DAYS = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
@@ -39,9 +40,11 @@ interface TurnosClientProps {
   shifts: Shift[];
   currentStatus: CurrentStatusResponse;
   bioSettings: Record<string, unknown> | null;
+  loadErrors: string[];
+  criticalError: boolean;
 }
 
-export function TurnosClient({ shifts, currentStatus, bioSettings }: TurnosClientProps) {
+export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, criticalError }: TurnosClientProps) {
   const router = useRouter();
   const [shiftList, setShiftList] = useState<Shift[]>(sortByDay(shifts));
   const [creating, setCreating] = useState(false);
@@ -100,8 +103,19 @@ export function TurnosClient({ shifts, currentStatus, bioSettings }: TurnosClien
   const currentShift = currentStatus.shift ?? null;
   const nextShift = currentStatus.next_shift ?? null;
 
+  if (criticalError) {
+    return <ErrorState title="No se pudieron cargar tus turnos" message="No mostraremos una agenda vacia como si fuera tu horario real. Reintenta para cargar Turnos." onRetry={() => router.refresh()} />;
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      {loadErrors.length > 0 && (
+        <ErrorState
+          title="Algunos datos de Turnos no se pudieron cargar"
+          message={`Tu agenda sigue disponible. Pendiente de actualizar: ${loadErrors.join(", ")}.`}
+          onRetry={() => router.refresh()}
+        />
+      )}
       <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
         <div className="relative flex flex-col gap-3">
           <span className="hud-label text-accent">Time Grid</span>

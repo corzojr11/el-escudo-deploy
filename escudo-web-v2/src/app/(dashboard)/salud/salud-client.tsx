@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Heart, TrendingDown, TrendingUp, Activity, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { addWeight, updateWeight, deleteWeightLog, logExercise } from "@/app/actions/health";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { ErrorState } from "@/components/dashboard/ErrorState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatDate, formatShortDate } from "@/lib/api/helpers";
@@ -37,9 +38,10 @@ interface SaludClientProps {
   personalRecords: PersonalRecord[];
   routines: Routine[];
   completedDays: number[];
+  loadErrors: string[];
 }
 
-export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSettings, exerciseLogs, personalRecords, routines, completedDays }: SaludClientProps) {
+export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSettings, exerciseLogs, personalRecords, routines, completedDays, loadErrors }: SaludClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
@@ -140,6 +142,13 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
 
   return (
     <div className="flex flex-col gap-6">
+      {loadErrors.length > 0 && (
+        <ErrorState
+          title="Algunos datos de Salud no se pudieron cargar"
+          message={`Las secciones disponibles siguen funcionando. Pendiente de actualizar: ${loadErrors.join(", ")}.`}
+          onRetry={() => router.refresh()}
+        />
+      )}
       <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
         <div className="relative flex flex-col gap-3">
           <span className="hud-label text-escudo-red">Vital Monitor</span>

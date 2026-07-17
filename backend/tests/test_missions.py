@@ -378,3 +378,17 @@ def test_multi_fetch_pages_use_allsettled():
                     f"{f.name} tiene multiples fetches pero no usa Promise.allSettled. "
                     "Un fallo en un dato secundario no debe tumbar la pagina completa."
                 )
+
+
+def test_multi_fetch_failures_are_visible_not_fake_data():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "escudo-web-v2" / "src" / "app" / "(dashboard)"
+    dashboard = (root / "dashboard-client.tsx").read_text(encoding="utf-8")
+    finances = (root / "finanzas" / "finanzas-client.tsx").read_text(encoding="utf-8")
+    shifts = (root / "turnos" / "turnos-client.tsx").read_text(encoding="utf-8")
+
+    assert "No se pudo cargar Wellness" in dashboard
+    assert "No se pudo cargar el plan del dia" in dashboard
+    assert "criticalError" in finances and "No se pudieron cargar tus movimientos" in finances
+    assert "criticalError" in shifts and "No se pudieron cargar tus turnos" in shifts

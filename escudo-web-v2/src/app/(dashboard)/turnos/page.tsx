@@ -6,7 +6,7 @@ export const metadata = {
   title: "Turnos - El Escudo",
 };
 
-function settle<T>(r: PromiseSettledResult<T>, fallback: T): T {
+function valueOr<T>(r: PromiseSettledResult<T>, fallback: T): T {
   return r.status === "fulfilled" ? r.value : fallback;
 }
 
@@ -16,12 +16,19 @@ export default async function TurnosPage() {
     getCurrentStatus(),
     getBioSettings(),
   ]);
+  const criticalError = s.status === "rejected";
+  const loadErrors = [
+    cs.status === "rejected" ? "estado actual" : null,
+    b.status === "rejected" ? "ajustes biologicos" : null,
+  ].filter((section): section is string => section !== null);
 
   return (
     <TurnosClient
-      shifts={settle(s, [])}
-      currentStatus={settle(cs, { status: "free", message_short: "Sin turnos registrados." })}
-      bioSettings={settle(b, { bio_settings: null }).bio_settings}
+      shifts={valueOr(s, [])}
+      currentStatus={valueOr(cs, { status: "free", message_short: "Estado actual no disponible." })}
+      bioSettings={valueOr(b, { bio_settings: null }).bio_settings}
+      loadErrors={loadErrors}
+      criticalError={criticalError}
     />
   );
 }
