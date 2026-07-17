@@ -103,7 +103,7 @@ export function DashboardClient({ data, plan }: DashboardClientProps) {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
           <Metric label="Racha actual" value={focusStreak} detail="dias consecutivos" tone="text-[#ffd700]" />
-          <Metric label="Misiones listas" value={routeItems.length} detail="objetivos activos" tone="text-[#bcaeff]" />
+          <Metric label="Misiones listas" value={missions.length} detail="pendientes y completadas" tone="text-[#bcaeff]" />
         </div>
       </section>
 
@@ -252,16 +252,25 @@ export function DashboardClient({ data, plan }: DashboardClientProps) {
         <div className="border border-border bg-card p-5">
           <div className="flex items-center justify-between border-b border-border pb-3">
             <div><p className="hud-label">Misiones diarias</p><h3 className="mt-1 font-heading text-lg font-bold">Acciones de hoy</h3></div>
-            <span className="font-mono text-[11px] text-muted-foreground">{completedMissions} COMPLETADAS</span>
+            <span className="font-mono text-[11px] text-muted-foreground">{completedMissions} / {missions.length} COMPLETADAS</span>
           </div>
           <div className="mt-1">
-            {routeItems.length ? routeItems.map((goal, index) => (
-              <div key={`mission-${goal.id}`} className="flex items-center gap-3 border-b border-border py-4 last:border-0">
-                {index < completedMissions ? <Check className="h-4 w-4 text-[#7c5dff]" /> : <span className="h-4 w-4 border border-muted-foreground" />}
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{goal.name}</p><p className="font-mono text-[10px] uppercase text-muted-foreground">Progreso en curso</p></div>
-                <span className="font-mono text-[10px] text-[#ffd700]">+ XP</span>
-              </div>
-            )) : <p className="py-8 text-center text-sm text-muted-foreground">Tu tablero esta listo para la primera mision.</p>}
+            {missions.length ? missions.map((mission) => {
+              const isDone = mission.status === "completed";
+              const missionName = mission.name || mission.title || "Sin nombre";
+              return (
+                <div key={mission.id} className="flex items-center gap-3 border-b border-border py-4 last:border-0">
+                  {isDone ? <Check className="h-4 w-4 text-[#7c5dff]" /> : <span className="h-4 w-4 border border-muted-foreground" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{missionName}</p>
+                    <p className="font-mono text-[10px] uppercase text-muted-foreground">
+                      {mission.priority === "high" ? "Alta" : mission.priority === "medium" ? "Media" : "Baja"} · {isDone ? "Completada" : "Pendiente"}
+                    </p>
+                  </div>
+                  <span className="font-mono text-[10px] text-[#ffd700]">+ {mission.xp_reward || 0} XP</span>
+                </div>
+              );
+            }) : <p className="py-8 text-center text-sm text-muted-foreground">Tu tablero esta listo para la primera mision. <a href="/misiones" className="text-[#7C5DFF] underline">Crea una</a>.</p>}
           </div>
         </div>
         <div className="border border-border bg-card p-5">

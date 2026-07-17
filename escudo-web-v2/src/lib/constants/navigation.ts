@@ -6,6 +6,7 @@ import {
   Heart,
   CalendarClock,
   CheckSquare,
+  Flag,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,9 +44,16 @@ export const NAV_MODULES: NavModule[] = [
   },
   {
     id: "habitos",
-    label: "Hábitos",
+    label: "Habitos",
     href: "/habitos",
     icon: CheckSquare,
+    group: "productividad",
+  },
+  {
+    id: "misiones",
+    label: "Misiones",
+    href: "/misiones",
+    icon: Flag,
     group: "productividad",
   },
   {

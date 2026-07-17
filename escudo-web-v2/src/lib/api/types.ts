@@ -34,12 +34,16 @@ export interface FinanceEntry {
 export interface Mission {
   id: string;
   user_id: string;
-  title: string;
+  name?: string;
+  title?: string;
   description?: string;
   status?: string;
-  priority?: number;
-  schedule_date?: string;
+  xp_reward?: number;
+  category?: string;
+  priority?: "high" | "medium" | "low";
+  scheduled_at?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface WorkShift {

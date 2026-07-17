@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from auth import get_current_user
@@ -35,6 +35,22 @@ class MissionUpdatePayload(BaseModel):
 
 def _mission_row_from_payload(payload: MissionCreatePayload | MissionUpdatePayload) -> dict:
     return payload.model_dump(exclude_unset=True)
+
+
+@router.get("/api/v1/missions")
+async def list_missions(
+    status: Optional[str] = Query(None, pattern="^(active|completed|all)$"),
+    date: Optional[str] = Query(None),
+    user=Depends(get_current_user),
+):
+    query = supabase.table("missions").select("*").eq("user_id", user.id)
+    if status and status != "all":
+        query = query.eq("status", status)
+    if date:
+        query = query.eq("scheduled_at", date)
+    query = query.order("scheduled_at", desc=True, nulls_last=True)
+    res = await asyncio.to_thread(lambda: query.execute())
+    return {"missions": res.data or []}
 
 
 @router.post("/api/v1/missions")

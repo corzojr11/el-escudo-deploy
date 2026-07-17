@@ -120,3 +120,89 @@ def test_update_mission_updates_priority_and_schedule(monkeypatch):
     mission = response.json()["mission"]
     assert mission["priority"] == "medium"
     assert mission["scheduled_at"] == "2026-05-31T07:00:00Z"
+
+
+def test_list_missions_returns_array(monkeypatch):
+    mock_supa = MagicMock()
+    missions_table = MagicMock()
+    chain = MagicMock()
+    chain.eq.return_value = chain
+    chain.order.return_value = chain
+    chain.execute.return_value = MockResult([
+        {"id": "m1", "user_id": MOCK_USER_ID, "name": "Test", "status": "active", "priority": "medium"},
+        {"id": "m2", "user_id": MOCK_USER_ID, "name": "Test 2", "status": "completed", "priority": "high"},
+    ])
+    missions_table.select.return_value = chain
+
+    def table_side(name):
+        if name == "missions":
+            return missions_table
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(missions_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.get("/api/v1/missions")
+    assert resp.status_code == 200
+    assert len(resp.json()["missions"]) == 2
+
+
+def test_toggle_mission_complete_to_active(monkeypatch):
+    mock_supa = MagicMock()
+    missions_table = MagicMock()
+
+    check_chain = MagicMock()
+    check_chain.eq.return_value.eq.return_value.limit.return_value.execute.return_value = MockResult([{"id": "m1"}])
+
+    update_chain = MagicMock()
+    update_chain.eq.return_value.eq.return_value.execute.return_value = MockResult([
+        {"id": "m1", "user_id": MOCK_USER_ID, "name": "Test", "status": "active", "priority": "medium"}
+    ])
+
+    count_chain = MagicMock()
+    count_chain.eq.return_value.eq.return_value.execute.return_value = MagicMock(count=0)
+    missions_table.select.return_value = count_chain
+    missions_table.update.return_value = update_chain
+
+    def select_side(cols):
+        if "id" in str(cols):
+            return check_chain
+        return count_chain
+
+    missions_table.select.side_effect = select_side
+
+    def table_side(name):
+        if name == "missions":
+            return missions_table
+        if name == "achievements":
+            return MagicMock()
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(missions_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.put("/api/v1/missions/m1", json={"status": "active"})
+    assert resp.status_code == 200
+    assert resp.json()["mission"]["status"] == "active"
+
+
+def test_delete_mission_blocks_other_user(monkeypatch):
+    mock_supa = MagicMock()
+    missions_table = MagicMock()
+    select_chain = MagicMock()
+    select_chain.eq.return_value.eq.return_value.limit.return_value.execute.return_value = MockResult([])
+
+    def table_side(name):
+        if name == "missions":
+            missions_table.select.return_value = select_chain
+            return missions_table
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(missions_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.delete("/api/v1/missions/another-user-mission")
+    assert resp.status_code == 404

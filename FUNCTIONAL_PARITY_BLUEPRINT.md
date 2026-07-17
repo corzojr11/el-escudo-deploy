@@ -50,9 +50,11 @@
 | CRUD de metas | ❌ (solo local) | ✅ /metas | ✅ | — |
 | Registrar progreso (métricas) | ❌ | ✅ | ✅ | — |
 | Meta con porcentaje y deadline | ❌ | ✅ | ✅ | — |
-| CRUD de misiones/tareas | ✅ | ⚠️ (solo en backend, sin UI web) | ⚠️ | P1 |
-| Prioridad y fecha programada | ✅ | ⚠️ | ⚠️ | P1 |
-| Completar misión con XP | ✅ | ⚠️ | ⚠️ | P1 |
+| CRUD de misiones/tareas | ✅ | ✅ /misiones | ✅ | — |
+| Prioridad y fecha programada | ✅ | ✅ | ✅ | — |
+| Completar misión con XP | ✅ | ✅ | ✅ | — |
+| Filtros (todas, pendientes, completadas) | ✅ | ✅ | ✅ | — |
+| Dashboard con misiones reales | ❌ (tareasHoy store) | ✅ | ✅ | — |
 
 **P1**: Misiones no tienen UI en la web.
 
