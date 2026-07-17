@@ -550,15 +550,59 @@ class TestSleepCycles:
             expected_minutes = w["cycles"] * 90 + 15
             assert w["hours"] == round(expected_minutes / 60, 1)
 
-    def test_sleep_windows_are_correct_for_7am(self):
+    def test_sleep_windows_7am_6_cycles_returns_2145(self):
         from routers.schedule import _sleep_windows_from_wake
         windows = _sleep_windows_from_wake(7, 0)
         windows_by_cycles = {w["cycles"]: w for w in windows}
-        assert windows_by_cycles[6]["sleep_time"] == "20:30"
+        assert windows_by_cycles[6]["sleep_time"] == "21:45"
         assert windows_by_cycles[6]["wake_time"] == "07:00"
+        assert windows_by_cycles[6]["hours"] == 9.2
 
 
-class TestPlanDiarioPartial:
+class TestNextShift:
+    def test_find_next_shift_tomorrow_when_no_shift_today(self, monkeypatch):
+        from routers.schedule import _find_next_shift, _bogota_now
+        import routers.schedule as schedule_module
+
+        fake_now = _bogota_now().replace(hour=10, minute=0)
+        hoy = fake_now.weekday()
+        manana_idx = (hoy + 1) % 7
+        from routers.schedule import DAY_NAMES_ES
+        manana_name = DAY_NAMES_ES[manana_idx]
+
+        shifts = [{"day": manana_name, "start": "08:00", "end": "17:00"}]
+
+        result = _find_next_shift(shifts, fake_now)
+        assert result is not None
+        assert result["day"] == manana_name
+
+    def test_next_shift_sunday_to_monday(self, monkeypatch):
+        from routers.schedule import _find_next_shift
+        from datetime import datetime, timedelta
+
+        fake_now = datetime(2026, 7, 19, 18, 0)
+        shifts = [{"day": "Lunes", "start": "08:00", "end": "17:00"}]
+
+        result = _find_next_shift(shifts, fake_now)
+        assert result is not None
+        assert result["day"] == "Lunes"
+
+    def test_find_next_shift_nocturno(self, monkeypatch):
+        from routers.schedule import _find_next_shift, _bogota_now, DAY_NAMES_ES
+
+        fake_now = _bogota_now().replace(hour=22, minute=0)
+        hoy = fake_now.weekday()
+        hoy_name = DAY_NAMES_ES[hoy]
+
+        shifts = [{"day": hoy_name, "start": "22:00", "end": "06:00"}]
+
+        result = _find_next_shift(shifts, fake_now)
+        assert result is not None
+        assert result["start"] == "22:00"
+        assert result["end_minutes"] > result["start_minutes"]
+
+
+class TestWorkoutBlock:
     def test_plan_diario_returns_even_without_shifts(self, monkeypatch):
         mock_supa = MagicMock()
 
@@ -589,6 +633,74 @@ class TestPlanDiarioPartial:
         assert "windows" in data["sleep"]
         assert len(data["sleep"]["windows"]) == 3
         assert "disclaimer" in data
+
+    def test_workout_not_proposed_after_sleep_time(self, monkeypatch):
+        import routers.schedule as schedule_module
+        from datetime import datetime
+
+        fake_now = datetime(2026, 7, 17, 22, 0)
+        mock_supa = MagicMock()
+
+        def table_side(name):
+            t = MagicMock()
+            if name == "shifts":
+                t.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "user_bio_settings":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"t_wake_target": "06:00", "t_sleep_target": "22:00", "commute_minutes": 35}]
+                )
+            elif name == "profiles":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"name": "Test", "onboarding_completed_at": "2026-01-01"}]
+                )
+            elif name == "sleep_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "weight_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            return t
+
+        mock_supa.table.side_effect = table_side
+        monkeypatch.setattr(schedule_module, "supabase", mock_supa)
+        monkeypatch.setattr(schedule_module, "_bogota_now", lambda: fake_now)
+
+        client = TestClient(app)
+        resp = client.get("/api/v1/plan-diario")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["workout"] is None
+
+
+class TestSleepLogIsolation:
+    def test_sleep_log_isolated_by_user(self, monkeypatch):
+        captured_user_id = None
+
+        mock_supa = MagicMock()
+        sleep_table = MagicMock()
+        sleep_table.insert.return_value.execute.return_value = MagicMock(
+            data=[{"id": "s1", "user_id": MOCK_USER_ID, "date": "2026-07-17", "bed_time": "22:00", "wake_time": "06:00", "cycles": 5, "quality_score": 3, "notes": ""}]
+        )
+        bio_table = MagicMock()
+        bio_table.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[{"sleep_debt_hours": 0}])
+        bio_table.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[{}])
+
+        def table_side(name):
+            if name == "sleep_logs":
+                return sleep_table
+            if name == "user_bio_settings":
+                return bio_table
+            return MagicMock()
+
+        mock_supa.table.side_effect = table_side
+        import routers.schedule as schedule_module
+        monkeypatch.setattr(schedule_module, "supabase", mock_supa)
+
+        client = TestClient(app)
+        resp = client.post("/api/v1/sleep-log", json={"date": "2026-07-17", "bed_time": "22:00", "wake_time": "06:00", "cycles": 5, "quality_score": 3, "notes": ""})
+
+        assert resp.status_code == 200
+        inserted = sleep_table.insert.call_args[0][0]
+        assert inserted["user_id"] == MOCK_USER_ID
 
 
 class TestMigration034:

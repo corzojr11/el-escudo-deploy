@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Heart, TrendingDown, TrendingUp, Activity, Plus, Pencil, Trash2 } from "lucide-react";
+import { Heart, TrendingDown, TrendingUp, Activity, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { addWeight, updateWeight, deleteWeightLog } from "@/app/actions/health";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatDate, formatShortDate } from "@/lib/api/helpers";
-import type { FocusStatus, WeightLog } from "@/lib/api/types";
+import { logSleep } from "@/app/actions/plan";
+import type { FocusStatus, WeightLog, SleepLog } from "@/lib/api/types";
 
 function todayInputValue() {
   return new Date().toISOString().split("T")[0];
@@ -22,13 +23,29 @@ function todayInputValue() {
 interface SaludClientProps {
   weightLogs: WeightLog[];
   focusStatus: FocusStatus | null;
+  sleepAnalysis: {
+    logs: SleepLog[];
+    avg_cycles: number;
+    avg_quality: number;
+    total_hours: number;
+    daily_debt: number;
+  } | null;
+  bioSettings: Record<string, unknown> | null;
 }
 
-export function SaludClient({ weightLogs, focusStatus }: SaludClientProps) {
+export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSettings }: SaludClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
   const [, startTransition] = useTransition();
+  const [sleepDate, setSleepDate] = useState(todayInputValue());
+  const [sleepBedTime, setSleepBedTime] = useState(String(bioSettings?.t_sleep_target || "22:30"));
+  const [sleepWakeTime, setSleepWakeTime] = useState(String(bioSettings?.t_wake_target || "06:00"));
+  const [sleepCycles, setSleepCycles] = useState("5");
+  const [sleepQuality, setSleepQuality] = useState("3");
+  const [sleepNotes, setSleepNotes] = useState("");
+  const [sleepStatus, setSleepStatus] = useState<{ success?: string; error?: string }>({});
+  const [sleeping, setSleeping] = useState(false);
 
   const sortedLogs = useMemo(
     () =>
@@ -318,6 +335,131 @@ export function SaludClient({ weightLogs, focusStatus }: SaludClientProps) {
               <span className="text-xs text-muted-foreground">Mejor racha</span>
               <p className="text-sm font-medium text-foreground">{focusStatus?.focus_best} dias</p>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-[#2A2A3C] bg-[#17171A]">
+        <CardHeader>
+          <CardTitle className="text-[#FFD700]">Registro de sueno</CardTitle>
+          <CardDescription>Registra tus horas de descanso</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {sleepStatus.success && <FormStatus success={sleepStatus.success} />}
+          {sleepStatus.error && <FormStatus error={sleepStatus.error} />}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <Label className="text-gray-300">Fecha</Label>
+              <Input
+                type="date"
+                value={sleepDate}
+                onChange={(e) => setSleepDate(e.target.value)}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white color-scheme-dark"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Hora dormir</Label>
+              <Input
+                type="time"
+                value={sleepBedTime}
+                onChange={(e) => setSleepBedTime(e.target.value)}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white color-scheme-dark"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Hora despertar</Label>
+              <Input
+                type="time"
+                value={sleepWakeTime}
+                onChange={(e) => setSleepWakeTime(e.target.value)}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white color-scheme-dark"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Ciclos</Label>
+              <Input
+                type="number"
+                value={sleepCycles}
+                onChange={(e) => setSleepCycles(e.target.value)}
+                min={1}
+                max={8}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Calidad (1-5)</Label>
+              <Input
+                type="number"
+                value={sleepQuality}
+                onChange={(e) => setSleepQuality(e.target.value)}
+                min={1}
+                max={5}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Notas</Label>
+              <Input
+                value={sleepNotes}
+                onChange={(e) => setSleepNotes(e.target.value)}
+                placeholder="Opcional"
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+              />
+            </div>
+          </div>
+          <Button
+            onClick={async () => {
+              setSleeping(true);
+              setSleepStatus({});
+              try {
+                await logSleep({
+                  date: sleepDate,
+                  bed_time: sleepBedTime,
+                  wake_time: sleepWakeTime,
+                  cycles: parseInt(sleepCycles) || 5,
+                  quality_score: parseInt(sleepQuality) || 3,
+                  notes: sleepNotes,
+                });
+                setSleepStatus({ success: "Sueno registrado" });
+                router.refresh();
+              } catch (e: unknown) {
+                setSleepStatus({ error: e instanceof Error ? e.message : "Error al registrar" });
+              } finally {
+                setSleeping(false);
+              }
+            }}
+            disabled={sleeping}
+            className="bg-[#7C5DFF] hover:bg-[#7C5DFF]/90 text-white"
+          >
+            {sleeping && <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />}
+            Registrar sueno
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-[#2A2A3C] bg-[#17171A]">
+        <CardHeader>
+          <CardTitle className="text-[#FFD700]">Resumen de sueno (7 dias)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {sleepAnalysis && sleepAnalysis.logs?.length > 0 ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-xs text-gray-400 mb-2">
+                <span>Promedio: {sleepAnalysis.avg_cycles?.toFixed(1)} ciclos</span>
+                <span>Calidad: {sleepAnalysis.avg_quality?.toFixed(1)} / 5</span>
+                <span>Deuda: {sleepAnalysis.daily_debt?.toFixed(1)}h</span>
+              </div>
+              <div className="border-t border-[#2A2A3C]" />
+              {sleepAnalysis.logs.map((log) => (
+                <div key={log.id} className="flex justify-between items-center text-sm py-1 border-b border-[#1a1a1e] last:border-0">
+                  <span className="text-gray-300">{log.date}</span>
+                  <span className="text-gray-400">{log.bed_time?.substring(0, 5)} – {log.wake_time?.substring(0, 5)}</span>
+                  <span className="text-[#FFD700]">{log.cycles}c</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 py-4 text-center">Sin registros de sueno. Usa el formulario para empezar.</p>
           )}
         </CardContent>
       </Card>

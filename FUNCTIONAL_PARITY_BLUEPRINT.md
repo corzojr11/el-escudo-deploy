@@ -111,14 +111,14 @@
 
 | Funcionalidad | Móvil | Web | Estado | Prioridad |
 |---|---|---|---|---|
-| **Optimizador de sueño (ciclos según turno)** | ✅ Chronos | ❌ | ❌ | P0 |
-| **Registrar sueño (hora dormir, despertar, ciclos, calidad)** | ❌ | ❌ | ❌ | P0 |
-| **Resumen últimos 7 días** | ❌ | ❌ | ❌ | P0 |
-| Cálculo de ciclos (4/5/6 × 90min) | ✅ | ⚠️ (backend sí, UI no) | ⚠️ | P0 |
-| Considerar traslado y preparación | ✅ | ❌ | ❌ | P0 |
-| Texto orientativo (no médico) | ❌ | ❌ necesita confirmación | ❌ | P0 |
+| **Optimizador de sueño (ciclos según turno)** | ✅ Chronos | ✅ plan-diario | ✅ | — |
+| **Registrar sueño (hora dormir, despertar, ciclos, calidad)** | ❌ | ✅ /salud | ✅ | — |
+| **Resumen últimos 7 días** | ❌ | ✅ /salud | ✅ | — |
+| Cálculo de ciclos (4/5/6 × 90min + 15min latencia) | ✅ | ✅ corregido | ✅ | — |
+| Considerar traslado y preparación (45 min) | ✅ | ✅ | ✅ | — |
+| Texto orientativo (no médico) | ❌ | ✅ | ✅ | —
 
-**P0**: Todo el módulo de sueño falta en la web. Backend ya tiene los endpoints.
+**Estado**: Completo. Formulario en Salud, cálculo corregido en plan-diario.
 
 ---
 

@@ -639,20 +639,90 @@ def _sleep_windows_from_wake(wake_h: int, wake_m: int) -> list[dict]:
     target = _time_to_minutes(wake_h, wake_m)
     windows = []
     for c in [6, 5, 4]:
-        sleep_mins = (target - c * TIEMPO_POR_CICLO) % (24 * 60)
+        total_sleep = c * CYCLE_MINUTES + LATENCIA_MINUTOS
+        sleep_mins = (target - total_sleep) % (24 * 60)
         windows.append({
             "cycles": c,
-            "hours": round(c * 1.5 + 0.25, 1),
+            "hours": round(total_sleep / 60, 1),
             "sleep_time": _minutes_to_time(sleep_mins),
             "wake_time": _minutes_to_time(target),
         })
     return windows
 
 
+def _find_next_shift(shifts_data: list, now: datetime) -> dict | None:
+    """Encuentra la proxima instancia real de turno (hoy, manana, domingo-lunes, nocturnos).
+    Reutiliza la misma logica de proyeccion semanal que compute_current_status."""
+    if not shifts_data:
+        return None
+
+    hoy_index = now.weekday()
+    ahora_minutos = now.hour * 60 + now.minute
+    now_total = hoy_index * 24 * 60 + ahora_minutos
+    week_minutes = 7 * 24 * 60
+
+    normalized = []
+    for s in shifts_data:
+        if not isinstance(s, dict):
+            continue
+        day = _normalize_day_name_text(s.get("day", ""))
+        if not day:
+            continue
+        start = _normalize_time_text(s.get("start", ""))
+        end = _normalize_time_text(s.get("end", ""))
+        if not start or not end:
+            continue
+        normalized.append({"day": day, "start": start, "end": end, "day_index": _day_name_to_index(day)})
+
+    instances = []
+    for s in normalized:
+        parsed = _shift_instance_minutes(s)
+        if parsed is None:
+            continue
+        day_index, inicio, fin = parsed
+        base_start = day_index * 24 * 60 + inicio
+        base_end = day_index * 24 * 60 + fin
+        for k in (-1, 0, 1):
+            instances.append({
+                "day": s["day"],
+                "start": s["start"],
+                "end": s["end"],
+                "start_total": base_start + k * week_minutes,
+                "end_total": base_end + k * week_minutes,
+            })
+
+    proximo = None
+    min_diff = None
+    for inst in instances:
+        diff = inst["start_total"] - now_total
+        if diff > 0 and (min_diff is None or diff < min_diff):
+            min_diff = diff
+            proximo = inst
+
+    if not proximo:
+        return None
+
+    sh, sm = _parse_time(proximo["start"])
+    eh, em = _parse_time(proximo["end"])
+    start_min = _time_to_minutes(sh, sm)
+    end_min = _time_to_minutes(eh, em)
+    if end_min <= start_min:
+        end_min += 24 * 60
+
+    return {
+        "day": proximo["day"],
+        "start": proximo["start"],
+        "end": proximo["end"],
+        "start_total": proximo["start_total"],
+        "end_total": proximo["end_total"],
+        "start_minutes": start_min,
+        "end_minutes": end_min,
+    }
+
+
 @router.get("/api/v1/plan-diario")
 async def plan_diario(user = Depends(get_current_user)):
     now = _bogota_now()
-    today_name = DAY_NAMES_ES[now.weekday()]
 
     async def _fetch_shifts():
         r = await asyncio.to_thread(lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("is_active", True).execute())
@@ -683,74 +753,105 @@ async def plan_diario(user = Depends(get_current_user)):
     sleep_target = str(bs.get("t_sleep_target") or "22:30")
     commute = int(bs.get("commute_minutes") or 35)
     PREP = 45
+    WORKOUT_DURATION = 90
+
+    wake_h, wake_m = _parse_time(wake_target)
+    sleep_h, sleep_m = _parse_time(sleep_target)
+    wake_min = _time_to_minutes(wake_h, wake_m)
+    sleep_min = _time_to_minutes(sleep_h, sleep_m)
 
     shift_status = compute_current_status(shifts_data, now)
-    today_shift = next((s for s in shifts_data if s.get("day", "").lower() == today_name.lower()), None)
+    next_shift = _find_next_shift(shifts_data, now)
 
-    sleep_windows = []
+    sleep_windows = _sleep_windows_from_wake(wake_h, wake_m)
     workout_block = None
     fatigue_alert = None
+    best_cycles = sleep_windows[0]["cycles"]
 
-    if today_shift:
-        sh, sm = _parse_time(str(today_shift.get("start", "08:00")))
-        eh, em = _parse_time(str(today_shift.get("end", "17:00")))
-        ts = _time_to_minutes(sh, sm)
-        te = _time_to_minutes(eh, em)
-        if te <= ts:
-            te += 24 * 60
+    if next_shift:
+        shift_start_total = next_shift["start_total"]
+        hoy_index = now.weekday()
+        ahora_minutos = now.hour * 60 + now.minute
+        now_total = hoy_index * 24 * 60 + ahora_minutos
 
-        shift_end = te
-        home_arrival = shift_end + commute
-        ready_time = home_arrival + PREP
+        shift_start = next_shift["start_minutes"]
+        shift_end = next_shift["end_minutes"]
 
-        wake_h, wake_m = _parse_time(wake_target)
-        next_wake = _time_to_minutes(wake_h, wake_m)
-        if next_wake <= ready_time:
-            next_wake += 24 * 60
+        shift_start_surface = shift_start_total - commute - PREP
 
-        free_window = next_wake - ready_time
-        sleep_windows = _sleep_windows_from_wake(wake_h, wake_m)
+        recommended_bedtime = None
+        for w in sleep_windows:
+            sleep_h, sleep_m_parsed = _parse_time(w["sleep_time"])
+            sleep_total = _time_to_minutes(sleep_h, sleep_m_parsed)
+            wake_total = _time_to_minutes(*_parse_time(w["wake_time"]))
+            if wake_total <= sleep_total:
+                wake_total += 24 * 60
 
-        best_cycles = _optimizar_ciclos(free_window)
-        if best_cycles < 4:
-            fatigue_alert = f"Solo {best_cycles} ciclos posibles. Menos de 4 afecta el rendimiento." if best_cycles > 0 else "No hay ventana para ciclos completos de sueño."
+            if sleep_total < wake_total:
+                wake_absolute = _day_index_to_name(hoy_index)
+                instance_wake_min = now_total - ahora_minutos + wake_total
+                if instance_wake_min <= now_total:
+                    instance_wake_min += 24 * 60
+            else:
+                instance_wake_min = now_total - ahora_minutos + wake_total
 
-        workout_start = ready_time
-        workout_end = ready_time + 90
-        latest_sleep = _time_to_minutes(*_parse_time(_minutes_to_time((next_wake - best_cycles * TIEMPO_POR_CICLO) % (24 * 60))))
-        if latest_sleep <= ready_time:
-            latest_sleep += 24 * 60
+            if instance_wake_min <= shift_start_surface:
+                recommended_bedtime = w["sleep_time"]
+                best_cycles = w["cycles"]
+                break
 
-        if (workout_end + 60) <= latest_sleep and free_window >= (90 + 60 + best_cycles * TIEMPO_POR_CICLO):
-            workout_block = {
-                "start": _minutes_to_time(workout_start % (24 * 60)),
-                "end": _minutes_to_time(workout_end % (24 * 60)),
-                "duration_min": 90,
-                "label": "Entrenamiento sugerido",
-            }
+        if recommended_bedtime is None:
+            best_cycles = sleep_windows[-1]["cycles"]
+            fatigue_alert = "ALERTA DE FATIGA: Ninguna ventana de sueno cabe antes del proximo turno con traslado y preparacion."
+
+        sleep_bed_h, sleep_bed_m = _parse_time(recommended_bedtime or sleep_windows[-1]["sleep_time"])
+        sleep_bed_min = _time_to_minutes(sleep_bed_h, sleep_bed_m)
+
+        workout_earliest = now_total - ahora_minutos + max(ahora_minutos, sleep_bed_min - (24 * 60) if sleep_bed_min > ahora_minutos else sleep_bed_min)
+        if workout_earliest <= now_total:
+            workout_earliest += 24 * 60
+
+        workout_end_time = workout_earliest - WORKOUT_DURATION
+        if workout_end_time >= now_total and (workout_earliest - WORKOUT_DURATION - 60) >= now_total:
+            pass
         else:
-            workout_block = None
+            workout_end_time = None
 
+        if workout_end_time and (sleep_bed_min + 24 * 60 if sleep_bed_min <= ahora_minutos else sleep_bed_min) >= (ahora_minutos + WORKOUT_DURATION + 60):
+            workout_start_local = ahora_minutos + 30
+            workout_end_local = workout_start_local + WORKOUT_DURATION
+            if workout_end_local <= (sleep_bed_min + 24 * 60 if sleep_bed_min <= ahora_minutos else sleep_bed_min):
+                workout_block = {
+                    "start": _minutes_to_time(workout_start_local),
+                    "end": _minutes_to_time(workout_end_local),
+                    "duration_min": WORKOUT_DURATION,
+                    "label": "Entrenamiento sugerido",
+                }
     else:
-        wake_h, wake_m = _parse_time(wake_target)
-        sleep_h, sleep_m = _parse_time(sleep_target)
-        sleep_windows = _sleep_windows_from_wake(wake_h, wake_m)
-
-        inicio = _time_to_minutes(sleep_h, sleep_m)
-        destino = _time_to_minutes(wake_h, wake_m)
-        if destino <= inicio:
-            destino += 24 * 60
-        free_window = destino - inicio
+        sleep_min_abs = sleep_min
+        wake_min_abs = wake_min
+        if wake_min_abs <= sleep_min_abs:
+            wake_min_abs += 24 * 60
+        free_window = wake_min_abs - sleep_min_abs
         best_cycles = _optimizar_ciclos(free_window)
 
-        afternoon = (_time_to_minutes(sleep_h, sleep_m) - 150 + 24 * 60) % (24 * 60)
-        if free_window >= (90 + best_cycles * TIEMPO_POR_CICLO + 120):
-            workout_block = {
-                "start": _minutes_to_time((inicio + 60) % (24 * 60)),
-                "end": _minutes_to_time((inicio + 150) % (24 * 60)),
-                "duration_min": 90,
-                "label": "Entrenamiento sugerido",
-            }
+        bed_time = sleep_windows[0]["sleep_time"]
+        bed_h, bed_m = _parse_time(bed_time)
+        bed_min = _time_to_minutes(bed_h, bed_m)
+        now_min = now.hour * 60 + now.minute
+
+        if bed_min > now_min:
+            bedtime_absolute = bed_min
+            if bedtime_absolute >= now_min + WORKOUT_DURATION + 60:
+                workout_start = now_min + 30
+                workout_end = workout_start + WORKOUT_DURATION
+                if workout_end <= bedtime_absolute:
+                    workout_block = {
+                        "start": _minutes_to_time(workout_start),
+                        "end": _minutes_to_time(workout_end),
+                        "duration_min": WORKOUT_DURATION,
+                        "label": "Entrenamiento sugerido",
+                    }
 
     hydration_ml = None
     if weight_kg:
@@ -772,7 +873,7 @@ async def plan_diario(user = Depends(get_current_user)):
         "sleep": {
             "windows": sleep_windows,
             "fatigue_alert": fatigue_alert,
-            "recommended_cycles": best_cycles if today_shift or not today_shift else None,
+            "recommended_cycles": best_cycles,
             "wake_target": wake_target,
             "sleep_target": sleep_target,
             "commute_minutes": commute,
