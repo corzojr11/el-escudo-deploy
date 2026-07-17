@@ -117,7 +117,7 @@ export function FinanzasClient({ transactions, summary, initialRange, totals }: 
     () =>
       [...items].sort(
         (a, b) =>
-          new Date(b.date ?? b.created_at ?? 0).getTime() - new Date(a.date ?? a.created_at ?? 0).getTime()
+          new Date(b.date ?? b.timestamp ?? 0).getTime() - new Date(a.date ?? a.timestamp ?? 0).getTime()
       ),
     [items]
   );
@@ -353,9 +353,9 @@ export function FinanzasClient({ transactions, summary, initialRange, totals }: 
                               <span className="text-sm font-medium text-foreground">
                                 {tx.description || tx.category || "Sin descripcion"}
                               </span>
-                              <span className="text-xs text-muted-foreground">
-                                {tx.category} · {formatDate(tx.date ?? tx.created_at)}
-                              </span>
+                            <span className="text-xs text-muted-foreground">
+                              {tx.category} · {formatDate(tx.date ?? tx.timestamp)}
+                            </span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Badge

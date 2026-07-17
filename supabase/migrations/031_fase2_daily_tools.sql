@@ -9,10 +9,28 @@ ALTER TABLE public.finances
   ADD COLUMN IF NOT EXISTS date DATE,
   ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
 
--- Default today para filas existentes que no tengan fecha
-UPDATE public.finances
-  SET date = COALESCE(created_at::DATE, CURRENT_DATE)
-  WHERE date IS NULL;
+-- Default today para filas existentes que no tengan fecha.
+-- Producción usa `timestamp`; algunos entornos locales usan `created_at`.
+-- El bloque detecta la columna disponible y no falla si falta alguna.
+DO $$
+DECLARE
+    v_sql TEXT;
+BEGIN
+    SELECT format('UPDATE public.finances SET date = COALESCE(%I::date, CURRENT_DATE) WHERE date IS NULL', column_name)
+    INTO v_sql
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'finances'
+      AND column_name IN ('timestamp', 'created_at')
+    ORDER BY CASE column_name WHEN 'timestamp' THEN 0 ELSE 1 END
+    LIMIT 1;
+
+    IF v_sql IS NULL THEN
+        v_sql := 'UPDATE public.finances SET date = CURRENT_DATE WHERE date IS NULL';
+    END IF;
+
+    EXECUTE v_sql;
+END $$;
 
 -- Índices para filtros por rango y clave única de idempotencia
 CREATE INDEX IF NOT EXISTS idx_finances_user_date ON public.finances(user_id, date DESC);

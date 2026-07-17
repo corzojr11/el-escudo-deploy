@@ -3,6 +3,7 @@
 import sys
 import asyncio
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock
 
 sys.modules["google.genai"] = MagicMock()
@@ -51,6 +52,26 @@ def _chain_with_result(data):
     chain = MagicMock()
     chain.execute.return_value = TableResult(data)
     return chain
+
+
+# ─── Migration 031 safety ───────────────────────────────────────────────
+
+class TestMigration031:
+    def test_backfill_uses_timestamp_or_created_at_safely(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        migration_path = repo_root / "supabase" / "migrations" / "031_fase2_daily_tools.sql"
+        assert migration_path.exists(), "No se encontró la migración 031"
+        sql = migration_path.read_text(encoding="utf-8")
+
+        # Debe detectar columnas disponibles y no asumir created_at
+        assert "information_schema.columns" in sql
+        assert "timestamp" in sql
+        assert "created_at" in sql
+        # Debe usar EXECUTE para SQL dinámico seguro
+        assert "EXECUTE" in sql
+        # No debe referirse a created_at sin alternativa
+        assert "COALESCE(created_at" not in sql
+        assert "COALESCE(timestamp" not in sql
 
 
 # ─── Schedule / current-status ────────────────────────────────────────────

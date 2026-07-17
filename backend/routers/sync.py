@@ -11,6 +11,7 @@ from google import genai
 
 from auth import get_current_user
 from database import supabase
+from routers.finances import _execute_finance_query_ordered
 from routers.schedule import compute_current_status
 from services.observability import track_event
 from trm import get_trm
@@ -237,9 +238,8 @@ async def today_summary(user=Depends(get_current_user)):
         # Finanzas del día
         finances_today = []
         try:
-            res_fin = await asyncio.to_thread(
-                lambda: supabase.table("finances").select("*").eq("user_id", user.id).eq("date", today_str).order("created_at", desc=True).execute()
-            )
+            query_fin = supabase.table("finances").select("*").eq("user_id", user.id).eq("date", today_str)
+            res_fin = await _execute_finance_query_ordered(query_fin)
             finances_today = res_fin.data or []
         except Exception as exc:
             logger.warning(f"Finances today fetch error: {exc}")

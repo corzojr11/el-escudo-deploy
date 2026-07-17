@@ -22,6 +22,7 @@ export interface FinanceEntry {
   category: string;
   description?: string;
   date: string;
+  timestamp?: string;
   idempotency_key?: string;
   created_at?: string;
 }

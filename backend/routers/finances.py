@@ -118,6 +118,22 @@ def _is_unique_conflict(exc: Exception) -> bool:
     )
 
 
+async def _execute_finance_query_ordered(query):
+    """Ejecuta un query de finanzas ordenado por date DESC y timestamp DESC.
+
+    Producción usa `timestamp`; algunos entornos locales usan `created_at`.
+    Si `timestamp` no existe, ordena únicamente por `date`.
+    """
+    query = query.order("date", desc=True)
+    try:
+        res = await asyncio.to_thread(lambda: query.order("timestamp", desc=True).execute())
+        if isinstance(res.data, list):
+            return res
+    except Exception as exc:
+        logger.warning(f"timestamp order not available: {exc}")
+    return await asyncio.to_thread(lambda: query.execute())
+
+
 async def _fetch_by_idempotency(user_id: str, key: str) -> Optional[dict]:
     try:
         res = await asyncio.to_thread(
@@ -189,8 +205,7 @@ async def list_finances(
     query = supabase.table("finances").select("*").eq("user_id", user.id)
     if start and end:
         query = query.gte("date", start).lte("date", end)
-    query = query.order("date", desc=True).order("created_at", desc=True)
-    res = await asyncio.to_thread(lambda: query.execute())
+    res = await _execute_finance_query_ordered(query)
     return {"finances": res.data or []}
 
 
