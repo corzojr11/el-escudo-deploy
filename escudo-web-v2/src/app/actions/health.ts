@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { fetchFromBackend, postToBackend } from "@/lib/api/server";
+import { fetchFromBackend, postToBackend, putToBackend, deleteFromBackend } from "@/lib/api/server";
 import type { FocusStatus, WeightLog } from "@/lib/api/types";
 
 interface WeightLogsResponse {
@@ -34,13 +34,21 @@ export async function addWeight(
   formData: FormData
 ): Promise<AddWeightResult> {
   const weight = parseFloat(formData.get("weight") as string);
+  const date = (formData.get("date") as string) || undefined;
+  const notes = (formData.get("notes") as string) || undefined;
 
   if (Number.isNaN(weight) || weight <= 0) {
     return { success: false, error: "El peso debe ser mayor a cero." };
   }
 
   try {
-    await postToBackend<WeightLog>("/api/v1/weight", { weight });
+    const idempotencyKey = `weight:${date || "today"}:${Date.now()}`;
+    await postToBackend<WeightLog>("/api/v1/weight", {
+      weight,
+      date,
+      notes: notes?.trim(),
+      idempotency_key: idempotencyKey,
+    });
     revalidatePath("/salud");
     revalidatePath("/");
     return { success: true };
@@ -48,6 +56,61 @@ export async function addWeight(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Error al registrar el peso",
+    };
+  }
+}
+
+export interface UpdateWeightResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function updateWeight(
+  _prevState: UpdateWeightResult | null,
+  formData: FormData
+): Promise<UpdateWeightResult> {
+  const logId = (formData.get("log_id") as string) || "";
+  const weight = parseFloat(formData.get("weight") as string);
+  const date = (formData.get("date") as string) || undefined;
+  const notes = (formData.get("notes") as string) || undefined;
+
+  if (!logId) {
+    return { success: false, error: "No se seleccionó un registro." };
+  }
+  if (Number.isNaN(weight) || weight <= 0) {
+    return { success: false, error: "El peso debe ser mayor a cero." };
+  }
+
+  const payload: Record<string, unknown> = { weight };
+  if (date) payload.date = date;
+  if (notes !== undefined) payload.notes = notes.trim();
+
+  try {
+    await putToBackend(`/api/v1/weight-logs/${logId}`, payload);
+    revalidatePath("/salud");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error al actualizar el peso",
+    };
+  }
+}
+
+export async function deleteWeightLog(logId: string): Promise<UpdateWeightResult> {
+  if (!logId) {
+    return { success: false, error: "No se seleccionó un registro." };
+  }
+  try {
+    await deleteFromBackend(`/api/v1/weight-logs/${logId}`);
+    revalidatePath("/salud");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error al eliminar el peso",
     };
   }
 }

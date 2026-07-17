@@ -23,6 +23,14 @@ export async function putToBackend<T>(path: string, body: unknown): Promise<T> {
   return apiRequest<T>("PUT", path, body);
 }
 
+export async function deleteFromBackend<T>(path: string): Promise<T> {
+  return apiRequest<T>("DELETE", path);
+}
+
+export async function patchToBackend<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest<T>("PATCH", path, body);
+}
+
 export async function apiRequest<T>(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,

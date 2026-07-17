@@ -137,6 +137,7 @@ export interface Habit {
   frequency: "daily" | "weekly";
   streak?: number;
   completed_dates?: string[];
+  completed_today?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -306,6 +307,8 @@ export interface TodayResponse {
     active_goals: Goal[];
     missions_today: Mission[];
     latest_weight: WeightLog | null;
+    weight_trend: number | null;
+    habits_today: Habit[];
     focus_streak: number;
   };
 }

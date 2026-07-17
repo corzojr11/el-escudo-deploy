@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -15,8 +15,86 @@ logger = logging.getLogger("escudo")
 router = APIRouter()
 
 
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None  # type: ignore
+
+
+try:
+    from postgrest.exceptions import APIError as PostgrestAPIError
+except Exception:
+    PostgrestAPIError = Exception  # type: ignore
+
+
+def _bogota_now() -> datetime:
+    if ZoneInfo:
+        try:
+            return datetime.now(ZoneInfo("America/Bogota"))
+        except Exception as exc:
+            logger.warning(f"No se pudo usar zona America/Bogota: {exc}")
+    return datetime.now()
+
+
+def _today_str() -> str:
+    return _bogota_now().date().isoformat()
+
+
+def _parse_iso_date(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value).isoformat()
+    except Exception:
+        return None
+
+
+def _validate_weight_date(value: Optional[str]) -> str:
+    parsed = _parse_iso_date(value)
+    if not parsed:
+        raise BadRequestException("La fecha debe tener formato YYYY-MM-DD.")
+    if parsed > _today_str():
+        raise BadRequestException("No se puede registrar peso en el futuro.")
+    return parsed
+
+
+def _is_unique_conflict(exc: Exception) -> bool:
+    code = getattr(exc, "code", None) or ""
+    msg = str(exc).lower()
+    return (
+        code == "23505"
+        or "duplicate key value" in msg
+        or "unique constraint" in msg
+        or "duplicate key" in msg
+    )
+
+
+async def _fetch_weight_by_idempotency(user_id: str, key: str) -> Optional[dict]:
+    try:
+        res = await asyncio.to_thread(
+            lambda: supabase.table("weight_logs")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("idempotency_key", key)
+            .limit(1)
+            .execute()
+        )
+        return res.data[0] if res.data else None
+    except Exception as exc:
+        logger.warning(f"weight idempotency lookup error: {exc}")
+        return None
+
+
 class WeightLogPayload(BaseModel):
     weight: float = Field(..., gt=0)
+    date: Optional[str] = None
+    notes: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+class WeightLogUpdatePayload(BaseModel):
+    weight: Optional[float] = Field(None, gt=0)
+    date: Optional[str] = None
+    notes: Optional[str] = None
 
 class ExerciseLogPayload(BaseModel):
     extracted_data: Optional[dict] = None
@@ -44,9 +122,22 @@ class FocusStatusPayload(BaseModel):
 # ─── Weight ─────────────────────────────────────────────────────────────────
 
 
+async def _execute_weight_query_ordered(query):
+    """Ordena weight_logs por date DESC y timestamp DESC, con fallback."""
+    query = query.order("date", desc=True)
+    try:
+        res = await asyncio.to_thread(lambda: query.order("timestamp", desc=True).execute())
+        if isinstance(res.data, list):
+            return res
+    except Exception as exc:
+        logger.warning(f"timestamp order not available for weight_logs: {exc}")
+    return await asyncio.to_thread(lambda: query.execute())
+
+
 @router.get("/api/v1/weight-logs")
 async def list_weight_logs(user = Depends(get_current_user), limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0)):
-    res = await asyncio.to_thread(lambda: supabase.table("weight_logs").select("*").eq("user_id", user.id).order("timestamp", desc=True).range(offset, offset + limit - 1).execute())
+    query = supabase.table("weight_logs").select("*").eq("user_id", user.id)
+    res = await _execute_weight_query_ordered(query.range(offset, offset + limit - 1))
     return {"data": res.data or [], "limit": limit, "offset": offset}
 
 
@@ -60,8 +151,19 @@ async def delete_weight_log(log_id: str, user = Depends(get_current_user)):
 
 
 @router.put("/api/v1/weight-logs/{log_id}")
-async def update_weight_log(log_id: str, payload: WeightLogPayload, user = Depends(get_current_user)):
-    res = await asyncio.to_thread(lambda: supabase.table("weight_logs").update({"weight": payload.weight}).eq("id", log_id).eq("user_id", user.id).execute())
+async def update_weight_log(log_id: str, payload: WeightLogUpdatePayload, user = Depends(get_current_user)):
+    check = await asyncio.to_thread(lambda: supabase.table("weight_logs").select("*").eq("id", log_id).eq("user_id", user.id).limit(1).execute())
+    if not check.data:
+        raise NotFoundException("Registro de peso")
+
+    data = payload.model_dump(exclude_unset=True)
+    if not data:
+        raise BadRequestException("No hay campos para actualizar.")
+
+    if "date" in data:
+        data["date"] = _validate_weight_date(data["date"])
+
+    res = await asyncio.to_thread(lambda: supabase.table("weight_logs").update(data).eq("id", log_id).eq("user_id", user.id).execute())
     if not res.data:
         raise NotFoundException("Registro de peso")
     await track_event("health", "update_weight_log", user_id=user.id, metadata={"log_id": log_id, "weight": payload.weight})
@@ -70,8 +172,33 @@ async def update_weight_log(log_id: str, payload: WeightLogPayload, user = Depen
 
 @router.post("/api/v1/weight")
 async def add_weight(payload: WeightLogPayload, user = Depends(get_current_user)):
-    res = await asyncio.to_thread(lambda: supabase.table("weight_logs").insert({"weight": payload.weight, "user_id": user.id}).execute())
-    await track_event("health", "add_weight_log", user_id=user.id, metadata={"weight": payload.weight})
+    log_date = _validate_weight_date(payload.date)
+    idempotency_key = str(payload.idempotency_key or "").strip() or None
+
+    insert_data = {
+        "weight": payload.weight,
+        "user_id": user.id,
+        "date": log_date,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if payload.notes:
+        insert_data["notes"] = payload.notes
+    if idempotency_key:
+        insert_data["idempotency_key"] = idempotency_key
+
+    try:
+        res = await asyncio.to_thread(lambda: supabase.table("weight_logs").insert(insert_data).execute())
+    except Exception as exc:
+        if idempotency_key and _is_unique_conflict(exc):
+            existing = await _fetch_weight_by_idempotency(user.id, idempotency_key)
+            if existing:
+                return existing
+        logger.warning(f"weight insert failed: {exc}")
+        raise ApiException(status_code=500, detail="Error al registrar el peso.")
+
+    if not res.data:
+        raise ApiException(status_code=500, detail="Error al registrar el peso.")
+    await track_event("health", "add_weight_log", user_id=user.id, metadata={"weight": payload.weight, "date": log_date})
     return res.data[0]
 
 

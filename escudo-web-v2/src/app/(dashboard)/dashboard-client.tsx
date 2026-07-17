@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Check,
   Circle,
+  Flame,
   Heart,
   Shield,
   Sparkles,
@@ -40,7 +41,10 @@ export function DashboardClient({ data }: DashboardClientProps) {
   const missions = today.missions_today ?? [];
   const shiftStatus = today.shift_status;
   const weightLog = today.latest_weight;
+  const weightTrend = today.weight_trend ?? null;
   const focusStreak = today.focus_streak ?? 0;
+  const habits = today.habits_today ?? [];
+  const habitsDone = habits.filter((h) => h.completed_today).length;
 
   const level = profile?.level ?? 0;
   const xp = profile?.xp ?? 0;
@@ -138,7 +142,19 @@ export function DashboardClient({ data }: DashboardClientProps) {
             </div>
             <div className="flex items-center gap-3 border-b border-border pb-3">
               <Heart className="h-5 w-5 text-[#bcaeff]" />
-              <div><p className="text-xs text-muted-foreground">Peso actual</p><p className="font-heading text-xl font-bold">{currentWeight ?? "--"} {currentWeight != null ? "kg" : ""}</p></div>
+              <div>
+                <p className="text-xs text-muted-foreground">Peso actual</p>
+                <p className="font-heading text-xl font-bold">{currentWeight ?? "--"} {currentWeight != null ? "kg" : ""}</p>
+                {weightTrend != null && (
+                  <p className={`text-[10px] ${weightTrend < 0 ? "text-[#7c5dff]" : "text-[#ffd700]"}`}>
+                    {weightTrend > 0 ? "+" : ""}{weightTrend} kg vs anterior
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 border-b border-border pb-3">
+              <Flame className="h-5 w-5 text-[#ffd700]" />
+              <div><p className="text-xs text-muted-foreground">Hábitos hoy</p><p className="font-heading text-xl font-bold">{habitsDone} / {habits.length}</p></div>
             </div>
             <div className="flex items-center gap-3">
               <CalendarClock className="h-5 w-5 text-primary" />

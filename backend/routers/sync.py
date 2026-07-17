@@ -289,6 +289,52 @@ async def today_summary(user=Depends(get_current_user)):
         except Exception as exc:
             logger.warning(f"Weight fetch error: {exc}")
 
+        # Tendencia de peso (último vs anterior)
+        weight_trend = None
+        try:
+            if latest_weight:
+                prev_weight_result = await asyncio.to_thread(
+                    lambda: supabase.table("weight_logs").select("weight, date")
+                    .eq("user_id", user.id)
+                    .neq("id", latest_weight.get("id"))
+                    .order("date", desc=True)
+                    .order("timestamp", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                if prev_weight_result.data:
+                    prev = prev_weight_result.data[0]
+                    weight_trend = round((latest_weight.get("weight") or 0) - (prev.get("weight") or 0), 2)
+        except Exception as exc:
+            logger.warning(f"Weight trend error: {exc}")
+
+        # Hábitos de hoy
+        habits_today = []
+        try:
+            habits_result = await asyncio.to_thread(
+                lambda: supabase.table("habits").select("*").eq("user_id", user.id).execute()
+            )
+            habits_data = habits_result.data or []
+            if habits_data:
+                habit_ids = [h["id"] for h in habits_data]
+                completions_result = await asyncio.to_thread(
+                    lambda: supabase.table("habit_completions")
+                    .select("habit_id, date")
+                    .in_("habit_id", habit_ids)
+                    .eq("user_id", user.id)
+                    .execute()
+                )
+                completions_by_habit = {}
+                for row in completions_result.data or []:
+                    completions_by_habit.setdefault(row.get("habit_id"), set()).add(row.get("date"))
+                for h in habits_data:
+                    completed = completions_by_habit.get(h["id"], set())
+                    h["completed_today"] = today_str in completed
+                    h["completed_dates"] = sorted(completed)
+                    habits_today.append(h)
+        except Exception as exc:
+            logger.warning(f"Habits today fetch error: {exc}")
+
         # Focus streak
         focus_streak = 0
         try:
@@ -309,6 +355,8 @@ async def today_summary(user=Depends(get_current_user)):
                 "active_goals": goals,
                 "missions_today": missions_today,
                 "latest_weight": latest_weight,
+                "weight_trend": weight_trend,
+                "habits_today": habits_today,
                 "focus_streak": focus_streak,
             },
         }

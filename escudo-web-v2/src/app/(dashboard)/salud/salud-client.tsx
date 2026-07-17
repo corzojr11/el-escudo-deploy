@@ -6,13 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Heart, TrendingDown, TrendingUp, Activity, Plus } from "lucide-react";
-import { addWeight } from "@/app/actions/health";
+import { Button } from "@/components/ui/button";
+import { Heart, TrendingDown, TrendingUp, Activity, Plus, Pencil, Trash2 } from "lucide-react";
+import { addWeight, updateWeight, deleteWeightLog } from "@/app/actions/health";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatDate, formatShortDate } from "@/lib/api/helpers";
 import type { FocusStatus, WeightLog } from "@/lib/api/types";
+
+function todayInputValue() {
+  return new Date().toISOString().split("T")[0];
+}
 
 interface SaludClientProps {
   weightLogs: WeightLog[];
@@ -48,6 +53,8 @@ export function SaludClient({ weightLogs, focusStatus }: SaludClientProps) {
     [sortedLogs]
   );
 
+  const [editingLog, setEditingLog] = useState<WeightLog | null>(null);
+
   async function handleSubmit(formData: FormData) {
     setStatus({});
     startTransition(async () => {
@@ -58,6 +65,35 @@ export function SaludClient({ weightLogs, focusStatus }: SaludClientProps) {
         router.refresh();
       } else {
         setStatus({ error: result.error ?? "Error al registrar" });
+      }
+    });
+  }
+
+  async function handleUpdate(formData: FormData) {
+    setStatus({});
+    startTransition(async () => {
+      const result = await updateWeight(null, formData);
+      if (result.success) {
+        setStatus({ success: "Peso actualizado correctamente." });
+        setEditingLog(null);
+        formRef.current?.reset();
+        router.refresh();
+      } else {
+        setStatus({ error: result.error ?? "Error al actualizar" });
+      }
+    });
+  }
+
+  async function handleDelete(logId: string) {
+    setStatus({});
+    startTransition(async () => {
+      const result = await deleteWeightLog(logId);
+      if (result.success) {
+        setStatus({ success: "Registro eliminado." });
+        setEditingLog(null);
+        router.refresh();
+      } else {
+        setStatus({ error: result.error ?? "Error al eliminar" });
       }
     });
   }
@@ -155,13 +191,44 @@ export function SaludClient({ weightLogs, focusStatus }: SaludClientProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form ref={formRef} action={handleSubmit} className="flex flex-col gap-4">
+            <form ref={formRef} action={editingLog ? handleUpdate : handleSubmit} className="flex flex-col gap-4">
+              {editingLog && <input type="hidden" name="log_id" value={editingLog.id} />}
               <div className="space-y-2">
                 <Label htmlFor="weight">Peso (kg)</Label>
-                <Input id="weight" name="weight" type="number" step="0.1" min="0.1" placeholder="Ej. 78.4" required />
+                <Input
+                  id="weight"
+                  name="weight"
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  placeholder="Ej. 78.4"
+                  defaultValue={editingLog?.weight}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date">Fecha</Label>
+                <Input
+                  id="date"
+                  name="date"
+                  type="date"
+                  defaultValue={editingLog?.date ?? todayInputValue()}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notas</Label>
+                <Input id="notes" name="notes" placeholder="Opcional" defaultValue={editingLog?.notes ?? ""} />
               </div>
               <FormStatus {...status} />
-              <SubmitButton className="w-full">Guardar peso</SubmitButton>
+              <div className="flex gap-2">
+                <SubmitButton className="flex-1">{editingLog ? "Actualizar" : "Guardar peso"}</SubmitButton>
+                {editingLog && (
+                  <Button type="button" variant="outline" onClick={() => setEditingLog(null)}>
+                    Cancelar
+                  </Button>
+                )}
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -208,7 +275,17 @@ export function SaludClient({ weightLogs, focusStatus }: SaludClientProps) {
                       <span className="text-sm text-foreground">
                         {formatDate(log.date ?? log.timestamp ?? log.created_at)}
                       </span>
-                      <span className="font-medium text-escudo-cyan">{log.weight} kg</span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium text-escudo-cyan">{log.weight} kg</span>
+                        <div className="flex gap-1">
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingLog(log)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-escudo-red" onClick={() => handleDelete(log.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

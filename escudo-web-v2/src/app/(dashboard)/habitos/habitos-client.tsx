@@ -147,8 +147,8 @@ export function HabitosClient({ habits }: HabitosClientProps) {
     setToggling(habit.id);
     const formData = new FormData();
     formData.set("habit_id", habit.id);
-    formData.set("completed_dates", JSON.stringify(habit.completed_dates ?? []));
     formData.set("mark_done", markDone ? "true" : "false");
+    formData.set("date", today);
     const result = await toggleHabitToday(null, formData);
     setToggling(null);
 

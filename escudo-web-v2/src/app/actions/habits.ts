@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { fetchFromBackend, postToBackend, putToBackend } from "@/lib/api/server";
+import { fetchFromBackend, postToBackend, putToBackend, deleteFromBackend } from "@/lib/api/server";
 import type { Habit } from "@/lib/api/types";
 
 interface HabitsResponse {
@@ -14,7 +14,7 @@ interface CreateHabitBackendResponse {
   habit: Habit;
 }
 
-interface UpdateHabitBackendResponse {
+interface ToggleHabitBackendResponse {
   habit: Habit;
   xp_gained?: number;
 }
@@ -56,6 +56,44 @@ export async function createHabit(
   }
 }
 
+export interface UpdateHabitResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function updateHabit(
+  _prevState: UpdateHabitResult | null,
+  formData: FormData
+): Promise<UpdateHabitResult> {
+  const habitId = (formData.get("habit_id") as string) || "";
+  const name = (formData.get("name") as string) || "";
+  const frequency = (formData.get("frequency") as string) || "";
+
+  if (!habitId) {
+    return { success: false, error: "No se seleccionó un hábito." };
+  }
+
+  const payload: Record<string, unknown> = {};
+  if (name.trim()) payload.name = name.trim();
+  if (frequency === "daily" || frequency === "weekly") payload.frequency = frequency;
+
+  if (Object.keys(payload).length === 0) {
+    return { success: false, error: "No hay campos para actualizar." };
+  }
+
+  try {
+    await putToBackend(`/api/v1/habits/${habitId}`, payload);
+    revalidatePath("/habitos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error al actualizar el hábito",
+    };
+  }
+}
+
 export interface ToggleHabitResult {
   success: boolean;
   error?: string;
@@ -67,30 +105,17 @@ export async function toggleHabitToday(
   formData: FormData
 ): Promise<ToggleHabitResult> {
   const habitId = (formData.get("habit_id") as string) || "";
-  const completedDatesRaw = (formData.get("completed_dates") as string) || "[]";
   const markDone = (formData.get("mark_done") as string) === "true";
+  const date = (formData.get("date") as string) || undefined;
 
   if (!habitId) {
     return { success: false, error: "No se seleccionó un hábito." };
   }
 
-  let completedDates: string[];
   try {
-    completedDates = JSON.parse(completedDatesRaw);
-  } catch {
-    completedDates = [];
-  }
-
-  const today = new Date().toISOString().split("T")[0];
-
-  const newDates = markDone
-    ? Array.from(new Set([...completedDates, today]))
-    : completedDates.filter((d) => d !== today);
-
-  try {
-    const res = await putToBackend<UpdateHabitBackendResponse>(
-      `/api/v1/habits/${habitId}`,
-      { completed_dates: newDates }
+    const res = await postToBackend<ToggleHabitBackendResponse>(
+      `/api/v1/habits/${habitId}/toggle`,
+      { mark_done: markDone, date }
     );
     revalidatePath("/habitos");
     revalidatePath("/");
@@ -99,6 +124,23 @@ export async function toggleHabitToday(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Error al actualizar el hábito",
+    };
+  }
+}
+
+export async function deleteHabit(habitId: string): Promise<UpdateHabitResult> {
+  if (!habitId) {
+    return { success: false, error: "No se seleccionó un hábito." };
+  }
+  try {
+    await deleteFromBackend(`/api/v1/habits/${habitId}`);
+    revalidatePath("/habitos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error al eliminar el hábito",
     };
   }
 }

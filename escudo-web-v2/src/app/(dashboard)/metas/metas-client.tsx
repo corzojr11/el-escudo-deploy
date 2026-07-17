@@ -7,19 +7,34 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Target, Calendar, Trophy, Plus, TrendingUp } from "lucide-react";
-import { createGoal, addMetric } from "@/app/actions/goals";
+import { Button } from "@/components/ui/button";
+import { Target, Calendar, Trophy, Plus, TrendingUp, Archive, RotateCcw } from "lucide-react";
+import { createGoal, addMetric, archiveGoal, reopenGoal } from "@/app/actions/goals";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatDate } from "@/lib/api/helpers";
 import type { Goal, Metric } from "@/lib/api/types";
 
+function todayInputValue() {
+  return new Date().toISOString().split("T")[0];
+}
+
 interface MetasClientProps {
   goals: Goal[];
 }
 
-function GoalCard({ goal }: { goal: Goal }) {
+function GoalCard({
+  goal,
+  onArchive,
+  onReopen,
+  archiving,
+}: {
+  goal: Goal;
+  onArchive?: (id: string) => void;
+  onReopen?: (id: string) => void;
+  archiving: string | null;
+}) {
   const latestMetric: Metric | undefined | null = goal.latest_metric ?? goal.recent_metrics?.[0];
   const currentValue = goal.current_value ?? latestMetric?.value ?? 0;
   const targetValue = goal.target_value ?? 0;
@@ -34,6 +49,7 @@ function GoalCard({ goal }: { goal: Goal }) {
 
   const status = (goal.status ?? "active") as keyof typeof statusConfig;
   const config = statusConfig[status] ?? statusConfig.active;
+  const isArchived = status === "archived";
 
   return (
     <Card>
@@ -45,9 +61,36 @@ function GoalCard({ goal }: { goal: Goal }) {
               {goal.description || "Sin descripcion"}
             </CardDescription>
           </div>
-          <Badge variant="outline" className={config.className}>
-            {config.label}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={config.className}>
+              {config.label}
+            </Badge>
+            {isArchived ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={archiving === goal.id}
+                onClick={() => onReopen?.(goal.id)}
+                title="Reactivar meta"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground"
+                disabled={archiving === goal.id}
+                onClick={() => onArchive?.(goal.id)}
+                title="Archivar meta"
+              >
+                <Archive className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -92,8 +135,10 @@ export function MetasClient({ goals }: MetasClientProps) {
   const metricFormRef = useRef<HTMLFormElement>(null);
   const [createStatus, setCreateStatus] = useState<{ success?: string; error?: string }>({});
   const [metricStatus, setMetricStatus] = useState<{ success?: string; error?: string }>({});
+  const [archiving, setArchiving] = useState<string | null>(null);
   const [, startCreateTransition] = useTransition();
   const [, startMetricTransition] = useTransition();
+  const [, startArchiveTransition] = useTransition();
 
   async function handleCreateGoal(formData: FormData) {
     setCreateStatus({});
@@ -119,6 +164,34 @@ export function MetasClient({ goals }: MetasClientProps) {
         router.refresh();
       } else {
         setMetricStatus({ error: result.error ?? "Error al registrar progreso" });
+      }
+    });
+  }
+
+  async function handleArchive(goalId: string) {
+    setArchiving(goalId);
+    startArchiveTransition(async () => {
+      const result = await archiveGoal(goalId);
+      setArchiving(null);
+      if (result.success) {
+        setMetricStatus({ success: "Meta archivada." });
+        router.refresh();
+      } else {
+        setMetricStatus({ error: result.error ?? "Error al archivar" });
+      }
+    });
+  }
+
+  async function handleReopen(goalId: string) {
+    setArchiving(goalId);
+    startArchiveTransition(async () => {
+      const result = await reopenGoal(goalId);
+      setArchiving(null);
+      if (result.success) {
+        setMetricStatus({ success: "Meta reactivada." });
+        router.refresh();
+      } else {
+        setMetricStatus({ error: result.error ?? "Error al reactivar" });
       }
     });
   }
@@ -210,8 +283,16 @@ export function MetasClient({ goals }: MetasClientProps) {
                   <Input id="value" name="value" type="number" step="0.01" required placeholder="0" />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="metric_date">Fecha</Label>
+                  <Input id="metric_date" name="date" type="date" defaultValue={todayInputValue()} required />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="unit">Unidad</Label>
                   <Input id="unit" name="unit" placeholder="Opcional" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notas</Label>
+                  <Input id="notes" name="notes" placeholder="Opcional" />
                 </div>
                 <FormStatus {...metricStatus} />
                 <SubmitButton className="w-full">Registrar progreso</SubmitButton>
@@ -228,7 +309,7 @@ export function MetasClient({ goals }: MetasClientProps) {
               {activeGoals.length > 0 && (
                 <div className="grid gap-4 md:grid-cols-2">
                   {activeGoals.map((goal) => (
-                    <GoalCard key={goal.id} goal={goal} />
+                    <GoalCard key={goal.id} goal={goal} onArchive={handleArchive} archiving={archiving} />
                   ))}
                 </div>
               )}
@@ -238,7 +319,7 @@ export function MetasClient({ goals }: MetasClientProps) {
                   <h3 className="hud-label text-escudo-gold">Completadas</h3>
                   <div className="grid gap-4 md:grid-cols-2">
                     {completedGoals.map((goal) => (
-                      <GoalCard key={goal.id} goal={goal} />
+                      <GoalCard key={goal.id} goal={goal} onArchive={handleArchive} archiving={archiving} />
                     ))}
                   </div>
                 </div>
@@ -249,7 +330,7 @@ export function MetasClient({ goals }: MetasClientProps) {
                   <h3 className="hud-label text-muted-foreground">Archivadas</h3>
                   <div className="grid gap-4 md:grid-cols-2">
                     {archivedGoals.map((goal) => (
-                      <GoalCard key={goal.id} goal={goal} />
+                      <GoalCard key={goal.id} goal={goal} onReopen={handleReopen} archiving={archiving} />
                     ))}
                   </div>
                 </div>
