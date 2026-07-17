@@ -24,6 +24,7 @@ class BioSettingsPayload(BaseModel):
     t_last_meal: Optional[str] = None
     t_last_caffeine: Optional[str] = None
     sunlight_offset: int = 30
+    commute_minutes: Optional[int] = None
 
 
 @router.get("/api/v1/bio-settings")
@@ -44,6 +45,7 @@ async def upsert_bio_settings(payload: BioSettingsPayload, user = Depends(get_cu
         "t_last_meal": payload.t_last_meal,
         "t_last_caffeine": payload.t_last_caffeine,
         "sunlight_offset": payload.sunlight_offset,
+        "commute_minutes": payload.commute_minutes,
     }.items() if v is not None}
     existing = await asyncio.to_thread(lambda: supabase.table("user_bio_settings").select("id").eq("user_id", user.id).limit(1).execute())
     res = await asyncio.to_thread(

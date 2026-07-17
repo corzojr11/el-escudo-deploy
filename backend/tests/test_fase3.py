@@ -531,3 +531,72 @@ class TestTodayPartialResponse:
         assert "profile" in data
         assert "today" in data
         assert data["today"]["finances"] == []
+
+
+# --- Plan diario -----------------------------------------------------------
+
+class TestSleepCycles:
+    def test_sleep_windows_from_wake_returns_3_options(self):
+        from routers.schedule import _sleep_windows_from_wake
+        windows = _sleep_windows_from_wake(6, 0)
+        assert len(windows) == 3
+        cycles = [w["cycles"] for w in windows]
+        assert 6 in cycles and 5 in cycles and 4 in cycles
+
+    def test_sleep_windows_include_15_min_latency(self):
+        from routers.schedule import _sleep_windows_from_wake
+        windows = _sleep_windows_from_wake(6, 0)
+        for w in windows:
+            expected_minutes = w["cycles"] * 90 + 15
+            assert w["hours"] == round(expected_minutes / 60, 1)
+
+    def test_sleep_windows_are_correct_for_7am(self):
+        from routers.schedule import _sleep_windows_from_wake
+        windows = _sleep_windows_from_wake(7, 0)
+        windows_by_cycles = {w["cycles"]: w for w in windows}
+        assert windows_by_cycles[6]["sleep_time"] == "20:30"
+        assert windows_by_cycles[6]["wake_time"] == "07:00"
+
+
+class TestPlanDiarioPartial:
+    def test_plan_diario_returns_even_without_shifts(self, monkeypatch):
+        mock_supa = MagicMock()
+
+        def table_side(name):
+            t = MagicMock()
+            if name == "shifts":
+                t.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "user_bio_settings":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "profiles":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[{"name": "Test", "onboarding_completed_at": "2026-01-01"}])
+            elif name == "sleep_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "weight_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[{"weight": 70}])
+            return t
+
+        mock_supa.table.side_effect = table_side
+        import routers.schedule as schedule_module
+        monkeypatch.setattr(schedule_module, "supabase", mock_supa)
+
+        client = TestClient(app)
+        resp = client.get("/api/v1/plan-diario")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "sleep" in data
+        assert "windows" in data["sleep"]
+        assert len(data["sleep"]["windows"]) == 3
+        assert "disclaimer" in data
+
+
+class TestMigration034:
+    def test_migration_034_has_bio_settings_guard(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        migration_path = repo_root / "supabase" / "migrations" / "034_commute_minutes.sql"
+        assert migration_path.exists(), "No se encontro la migracion 034"
+        sql = migration_path.read_text(encoding="utf-8")
+        assert "information_schema.tables" in sql
+        assert "002_bio_settings" in sql
+        assert "commute_minutes" in sql

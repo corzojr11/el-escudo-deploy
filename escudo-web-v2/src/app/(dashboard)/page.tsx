@@ -1,11 +1,12 @@
 import { getTodayData } from "@/app/actions/dashboard";
+import { getPlanDiario } from "@/app/actions/plan";
 import { DashboardClient } from "./dashboard-client";
 
 export const metadata = {
-  title: "Bitácora de viaje - El Escudo",
+  title: "Bitacora de viaje - El Escudo",
 };
 
 export default async function DashboardPage() {
-  const data = await getTodayData();
-  return <DashboardClient data={data} />;
+  const [data, plan] = await Promise.all([getTodayData(), getPlanDiario()]);
+  return <DashboardClient data={data} plan={plan} />;
 }

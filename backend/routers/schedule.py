@@ -633,3 +633,153 @@ async def current_status(user = Depends(get_current_user)):
     shifts = await asyncio.to_thread(lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("is_active", True).execute())
     shifts_data = shifts.data or []
     return compute_current_status(shifts_data)
+
+
+def _sleep_windows_from_wake(wake_h: int, wake_m: int) -> list[dict]:
+    target = _time_to_minutes(wake_h, wake_m)
+    windows = []
+    for c in [6, 5, 4]:
+        sleep_mins = (target - c * TIEMPO_POR_CICLO) % (24 * 60)
+        windows.append({
+            "cycles": c,
+            "hours": round(c * 1.5 + 0.25, 1),
+            "sleep_time": _minutes_to_time(sleep_mins),
+            "wake_time": _minutes_to_time(target),
+        })
+    return windows
+
+
+@router.get("/api/v1/plan-diario")
+async def plan_diario(user = Depends(get_current_user)):
+    now = _bogota_now()
+    today_name = DAY_NAMES_ES[now.weekday()]
+
+    async def _fetch_shifts():
+        r = await asyncio.to_thread(lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("is_active", True).execute())
+        return r.data or []
+
+    async def _fetch_bio():
+        r = await asyncio.to_thread(lambda: supabase.table("user_bio_settings").select("*").eq("user_id", user.id).limit(1).execute())
+        return r.data[0] if r.data else None
+
+    async def _fetch_profile():
+        r = await asyncio.to_thread(lambda: supabase.table("profiles").select("name,height_cm,health_goal,onboarding_completed_at").eq("user_id", user.id).limit(1).execute())
+        return r.data[0] if r.data else None
+
+    async def _fetch_sleep_recent():
+        r = await asyncio.to_thread(lambda: supabase.table("sleep_logs").select("*").eq("user_id", user.id).order("date", desc=True).limit(7).execute())
+        return r.data or []
+
+    async def _fetch_weight_latest():
+        r = await asyncio.to_thread(lambda: supabase.table("weight_logs").select("weight").eq("user_id", user.id).order("date", desc=True).limit(1).execute())
+        return r.data[0]["weight"] if r.data else None
+
+    shifts_data, bio, profile, sleep_logs, weight_kg = await asyncio.gather(
+        _fetch_shifts(), _fetch_bio(), _fetch_profile(), _fetch_sleep_recent(), _fetch_weight_latest()
+    )
+
+    bs = bio or {}
+    wake_target = str(bs.get("t_wake_target") or "06:00")
+    sleep_target = str(bs.get("t_sleep_target") or "22:30")
+    commute = int(bs.get("commute_minutes") or 35)
+    PREP = 45
+
+    shift_status = compute_current_status(shifts_data, now)
+    today_shift = next((s for s in shifts_data if s.get("day", "").lower() == today_name.lower()), None)
+
+    sleep_windows = []
+    workout_block = None
+    fatigue_alert = None
+
+    if today_shift:
+        sh, sm = _parse_time(str(today_shift.get("start", "08:00")))
+        eh, em = _parse_time(str(today_shift.get("end", "17:00")))
+        ts = _time_to_minutes(sh, sm)
+        te = _time_to_minutes(eh, em)
+        if te <= ts:
+            te += 24 * 60
+
+        shift_end = te
+        home_arrival = shift_end + commute
+        ready_time = home_arrival + PREP
+
+        wake_h, wake_m = _parse_time(wake_target)
+        next_wake = _time_to_minutes(wake_h, wake_m)
+        if next_wake <= ready_time:
+            next_wake += 24 * 60
+
+        free_window = next_wake - ready_time
+        sleep_windows = _sleep_windows_from_wake(wake_h, wake_m)
+
+        best_cycles = _optimizar_ciclos(free_window)
+        if best_cycles < 4:
+            fatigue_alert = f"Solo {best_cycles} ciclos posibles. Menos de 4 afecta el rendimiento." if best_cycles > 0 else "No hay ventana para ciclos completos de sueño."
+
+        workout_start = ready_time
+        workout_end = ready_time + 90
+        latest_sleep = _time_to_minutes(*_parse_time(_minutes_to_time((next_wake - best_cycles * TIEMPO_POR_CICLO) % (24 * 60))))
+        if latest_sleep <= ready_time:
+            latest_sleep += 24 * 60
+
+        if (workout_end + 60) <= latest_sleep and free_window >= (90 + 60 + best_cycles * TIEMPO_POR_CICLO):
+            workout_block = {
+                "start": _minutes_to_time(workout_start % (24 * 60)),
+                "end": _minutes_to_time(workout_end % (24 * 60)),
+                "duration_min": 90,
+                "label": "Entrenamiento sugerido",
+            }
+        else:
+            workout_block = None
+
+    else:
+        wake_h, wake_m = _parse_time(wake_target)
+        sleep_h, sleep_m = _parse_time(sleep_target)
+        sleep_windows = _sleep_windows_from_wake(wake_h, wake_m)
+
+        inicio = _time_to_minutes(sleep_h, sleep_m)
+        destino = _time_to_minutes(wake_h, wake_m)
+        if destino <= inicio:
+            destino += 24 * 60
+        free_window = destino - inicio
+        best_cycles = _optimizar_ciclos(free_window)
+
+        afternoon = (_time_to_minutes(sleep_h, sleep_m) - 150 + 24 * 60) % (24 * 60)
+        if free_window >= (90 + best_cycles * TIEMPO_POR_CICLO + 120):
+            workout_block = {
+                "start": _minutes_to_time((inicio + 60) % (24 * 60)),
+                "end": _minutes_to_time((inicio + 150) % (24 * 60)),
+                "duration_min": 90,
+                "label": "Entrenamiento sugerido",
+            }
+
+    hydration_ml = None
+    if weight_kg:
+        raw = float(weight_kg) * 35
+        rounded = int(raw / 250 + 0.5) * 250
+        hydration_ml = max(1500, min(3500, rounded))
+
+    missing_config = []
+    if not profile or not profile.get("onboarding_completed_at"):
+        missing_config.append("perfil")
+    if not shifts_data:
+        missing_config.append("turnos")
+    if not bio:
+        missing_config.append("ajustes")
+
+    return {
+        "date": now.strftime("%Y-%m-%d"),
+        "shift_status": shift_status,
+        "sleep": {
+            "windows": sleep_windows,
+            "fatigue_alert": fatigue_alert,
+            "recommended_cycles": best_cycles if today_shift or not today_shift else None,
+            "wake_target": wake_target,
+            "sleep_target": sleep_target,
+            "commute_minutes": commute,
+        },
+        "workout": workout_block,
+        "hydration_ml": hydration_ml,
+        "sleep_logs_recent": sleep_logs[:7],
+        "missing_config": missing_config,
+        "disclaimer": "Esta es una planificacion orientativa basada en tus datos. No constituye consejo medico.",
+    }

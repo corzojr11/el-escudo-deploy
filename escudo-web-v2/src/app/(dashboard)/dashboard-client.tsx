@@ -14,7 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import type { TodayResponse } from "@/lib/api/types";
+import type { TodayResponse, PlanDiarioResponse } from "@/lib/api/types";
 
 function Metric({ label, value, detail, tone = "text-foreground" }: {
   label: string;
@@ -33,9 +33,10 @@ function Metric({ label, value, detail, tone = "text-foreground" }: {
 
 interface DashboardClientProps {
   data: TodayResponse;
+  plan: PlanDiarioResponse;
 }
 
-export function DashboardClient({ data }: DashboardClientProps) {
+export function DashboardClient({ data, plan }: DashboardClientProps) {
   const profile = data.profile;
   const today = data.today;
   const goals = today.active_goals ?? [];
@@ -175,7 +176,79 @@ export function DashboardClient({ data }: DashboardClientProps) {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
+      <section className="border border-border bg-card p-5">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <p className="hud-label">Plan del dia</p>
+            <h3 className="mt-1 font-heading text-lg font-bold">Tu cronograma</h3>
+          </div>
+          <span className="font-mono text-[10px] text-muted-foreground">{plan.date}</span>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="space-y-1">
+            <p className="hud-label text-[#7C5DFF]">Turno</p>
+            {plan.shift_status?.status === "in_shift" && plan.shift_status.shift ? (
+              <>
+                <p className="text-sm text-white">
+                  {plan.shift_status.shift.day} {plan.shift_status.shift.start} – {plan.shift_status.shift.end}
+                </p>
+                <p className="text-[10px] text-gray-500">+{plan.sleep.commute_minutes} min traslado</p>
+              </>
+            ) : plan.shift_status?.next_shift ? (
+              <p className="text-sm text-white">
+                Proximo: {plan.shift_status.next_shift.day} {plan.shift_status.next_shift.start}
+              </p>
+            ) : (
+              <p className="text-sm text-gray-400">Sin turnos registrados</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <p className="hud-label text-[#FFD700]">Sueno</p>
+            {plan.sleep.windows.length > 0 ? (
+              <>
+                <p className="text-sm text-white">
+                  {plan.sleep.windows[0].sleep_time} – {plan.sleep.windows[0].wake_time}
+                </p>
+                <p className="text-[10px] text-gray-500">
+                  {plan.sleep.windows[0].cycles} ciclos · {plan.sleep.windows[0].hours}h
+                </p>
+                {plan.sleep.fatigue_alert && (
+                  <p className="text-[10px] text-red-400">{plan.sleep.fatigue_alert}</p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">Configura tus ajustes</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <p className="hud-label text-[#7C5DFF]">Entreno</p>
+            {plan.workout ? (
+              <>
+                <p className="text-sm text-white">
+                  {plan.workout.start} – {plan.workout.end}
+                </p>
+                <p className="text-[10px] text-gray-500">{plan.workout.duration_min} min · {plan.workout.label}</p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">Recuperacion / descanso activo</p>
+            )}
+          </div>
+        </div>
+        {plan.missing_config.length > 0 && (
+          <div className="mt-4 border-t border-border pt-3">
+            <p className="text-xs text-gray-400">
+              Completa tu configuracion en{" "}
+              {plan.missing_config.includes("perfil") && <a href="/perfil" className="text-[#7C5DFF] underline">Perfil</a>}
+              {plan.missing_config.includes("turnos") && <a href="/turnos" className="text-[#7C5DFF] underline"> Turnos</a>}
+              {plan.missing_config.includes("ajustes") && <a href="/turnos" className="text-[#7C5DFF] underline"> Ajustes</a>}
+              {" "}para ver tu plan personalizado.
+            </p>
+          </div>
+        )}
+        <p className="mt-3 text-[10px] text-gray-600">{plan.disclaimer}</p>
+      </section>
+
+      <section className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
         <div className="border border-border bg-card p-5">
           <div className="flex items-center justify-between border-b border-border pb-3">
             <div><p className="hud-label">Misiones diarias</p><h3 className="mt-1 font-heading text-lg font-bold">Acciones de hoy</h3></div>

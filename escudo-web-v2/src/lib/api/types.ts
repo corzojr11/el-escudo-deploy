@@ -317,3 +317,46 @@ export interface TodayResponse {
     hydration_ml: number | null;
   };
 }
+
+export interface SleepWindow {
+  cycles: number;
+  hours: number;
+  sleep_time: string;
+  wake_time: string;
+}
+
+export interface WorkoutBlock {
+  start: string;
+  end: string;
+  duration_min: number;
+  label: string;
+}
+
+export interface SleepLog {
+  id: string;
+  user_id: string;
+  date: string;
+  bed_time: string;
+  wake_time: string;
+  cycles: number;
+  quality_score: number;
+  notes: string;
+}
+
+export interface PlanDiarioResponse {
+  date: string;
+  shift_status: ShiftStatusResponse;
+  sleep: {
+    windows: SleepWindow[];
+    fatigue_alert: string | null;
+    recommended_cycles: number | null;
+    wake_target: string;
+    sleep_target: string;
+    commute_minutes: number;
+  };
+  workout: WorkoutBlock | null;
+  hydration_ml: number | null;
+  sleep_logs_recent: SleepLog[];
+  missing_config: string[];
+  disclaimer: string;
+}

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createShift, updateShift, deleteShift } from "@/app/actions/turnos";
+import { upsertBioSettings } from "@/app/actions/plan";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -37,9 +38,10 @@ function formatRemaining(hours: number): string {
 interface TurnosClientProps {
   shifts: Shift[];
   currentStatus: CurrentStatusResponse;
+  bioSettings: Record<string, unknown> | null;
 }
 
-export function TurnosClient({ shifts, currentStatus }: TurnosClientProps) {
+export function TurnosClient({ shifts, currentStatus, bioSettings }: TurnosClientProps) {
   const router = useRouter();
   const [shiftList, setShiftList] = useState<Shift[]>(sortByDay(shifts));
   const [creating, setCreating] = useState(false);
@@ -47,6 +49,11 @@ export function TurnosClient({ shifts, currentStatus }: TurnosClientProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<{ success?: string; error?: string }>({});
   const [formKey, setFormKey] = useState(0);
+  const [wakeTime, setWakeTime] = useState(String(bioSettings?.t_wake_target || "06:00"));
+  const [sleepTime, setSleepTime] = useState(String(bioSettings?.t_sleep_target || "22:30"));
+  const [commuteMin, setCommuteMin] = useState(String(bioSettings?.commute_minutes || 35));
+  const [savingBio, setSavingBio] = useState(false);
+  const [bioMsg, setBioMsg] = useState<{ success?: string; error?: string }>({});
 
   async function handleCreate(formData: FormData) {
     setFormStatus({});
@@ -307,6 +314,72 @@ export function TurnosClient({ shifts, currentStatus }: TurnosClientProps) {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-[#2A2A3C] bg-[#17171A]">
+        <CardHeader>
+          <CardTitle className="text-[#FFD700]">Ajustes biologicos</CardTitle>
+          <CardDescription>Configura tu ritmo circadiano y traslado</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {bioMsg.success && <FormStatus success={bioMsg.success} />}
+          {bioMsg.error && <FormStatus error={bioMsg.error} />}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Despertar</label>
+              <input
+                type="time"
+                value={wakeTime}
+                onChange={(e) => setWakeTime(e.target.value)}
+                className="w-full border border-[#2A2A3C] bg-[#0C0C0E] text-white px-3 py-2 text-sm rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Dormir</label>
+              <input
+                type="time"
+                value={sleepTime}
+                onChange={(e) => setSleepTime(e.target.value)}
+                className="w-full border border-[#2A2A3C] bg-[#0C0C0E] text-white px-3 py-2 text-sm rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Traslado (min)</label>
+              <input
+                type="number"
+                value={commuteMin}
+                onChange={(e) => setCommuteMin(e.target.value)}
+                min={0}
+                max={180}
+                className="w-full border border-[#2A2A3C] bg-[#0C0C0E] text-white px-3 py-2 text-sm rounded"
+              />
+            </div>
+          </div>
+          <Button
+            onClick={async () => {
+              setSavingBio(true);
+              setBioMsg({});
+              try {
+                await upsertBioSettings({
+                  t_wake_target: wakeTime,
+                  t_sleep_target: sleepTime,
+                  commute_minutes: parseInt(commuteMin) || 35,
+                });
+                setBioMsg({ success: "Ajustes guardados" });
+                router.refresh();
+              } catch (e: unknown) {
+                setBioMsg({ error: e instanceof Error ? e.message : "Error al guardar" });
+              } finally {
+                setSavingBio(false);
+              }
+            }}
+            disabled={savingBio}
+            className="bg-[#7C5DFF] hover:bg-[#7C5DFF]/90 text-white"
+          >
+            {savingBio && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Guardar ajustes
+          </Button>
         </CardContent>
       </Card>
     </div>
