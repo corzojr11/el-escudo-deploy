@@ -197,6 +197,48 @@ export interface WellnessSummary {
   action_label: string | null;
 }
 
+export interface FixedExpense {
+  id: string;
+  user_id: string;
+  name: string;
+  amount: number;
+  category: string;
+  due_date?: string;
+  is_paid: boolean;
+  created_at?: string;
+}
+
+export interface Debt {
+  id: string;
+  user_id: string;
+  name: string;
+  total: number;
+  remaining: number;
+  monthly_payment?: number;
+  due_date?: string;
+  notes?: string;
+  status?: string;
+  created_at?: string;
+}
+
+export interface DebtPayment {
+  id: string;
+  debt_id: string;
+  user_id: string;
+  amount: number;
+  payment_date: string;
+  notes?: string;
+  created_at?: string;
+}
+
+export interface ParsedTransaction {
+  type: string;
+  amount: number;
+  description: string;
+  category: string;
+  fallback_mode?: string;
+}
+
 export interface FinanceSummaryItem {
   category: string;
   total: number;

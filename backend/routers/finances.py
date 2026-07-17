@@ -541,6 +541,10 @@ class DebtUpdatePayload(BaseModel):
     status: Optional[str] = None
 
 
+class BudgetPayload(BaseModel):
+    monthly_budget: float = Field(..., ge=0, le=999999999.99)
+
+
 class DebtPaymentPayload(BaseModel):
     amount: float = Field(..., gt=0)
     payment_date: Optional[str] = None
@@ -634,30 +638,32 @@ async def delete_debt(debt_id: str, user=Depends(get_current_user)):
 
 @router.post("/api/v1/debts/{debt_id}/payments")
 async def record_debt_payment(debt_id: str, payload: DebtPaymentPayload, user=Depends(get_current_user)):
-    debt_check = await asyncio.to_thread(lambda: supabase.table("debts").select("id,remaining").eq("id", debt_id).eq("user_id", user.id).limit(1).execute())
-    if not debt_check.data:
-        raise NotFoundException("Deuda")
-    current_remaining = float(debt_check.data[0].get("remaining", 0))
-    if payload.amount > current_remaining:
-        raise BadRequestException("El abono no puede superar el saldo pendiente.")
-
     from zoneinfo import ZoneInfo
     try:
         payment_date = payload.payment_date or datetime.now(ZoneInfo("America/Bogota")).strftime("%Y-%m-%d")
     except Exception:
         payment_date = payload.payment_date or datetime.now().strftime("%Y-%m-%d")
 
-    await asyncio.to_thread(lambda: supabase.table("debt_payments").insert({
-        "debt_id": debt_id,
-        "user_id": user.id,
-        "amount": payload.amount,
-        "payment_date": payment_date,
-        "notes": payload.notes or "",
-    }).execute())
+    try:
+        res = await asyncio.to_thread(lambda: supabase.rpc("record_debt_payment", {
+            "p_debt_id": debt_id,
+            "p_user_id": user.id,
+            "p_amount": payload.amount,
+            "p_payment_date": payment_date,
+            "p_notes": payload.notes or "",
+        }).execute())
+        if res.data:
+            import json
+            data = json.loads(res.data) if isinstance(res.data, str) else res.data
+            return {"debt": {"remaining": data.get("new_remaining", 0)}}
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "supera" in msg or "saldo" in msg:
+            raise BadRequestException("El abono no puede superar el saldo pendiente.")
+        logger.warning(f"debt payment RPC error: {exc}")
+        raise BadRequestException("Error al registrar el pago.")
 
-    new_remaining = round(current_remaining - payload.amount, 2)
-    res = await asyncio.to_thread(lambda: supabase.table("debts").update({"remaining": new_remaining}).eq("id", debt_id).eq("user_id", user.id).execute())
-    return {"debt": res.data[0] if res.data else {"remaining": new_remaining}}
+    return {"debt": {"remaining": 0}}
 
 
 @router.get("/api/v1/debts/{debt_id}/payments")
@@ -676,9 +682,6 @@ async def get_budget(user=Depends(get_current_user)):
 
 
 @router.put("/api/v1/budget")
-async def set_budget(payload: dict, user=Depends(get_current_user)):
-    budget = float(payload.get("monthly_budget", 0))
-    if budget < 0:
-        raise BadRequestException("El presupuesto no puede ser negativo.")
-    await asyncio.to_thread(lambda: supabase.table("profiles").update({"monthly_budget": budget}).eq("user_id", user.id).execute())
-    return {"monthly_budget": budget}
+async def set_budget(payload: BudgetPayload, user=Depends(get_current_user)):
+    await asyncio.to_thread(lambda: supabase.table("profiles").update({"monthly_budget": payload.monthly_budget}).eq("user_id", user.id).execute())
+    return {"monthly_budget": payload.monthly_budget}
