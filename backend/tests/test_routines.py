@@ -117,3 +117,90 @@ def test_delete_routine_isolated_by_user(monkeypatch):
 
     assert resp.status_code == 200
     assert routines_table.delete.called
+
+
+def test_upsert_rejects_day_index_7(monkeypatch):
+    client = TestClient(app)
+    resp = client.put("/api/v1/routines/7", json={
+        "day_name": "Invalido",
+        "exercises": [],
+    })
+    assert resp.status_code == 400
+
+
+def test_complete_rejects_day_index_negative(monkeypatch):
+    client = TestClient(app)
+    resp = client.post("/api/v1/routines/-2/complete")
+    assert resp.status_code == 400
+
+
+def test_delete_rejects_day_index_7(monkeypatch):
+    client = TestClient(app)
+    resp = client.delete("/api/v1/routines/7")
+    assert resp.status_code == 400
+
+
+def test_upsert_uses_canonical_day_name(monkeypatch):
+    import routers.routines as routines_module
+
+    mock_supa = MagicMock()
+    routines_table = MagicMock()
+    upsert_chain = MagicMock()
+    upsert_chain.execute.return_value = MockResult([
+        {"id": "r1", "user_id": MOCK_USER_ID, "day_index": 3, "day_name": "Sabado"}
+    ])
+    routines_table.upsert.return_value = upsert_chain
+
+    def table_side(name):
+        if name == "routines":
+            return routines_table
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(routines_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.put("/api/v1/routines/3", json={
+        "day_name": "NombreArbitrario",
+        "exercises": [],
+    })
+
+    assert resp.status_code == 200
+    inserted = routines_table.upsert.call_args[0][0]
+    assert inserted["day_name"] == "Miércoles"
+    assert inserted["day_index"] == 3
+
+
+def test_upsert_preserves_equipment_and_muscles(monkeypatch):
+    import routers.routines as routines_module
+
+    mock_supa = MagicMock()
+    routines_table = MagicMock()
+    upsert_chain = MagicMock()
+    upsert_chain.execute.return_value = MockResult([
+        {"id": "r1", "user_id": MOCK_USER_ID, "day_index": 1, "day_name": "Lunes",
+         "exercises": [{"name": "Press", "equipment": ["barra"], "muscles": ["pecho"]}]}
+    ])
+    routines_table.upsert.return_value = upsert_chain
+
+    def table_side(name):
+        if name == "routines":
+            return routines_table
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(routines_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.put("/api/v1/routines/1", json={
+        "day_name": "Lunes",
+        "exercises": [{"name": "Press", "equipment": ["barra", "mancuernas"], "muscles": ["pecho", "triceps"]}],
+    })
+
+    assert resp.status_code == 200
+    inserted = routines_table.upsert.call_args[0][0]
+    ex = inserted["exercises"][0]
+    assert "barra" in ex["equipment"]
+    assert "mancuernas" in ex["equipment"]
+    assert "pecho" in ex["muscles"]
+    assert "triceps" in ex["muscles"]

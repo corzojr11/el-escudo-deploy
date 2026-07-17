@@ -143,7 +143,9 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
 
       {routines.length > 0 && (
         (() => {
-          const todayIdx = new Date().getDay();
+          const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          const bogotaDay = new Intl.DateTimeFormat("en-US", { timeZone: "America/Bogota", weekday: "short" }).format(new Date());
+          const todayIdx = weekdays.indexOf(bogotaDay);
           const todayRoutine = routines.find((r) => r.day_index === todayIdx);
           if (!todayRoutine) return null;
           return (

@@ -61,13 +61,13 @@ async def list_routines(user = Depends(get_current_user)):
 
 @router.put("/api/v1/routines/{day_index}")
 async def upsert_routine_day(day_index: int, payload: RoutineDayPayload, user = Depends(get_current_user)):
-    if day_index < 0:
-        raise ApiException(status_code=400, detail="day_index inválido.")
+    if day_index < 0 or day_index > 6:
+        raise ApiException(status_code=400, detail="day_index inválido. Debe ser 0 (Domingo) a 6 (Sabado).")
 
     record = {
         "user_id": user.id,
         "day_index": day_index,
-        "day_name": _normalize_day_name(day_index, payload.day_name),
+        "day_name": _normalize_day_name(day_index),
         "objective": payload.objective,
         "estimated_minutes": payload.estimated_minutes,
         "notes": payload.notes,
@@ -99,6 +99,8 @@ async def upsert_routine_day(day_index: int, payload: RoutineDayPayload, user = 
 
 @router.post("/api/v1/routines/{day_index}/complete")
 async def complete_routine_day(day_index: int, user = Depends(get_current_user)):
+    if day_index < 0 or day_index > 6:
+        raise ApiException(status_code=400, detail="day_index inválido. Debe ser 0 (Domingo) a 6 (Sabado).")
     current = await asyncio.to_thread(
         lambda: supabase.table("routines")
             .select("*")
@@ -127,6 +129,8 @@ async def complete_routine_day(day_index: int, user = Depends(get_current_user))
 
 @router.delete("/api/v1/routines/{day_index}")
 async def delete_routine_day(day_index: int, user = Depends(get_current_user)):
+    if day_index < 0 or day_index > 6:
+        raise ApiException(status_code=400, detail="day_index inválido. Debe ser 0 (Domingo) a 6 (Sabado).")
     res = await asyncio.to_thread(
         lambda: supabase.table("routines")
             .delete()
