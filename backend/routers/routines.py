@@ -159,3 +159,18 @@ async def delete_routine_day(day_index: int, user = Depends(get_current_user)):
         raise ApiException(status_code=404, detail="Rutina no encontrada.")
     await track_event("routines", "delete_routine_day", user_id=user.id, metadata={"day_index": day_index})
     return {"detail": "Rutina eliminada exitosamente"}
+
+
+@router.get("/api/v1/routines/completions/today")
+async def get_today_completions(user=Depends(get_current_user)):
+    from zoneinfo import ZoneInfo
+    try:
+        today = datetime.now(ZoneInfo("America/Bogota")).strftime("%Y-%m-%d")
+    except Exception:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    res = await asyncio.to_thread(
+        lambda: supabase.table("routine_completions").select("day_index").eq("user_id", user.id).eq("completed_date", today).execute()
+    )
+    completed_indices = [r["day_index"] for r in (res.data or [])]
+    return {"completed_days": completed_indices}

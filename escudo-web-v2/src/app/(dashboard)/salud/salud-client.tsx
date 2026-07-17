@@ -36,9 +36,10 @@ interface SaludClientProps {
   exerciseLogs: ExerciseLog[];
   personalRecords: PersonalRecord[];
   routines: Routine[];
+  completedDays: number[];
 }
 
-export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSettings, exerciseLogs, personalRecords, routines }: SaludClientProps) {
+export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSettings, exerciseLogs, personalRecords, routines, completedDays }: SaludClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
@@ -62,7 +63,12 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
   const [exercising, setExercising] = useState(false);
 
   const [completingRoutine, setCompletingRoutine] = useState(false);
-  const [routineDone, setRoutineDone] = useState(false);
+
+  const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const bogotaDay = new Intl.DateTimeFormat("en-US", { timeZone: "America/Bogota", weekday: "short" }).format(new Date());
+  const todayIdx = weekdays.indexOf(bogotaDay);
+  const [routineDone, setRoutineDone] = useState(completedDays.includes(todayIdx));
+  const [routineMsg, setRoutineMsg] = useState<{ success?: string; error?: string }>({});
 
   const sortedLogs = useMemo(
     () =>
@@ -148,9 +154,6 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
 
       {routines.length > 0 && (
         (() => {
-          const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-          const bogotaDay = new Intl.DateTimeFormat("en-US", { timeZone: "America/Bogota", weekday: "short" }).format(new Date());
-          const todayIdx = weekdays.indexOf(bogotaDay);
           const todayRoutine = routines.find((r) => r.day_index === todayIdx);
           if (!todayRoutine) return null;
           return (
@@ -161,19 +164,24 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
                   {todayRoutine.day_name}: {todayRoutine.exercises?.length || 0} ejercicios
                   {todayRoutine.estimated_minutes ? ` · ${todayRoutine.estimated_minutes} min` : ""}
                 </p>
+                {routineMsg.success && <p className="text-xs text-[#FFD700] mt-1">{routineMsg.success}</p>}
+                {routineMsg.error && <p className="text-xs text-red-400 mt-1">{routineMsg.error}</p>}
               </div>
               <div className="flex items-center gap-2">
                 {routineDone ? (
                   <>
-                    <span className="text-xs text-[#FFD700]">✓ Completada</span>
+                    <span className="text-xs text-[#FFD700]">Completada</span>
                     <button
                       onClick={async () => {
                         setCompletingRoutine(true);
+                        setRoutineMsg({});
                         try {
                           await uncompleteRoutineDay(todayIdx);
                           setRoutineDone(false);
                           router.refresh();
-                        } catch {}
+                        } catch (e: unknown) {
+                          setRoutineMsg({ error: e instanceof Error ? e.message : "Error al desmarcar" });
+                        }
                         setCompletingRoutine(false);
                       }}
                       disabled={completingRoutine}
@@ -186,11 +194,14 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
                   <button
                     onClick={async () => {
                       setCompletingRoutine(true);
+                      setRoutineMsg({});
                       try {
                         await completeRoutineDay(todayIdx);
                         setRoutineDone(true);
                         router.refresh();
-                      } catch {}
+                      } catch (e: unknown) {
+                        setRoutineMsg({ error: e instanceof Error ? e.message : "Error al completar" });
+                      }
                       setCompletingRoutine(false);
                     }}
                     disabled={completingRoutine}

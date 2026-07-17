@@ -20,19 +20,21 @@ def _bogota_now() -> datetime:
         return datetime.now()
 
 
-def _bogota_today_str() -> str:
-    return _bogota_now().strftime("%Y-%m-%d")
-
-
 @router.get("/api/v1/wellness-summary")
 async def wellness_summary(user=Depends(get_current_user)):
     now = _bogota_now()
     today_str = now.strftime("%Y-%m-%d")
-    week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = start_of_day + timedelta(days=1)
 
     async def _fetch_missions():
         try:
-            r = await asyncio.to_thread(lambda: supabase.table("missions").select("status").eq("user_id", user.id).eq("scheduled_at", today_str).execute())
+            r = await asyncio.to_thread(
+                lambda: supabase.table("missions").select("status").eq("user_id", user.id)
+                .gte("scheduled_at", start_of_day.isoformat())
+                .lt("scheduled_at", end_of_day.isoformat())
+                .execute()
+            )
             return r.data or []
         except Exception:
             return []
@@ -44,9 +46,7 @@ async def wellness_summary(user=Depends(get_current_user)):
             if habits:
                 ids = [x["id"] for x in habits]
                 c = await asyncio.to_thread(lambda: supabase.table("habit_completions").select("habit_id,date").in_("habit_id", ids).eq("user_id", user.id).eq("date", today_str).execute())
-                completions = c.data or []
-                done = len(completions)
-                return done, len(habits)
+                return len(c.data or []), len(habits)
             return 0, 0
         except Exception:
             return 0, 0
@@ -54,9 +54,11 @@ async def wellness_summary(user=Depends(get_current_user)):
     async def _fetch_focus():
         try:
             r = await asyncio.to_thread(lambda: supabase.table("focus_status").select("focus_streak").eq("user_id", user.id).limit(1).execute())
-            return r.data[0].get("focus_streak", 0) if r.data else 0
+            if r.data:
+                return r.data[0].get("focus_streak", 0)
+            return None
         except Exception:
-            return 0
+            return None
 
     async def _fetch_weight_recent():
         try:
@@ -79,19 +81,9 @@ async def wellness_summary(user=Depends(get_current_user)):
         except Exception:
             return []
 
-    async def _fetch_routine_completed_today():
-        try:
-            idx = now.weekday() + 1
-            if idx > 6:
-                idx = 0
-            r = await asyncio.to_thread(lambda: supabase.table("routine_completions").select("id").eq("user_id", user.id).eq("day_index", idx).eq("completed_date", today_str).limit(1).execute())
-            return bool(r.data)
-        except Exception:
-            return False
-
-    missions_data, habits_result, focus, weights, sleep_data, finances, routine_done = await asyncio.gather(
+    missions_data, habits_result, focus, weights, sleep_data, finances = await asyncio.gather(
         _fetch_missions(), _fetch_habits(), _fetch_focus(), _fetch_weight_recent(),
-        _fetch_sleep_recent(), _fetch_finances_month(), _fetch_routine_completed_today(),
+        _fetch_sleep_recent(), _fetch_finances_month(),
     )
 
     habits_done, habits_total = habits_result
@@ -123,7 +115,7 @@ async def wellness_summary(user=Depends(get_current_user)):
         factors.append({"name": "misiones", "label": "Misiones hoy", "value": "sin datos", "score": None, "max": 25})
 
     # --- Enfoque ---
-    if focus >= 0:
+    if focus is not None:
         s = min(round(focus * 2.5), 15)
         score += s
         data_points += 1
@@ -134,6 +126,7 @@ async def wellness_summary(user=Depends(get_current_user)):
     # --- Peso ---
     if weights:
         s = 10
+        score += s
         data_points += 1
         factors.append({"name": "peso", "label": "Peso reciente", "value": "registrado", "score": s, "max": 10})
     else:
@@ -149,7 +142,7 @@ async def wellness_summary(user=Depends(get_current_user)):
     else:
         factors.append({"name": "sueno", "label": "Sueno reciente", "value": "sin datos", "score": None, "max": 10})
 
-    # --- Finanzas (solo si hay datos) ---
+    # --- Finanzas ---
     income = sum(float(f.get("amount", 0)) for f in finances if str(f.get("type", "")).upper() == "INGRESO")
     expense = sum(float(f.get("amount", 0)) for f in finances if str(f.get("type", "")).upper() != "INGRESO")
     if finances:
@@ -165,13 +158,16 @@ async def wellness_summary(user=Depends(get_current_user)):
         factors.append({"name": "finanzas", "label": "Finanzas mes", "value": "sin datos", "score": None, "max": 5})
 
     completeness = round(data_points / 6 * 100)
+    score = min(score, 100)
 
     # --- Insight deterministico ---
     insight = "Sigue construyendo tus habitos. Cada dia cuenta."
     action_route: Optional[str] = None
     action_label: Optional[str] = None
 
-    if focus >= 7:
+    avg_sleep = sum(s.get("cycles", 5) for s in sleep_data) / len(sleep_data) if sleep_data else None
+
+    if focus is not None and focus >= 7:
         insight = f"Racha solida de {focus} dias de enfoque. Estas construyendo disciplina real."
         action_route = "/salud"
         action_label = "Ver enfoque"
@@ -183,32 +179,30 @@ async def wellness_summary(user=Depends(get_current_user)):
         insight = "No has completado ninguna mision hoy. Empieza con la mas pequena."
         action_route = "/misiones"
         action_label = "Ir a misiones"
-    elif not weights:
-        insight = "Registra tu peso para que pueda seguir tu evolucion corporal."
+    elif avg_sleep is not None and avg_sleep < 4:
+        insight = f"Tu promedio de {avg_sleep:.1f} ciclos de sueno esta bajo. Intenta dormir mas."
         action_route = "/salud"
-        action_label = "Registrar peso"
-    elif sleep_data:
-        avg = sum(s.get("cycles", 5) for s in sleep_data) / len(sleep_data)
-        if avg < 4:
-            insight = f"Tu promedio de {avg:.1f} ciclos de sueno esta bajo. Intenta dormir mas."
-            action_route = "/salud"
-            action_label = "Ver sueno"
+        action_label = "Ver sueno"
     elif len(weights) >= 2:
         recent = weights[0].get("weight", 0)
-        last_week = weights[-1].get("weight", recent) if len(weights) > 1 else recent
-        if last_week and recent:
-            diff = round(recent - last_week, 1)
+        week_ago = next((w for w in weights[1:] if w.get("date")), None)
+        if week_ago:
+            diff = round(recent - float(week_ago.get("weight", recent)), 1)
             if abs(diff) > 0.5:
                 trend = "bajando" if diff < 0 else "subiendo"
                 insight = f"Tu peso ha variado {abs(diff)} kg en la ultima semana ({trend})."
                 action_route = "/salud"
                 action_label = "Ver peso"
+    elif not weights:
+        insight = "Registra tu peso para que pueda seguir tu evolucion corporal."
+        action_route = "/salud"
+        action_label = "Registrar peso"
     elif completeness < 50:
         insight = "Apenas estamos empezando. Completa tu perfil, turnos y habitos para mediciones mas precisas."
 
     return {
         "date": today_str,
-        "score": min(score, 100),
+        "score": score,
         "completeness": completeness,
         "factors": factors,
         "insight": insight,
