@@ -10,7 +10,7 @@
 
 1. **Tu proyecto en Supabase** (ya deberías tenerlo, es donde se guardan los datos)
 2. **Tu backend corriendo** (la carpeta `backend/` de tu computadora)
-3. **La app en tu celular** (con Expo Go instalado)
+3. **La app en tu celular** (con Expo Go instalado) — o el **frontend web** en `escudo-web-v2/` (con `npm run dev`)
 4. **Un navegador web** (Chrome, Safari, etc.)
 
 ---
@@ -30,17 +30,22 @@ Las migraciones son "instrucciones" que le dicen a la base de datos (Supabase) q
 
 **1.4** Haz clic en el botón **"New query"** (o "Nueva consulta").
 
-**1.5** Abre el archivo que ya preparé para ti:
-- Ve a la carpeta de tu proyecto en tu computadora
-- Abre: `supabase/migrations/ALL_MIGRATIONS_011_to_017.sql`
+**1.5** Ve a la carpeta `supabase/migrations/` de tu proyecto en tu computadora. Ahí hay archivos numerados del `001` al `032`. Cada archivo contiene las instrucciones SQL para una parte de la base de datos. Se ejecutan en orden, de `001` a `032`.
+
+**1.6** Abre cada archivo en orden (empezando por `001_core_schema.sql`):
 - Selecciona TODO el contenido (Ctrl+A, luego Ctrl+C)
 - Pégalo en el SQL Editor de Supabase (Ctrl+V)
+- Haz clic en el botón verde **"Run"** (o "Ejecutar")
+- Si ves un mensaje verde tipo **"Success"**, continúa con el siguiente archivo
 
-**1.6** Haz clic en el botón verde **"Run"** (o "Ejecutar").
+**1.7** **IMPORTANTE — Si ves un error rojo:**
 
-**1.7** Espera 5-10 segundos. Si ves un mensaje verde tipo "Success" o una palomita ✅, ¡listo!
+Detente y revisa el mensaje antes de continuar. No todos los errores son inofensivos:
 
-> ⚠️ **Si ves un error rojo:** No te preocupes. Probablemente dice algo como `relation already exists` (la tabla ya existe). Eso está bien, significa que parte de la migración ya estaba aplicada. Solo asegúrate de que no haya errores de tipo `permission denied`.
+- **`relation already exists`**: La tabla ya existe. Puedes continuar si el resto del archivo se ejecutó bien.
+- **`relation "xxx" does not exist`**: Falta una migración anterior. Vuelve atrás y ejecuta las que faltan en orden.
+- **`permission denied`**: Tu usuario de Supabase no tiene permisos. Usa una cuenta con rol de administrador.
+- **Cualquier otro error**: No sigas. Copia el mensaje exacto y revísalo antes de continuar.
 
 **1.8** Verificación rápida (opcional pero recomendada):
 
@@ -141,21 +146,18 @@ GEMINI_API_KEY=pega_tu_gemini_api_key_aqui
 
 ---
 
-### 🔑 `FRONTEND_URL` (IMPORTANTE para producción)
+### 🔑 `FRONTEND_URL` (OBLIGATORIA en producción)
 
-**¿Qué es?** Es la dirección web donde estará tu app. Por ahora, si solo la usas tú mismo en tu celular con Expo, puedes dejarlo comentado (con `#` al inicio).
+**¿Qué es?** Es la dirección web donde estará tu app. El backend la usa para permitir que el frontend web haga peticiones (CORS). Si no está definida, el frontend web recibirá errores de conexión.
 
-**Cuándo necesitarlo:** Cuando publiques la app en la Play Store/App Store o la tengas en una web. Entonces pondrías algo como:
-```
-FRONTEND_URL=https://tu-app.vercel.app
-```
+**¿Dónde conseguirla?** Es la URL que te da Vercel cuando despliegas el frontend (algo como `https://el-escudo.vercel.app`). Si también tienes un dominio propio, usa ese.
 
-**Por ahora, déjalo así:**
+**Ejemplo:**
 ```
-# FRONTEND_URL=https://tu-app.vercel.app
+FRONTEND_URL=https://el-escudo.vercel.app
 ```
 
-> 💡 El `#` al inicio significa "esto está apagado por ahora". Cuando tengas una URL real, quitas el `#`.
+> ⚠️ **OBLIGATORIA para el frontend web.** Sin este valor, el backend bloqueará las peticiones del frontend web por seguridad. No la dejes comentada.
 
 ---
 
@@ -205,7 +207,7 @@ OMNI_DAILY_COST_LIMIT_COP=5000
 > SUPABASE_KEY=eyJ...
 > SUPABASE_JWT_SECRET=tu-secreto...
 > GEMINI_API_KEY=AIzaSyC...
-> # FRONTEND_URL=https://tu-app.vercel.app
+> FRONTEND_URL=https://tu-app.vercel.app
 > # SENTRY_DSN=
 > OMNI_DAILY_COST_LIMIT_COP=5000
 > ```
@@ -276,9 +278,11 @@ Dime: *"Déjalo para después"* y yo marco ese ítem como "post-launch" en el ro
 
 Antes de considerar que todo está listo, revisa:
 
-- [ ] Migraciones ejecutadas en Supabase (PASO 1)
+- [ ] Migraciones 001 a 032 ejecutadas en orden en Supabase (PASO 1)
 - [ ] Archivo `.env` creado en `backend/` con valores reales (PASO 2)
 - [ ] `DEV_MODE=false` en `.env`
+- [ ] `FRONTEND_URL` configurada con la URL del frontend web
+- [ ] Frontend web (`escudo-web-v2/`) funciona en http://localhost:3000
 - [ ] Backend corre sin errores
 - [ ] App en celular: login funciona
 - [ ] App en celular: registrar peso funciona
