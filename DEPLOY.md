@@ -113,7 +113,14 @@ El proyecto Supabase actual ya tiene el esquema base. Para aplicar migraciones n
 
 ### 4.2 Proyecto nuevo (base de datos limpia)
 
-Ejecuta los archivos en orden estrictamente secuencial:
+El historial actual de migraciones no es un bootstrap completo: las tablas
+`finances`, `shifts` y `weight_logs` existían antes de este repositorio y no se
+crean aquí. Para un proyecto nuevo, parte de un export de esquema verificado del
+proyecto Supabase actual; no ejecutes `001` a `032` suponiendo que crearán toda
+la base de datos.
+
+Una vez cargado ese esquema base, ejecuta los archivos pendientes en orden
+estrictamente secuencial:
 
 ```
 001_core_schema.sql
@@ -150,7 +157,8 @@ Ejecuta los archivos en orden estrictamente secuencial:
 032_fase3_progress_health.sql
 ```
 
-> ⚠️ **Nota:** Las migraciones `031` y `032` asumen que las tablas `finances`, `shifts` y `weight_logs` ya existen (se crearon fuera del sistema de migraciones). Si alguna falla en una base limpia, verifica que esas tablas existen antes de ejecutarlas.
+> ⚠️ **Nota:** Antes de ejecutar `031` y `032`, confirma que existen las tablas
+> `finances`, `shifts` y `weight_logs` en el esquema base.
 
 ### 4.3 Verificar RLS
 
@@ -277,7 +285,7 @@ Antes de declarar el deploy exitoso:
 - [ ] `SENTRY_DSN` configurado (si usas Sentry)
 - [ ] `FRONTEND_URL` apunta al dominio real del frontend
 - [ ] `SUPABASE_KEY` es la **Service Role Key** (no la anon key)
-- [ ] Migraciones `001` a `032` aplicadas en orden
+- [ ] Migraciones requeridas por el entorno aplicadas en orden
 - [ ] RLS activo en **todas** las tablas públicas
 - [ ] `/health` responde 200 con JSON válido
 - [ ] Rate limiting activo en OMNI (`services/omni_service.py`)

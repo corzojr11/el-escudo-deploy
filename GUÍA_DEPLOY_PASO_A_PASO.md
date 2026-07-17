@@ -30,9 +30,9 @@ Las migraciones son "instrucciones" que le dicen a la base de datos (Supabase) q
 
 **1.4** Haz clic en el botón **"New query"** (o "Nueva consulta").
 
-**1.5** Ve a la carpeta `supabase/migrations/` de tu proyecto en tu computadora. Ahí hay archivos numerados del `001` al `032`. Cada archivo contiene las instrucciones SQL para una parte de la base de datos. Se ejecutan en orden, de `001` a `032`.
+**1.5** Ve a la carpeta `supabase/migrations/` de tu proyecto en tu computadora. Este proyecto Supabase ya tiene el esquema base. Los archivos numerados complementan ese esquema y deben ejecutarse en orden cuando falten.
 
-**1.6** Abre cada archivo en orden (empezando por `001_core_schema.sql`):
+**1.6** Si estás preparando una base existente del proyecto, abre los archivos pendientes en orden:
 - Selecciona TODO el contenido (Ctrl+A, luego Ctrl+C)
 - Pégalo en el SQL Editor de Supabase (Ctrl+V)
 - Haz clic en el botón verde **"Run"** (o "Ejecutar")
@@ -278,7 +278,7 @@ Dime: *"Déjalo para después"* y yo marco ese ítem como "post-launch" en el ro
 
 Antes de considerar que todo está listo, revisa:
 
-- [ ] Migraciones 001 a 032 ejecutadas en orden en Supabase (PASO 1)
+- [ ] Migraciones requeridas por el entorno ejecutadas en orden en Supabase (PASO 1)
 - [ ] Archivo `.env` creado en `backend/` con valores reales (PASO 2)
 - [ ] `DEV_MODE=false` en `.env`
 - [ ] `FRONTEND_URL` configurada con la URL del frontend web
