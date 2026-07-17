@@ -171,6 +171,13 @@ export interface Habit {
   updated_at?: string;
 }
 
+export interface Achievement {
+  id: string;
+  user_id: string;
+  name: string;
+  unlocked_at?: string;
+}
+
 export interface FinanceSummaryItem {
   category: string;
   total: number;

@@ -32,9 +32,10 @@ export async function createMission(data: {
 export async function updateMission(
   missionId: string,
   data: Record<string, unknown>
-): Promise<{ mission: Mission }> {
-  const result = await putToBackend<{ mission: Mission }>(`/api/v1/missions/${missionId}`, data);
+): Promise<{ mission: Mission; new_achievement?: string }> {
+  const result = await putToBackend<{ mission: Mission; new_achievement?: string }>(`/api/v1/missions/${missionId}`, data);
   revalidatePath("/misiones");
+  revalidatePath("/logros");
   revalidatePath("/");
   return result;
 }

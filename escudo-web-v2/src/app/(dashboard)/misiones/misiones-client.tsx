@@ -149,7 +149,10 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
     setStatus({});
     const newStatus = mission.status === "completed" ? "active" : "completed";
     try {
-      await updateMission(mission.id, { status: newStatus });
+      const result = await updateMission(mission.id, { status: newStatus });
+      if (result.new_achievement) {
+        setStatus({ success: `Logro desbloqueado: ${result.new_achievement}` });
+      }
       router.refresh();
     } catch (e: unknown) {
       setStatus({ error: e instanceof Error ? e.message : "Error al actualizar" });

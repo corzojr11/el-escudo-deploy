@@ -163,8 +163,8 @@
 
 | Funcionalidad | Móvil | Web | Estado | Prioridad |
 |---|---|---|---|---|
+| **Logros y gamificacion visible** | ✅ | ✅ /logros | ✅ | — |
 | XP, nivel, barra de progreso | ✅ | ✅ Dashboard | ✅ | — |
-| Logros (achievements) | ✅ (animaciones) | ❌ | ❌ | P2 |
 | Rachas visibles | ✅ | ✅ (focus streak) | ✅ | — |
 | Notificaciones push | ✅ | ❌ | ❌ | P2 |
 

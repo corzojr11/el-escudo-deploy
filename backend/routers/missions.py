@@ -117,6 +117,7 @@ async def update_mission(mission_id: str, payload: MissionUpdatePayload, user=De
         lambda: supabase.table("missions").update(update_data).eq("id", mission_id).eq("user_id", user.id).execute()
     )
 
+    new_achievement = None
     if payload.status == "completed":
         try:
             completed = await asyncio.to_thread(
@@ -129,18 +130,26 @@ async def update_mission(mission_id: str, payload: MissionUpdatePayload, user=De
                 (25, "Veterano"),
                 (50, "Leyenda"),
             ]
+            new_achievement = None
             for threshold, name in milestones:
                 if count >= threshold:
-                    await asyncio.to_thread(
-                        lambda: supabase.table("achievements").upsert(
-                            {"user_id": user.id, "name": name},
-                            on_conflict="user_id,name",
-                        ).execute()
+                    check = await asyncio.to_thread(
+                        lambda n=name: supabase.table("achievements").select("id").eq("user_id", user.id).eq("name", n).limit(1).execute()
                     )
+                    if not check.data:
+                        await asyncio.to_thread(
+                            lambda n=name: supabase.table("achievements").insert(
+                                {"user_id": user.id, "name": n}
+                            ).execute()
+                        )
+                        new_achievement = name
         except Exception as e:
             logger.error(f"Error al desbloquear logro para {user.id}: {e}")
 
-    return {"mission": res.data[0]}
+    result = {"mission": res.data[0]}
+    if new_achievement:
+        result["new_achievement"] = new_achievement
+    return result
 
 
 @router.delete("/api/v1/missions/{mission_id}")

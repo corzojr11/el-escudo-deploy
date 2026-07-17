@@ -8,6 +8,7 @@ import {
   CheckSquare,
   Flag,
   Dumbbell,
+  Award,
   type LucideIcon,
 } from "lucide-react";
 
@@ -84,6 +85,13 @@ export const NAV_MODULES: NavModule[] = [
     href: "/rutinas",
     icon: Dumbbell,
     group: "bienestar",
+  },
+  {
+    id: "logros",
+    label: "Logros",
+    href: "/logros",
+    icon: Award,
+    group: "productividad",
   },
 ];
 
