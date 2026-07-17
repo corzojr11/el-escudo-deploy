@@ -67,6 +67,7 @@ class TestMigration031:
         assert "information_schema.columns" in sql
         assert "timestamp" in sql
         assert "created_at" in sql
+        assert "ADD COLUMN IF NOT EXISTS day TEXT" in sql
         # Debe usar EXECUTE para SQL dinámico seguro
         assert "EXECUTE" in sql
         # No debe referirse a created_at sin alternativa

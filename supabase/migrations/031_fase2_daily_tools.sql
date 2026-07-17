@@ -43,6 +43,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_finances_user_idempotency_unique
 
 -- ─── 2. shifts: índice de día, flag activo e idempotencia ─────────────────
 ALTER TABLE public.shifts
+  ADD COLUMN IF NOT EXISTS day TEXT,
   ADD COLUMN IF NOT EXISTS day_index SMALLINT,
   ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
