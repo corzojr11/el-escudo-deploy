@@ -133,6 +133,7 @@ try:
     logger.info("Cliente OMNI (google-genai) inicializado correctamente.")
 except Exception as e:
     _omni_client = None
+    _omni_system_instruction = ""
     logger.warning(f"Error al inicializar el cliente GenAI OMNI: {e}")
 
 

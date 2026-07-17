@@ -24,6 +24,7 @@ def _mock_request(host="127.0.0.1", body_bytes=b""):
 class TestAuth:
     def test_valid_jwt_allows_access(self, monkeypatch):
         monkeypatch.setattr(auth, "DEV_MODE", False)
+        monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", "test-secret-key-for-testing-123")
 
         mock_supabase = MagicMock()
         mock_supabase.auth.get_user.side_effect = Exception("supabase auth fail")
@@ -44,6 +45,7 @@ class TestAuth:
 
     def test_invalid_or_expired_jwt_blocks_with_401(self, monkeypatch):
         monkeypatch.setattr(auth, "DEV_MODE", False)
+        monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", "test-secret-key-for-testing-123")
 
         mock_supabase = MagicMock()
         mock_supabase.auth.get_user.side_effect = Exception("supabase auth fail")
@@ -78,6 +80,7 @@ class TestAuth:
 
     def test_jwt_local_validation_is_pinned_to_hs256(self, monkeypatch):
         monkeypatch.setattr(auth, "DEV_MODE", False)
+        monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", "test-secret-key-for-testing-123")
 
         mock_supabase = MagicMock()
         mock_supabase.auth.get_user.side_effect = Exception("supabase auth fail")
