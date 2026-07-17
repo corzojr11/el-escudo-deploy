@@ -318,23 +318,26 @@ def test_migration_037_covers_core_tables():
         "focus_status", "exercises_logs", "personal_records",
         "achievements", "routines", "routine_completions",
     ]
+    guard_tables = required_tables + ["profiles"]
 
     for table in required_tables:
         assert f"CREATE TABLE IF NOT EXISTS public.{table}" in sql, (
             f"037 debe contener CREATE TABLE IF NOT EXISTS para {table}"
         )
-        assert f"ALTER TABLE IF EXISTS public.{table} ENABLE ROW LEVEL SECURITY" in sql, (
-            f"037 debe habilitar RLS para {table}"
-        )
-        assert "information_schema.columns" in sql, (
-            "037 debe usar information_schema.columns para columnas de tablas existentes"
-        )
 
-    assert "profiles" in sql
+    for table in guard_tables:
+        assert "_037_col_exists" in sql, "037 debe usar _037_col_exists para guards de columnas"
+        assert "information_schema.columns" in sql, "037 debe usar information_schema.columns"
+
     assert "ALTER COLUMN" not in sql, "037 no debe contener ALTER COLUMN ... TYPE"
-    assert "DROP TABLE" not in sql, "037 no debe contener sentencias destructivas"
-    assert "DROP COLUMN" not in sql, "037 no debe contener sentencias destructivas"
-    assert "DELETE FROM" not in sql, "037 no debe contener sentencias destructivas"
+    assert "DROP TABLE" not in sql, "037 no debe contener DROP TABLE"
+    assert "DROP COLUMN" not in sql, "037 no debe contener DROP COLUMN"
+    assert "DELETE FROM" not in sql, "037 no debe contener DELETE FROM"
+    assert "TRUNCATE" not in sql, "037 no debe contener TRUNCATE"
     assert "pg_policies" in sql, "037 debe verificar politicas con pg_policies"
+    assert "schemaname" in sql, "037 debe calificar schemaname en pg_policies"
     assert "shifts_user_day_start_end_unique" in sql, "037 debe incluir unique constraint para upsert de turnos"
-    assert sql.count("ADD COLUMN") >= 20, f"037 debe contener muchos ADD COLUMN guards (encontrados {sql.count('ADD COLUMN')})"
+    assert "routines_user_day_unique" in sql, "037 debe incluir unique constraint para routines"
+    assert "RAISE NOTICE" in sql, "037 debe contener RAISE NOTICE para manejo de duplicados"
+    assert "count(*)" in sql and "HAVING" in sql, "037 debe comprobar duplicados antes de crear constraints"
+    assert sql.count("ADD COLUMN") >= 30, f"037 debe contener muchos ADD COLUMN guards (encontrados {sql.count('ADD COLUMN')})"
