@@ -12,6 +12,10 @@ export interface Profile {
   ai_cost_cop?: number;
   created_at?: string;
   updated_at?: string;
+  birth_date?: string;
+  height_cm?: number;
+  health_goal?: "ganar_musculo" | "perder_grasa" | "energia_bienestar";
+  onboarding_completed_at?: string;
 }
 
 export interface FinanceEntry {
@@ -310,5 +314,6 @@ export interface TodayResponse {
     weight_trend: number | null;
     habits_today: Habit[];
     focus_streak: number;
+    hydration_ml: number | null;
   };
 }

@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Check,
   Circle,
+  Droplets,
   Flame,
   Heart,
   Shield,
@@ -155,6 +156,16 @@ export function DashboardClient({ data }: DashboardClientProps) {
             <div className="flex items-center gap-3 border-b border-border pb-3">
               <Flame className="h-5 w-5 text-[#ffd700]" />
               <div><p className="text-xs text-muted-foreground">Hábitos hoy</p><p className="font-heading text-xl font-bold">{habitsDone} / {habits.length}</p></div>
+            </div>
+            <div className="flex items-center gap-3 border-b border-border pb-3">
+              <Droplets className="h-5 w-5 text-[#7C5DFF]" />
+              <div>
+                <p className="text-xs text-muted-foreground">Hidratacion diaria</p>
+                <p className="font-heading text-xl font-bold">
+                  {today.hydration_ml != null ? `${today.hydration_ml} ml` : "--"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Guia general (peso x 35 ml)</p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <CalendarClock className="h-5 w-5 text-primary" />

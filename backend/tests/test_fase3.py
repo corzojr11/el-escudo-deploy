@@ -380,3 +380,90 @@ class TestToday:
         assert "profile" in data
         assert "today" in data
         assert "finances" in data["today"]
+
+
+# --- Perfil y onboarding ---------------------------------------------------
+
+class TestProfileValidation:
+    def test_profile_update_rejects_short_name(self, monkeypatch):
+        import routers.profile as profile_module
+        from routers.profile import ProfileUpdatePayload
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError):
+            ProfileUpdatePayload(name="A")
+
+    def test_profile_update_rejects_invalid_health_goal(self, monkeypatch):
+        import routers.profile as profile_module
+        from routers.profile import ProfileUpdatePayload
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError):
+            ProfileUpdatePayload(health_goal="invalid_goal")
+
+    def test_profile_update_accepts_valid_fields(self):
+        from routers.profile import ProfileUpdatePayload
+        p = ProfileUpdatePayload(name="Juan Perez", birth_date="1990-01-15", height_cm=175, health_goal="ganar_musculo")
+        assert p.name == "Juan Perez"
+        assert p.birth_date == "1990-01-15"
+        assert p.height_cm == 175
+        assert p.health_goal == "ganar_musculo"
+
+    def test_onboarding_rejects_underage(self):
+        from routers.profile import OnboardingPayload
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError):
+            OnboardingPayload(name="Test", birth_date=(datetime.now() - timedelta(days=365 * 15)).strftime("%Y-%m-%d"), weight_kg=70, height_cm=170, health_goal="ganar_musculo")
+
+
+class TestHydration:
+    def test_hydration_calculation_from_weight(self):
+        from routers.sync import _calculate_hydration_ml
+        assert _calculate_hydration_ml({"weight": 70}) == 2500
+        assert _calculate_hydration_ml({"weight": 42}) == 1500
+        assert _calculate_hydration_ml({"weight": 100}) == 3500
+        assert _calculate_hydration_ml(None) is None
+        assert _calculate_hydration_ml({}) is None
+
+    def test_hydration_rounds_to_nearest_250(self):
+        from routers.sync import _calculate_hydration_ml
+        assert _calculate_hydration_ml({"weight": 75}) == 2750
+        assert _calculate_hydration_ml({"weight": 68}) == 2500
+
+
+class TestTodayPartialResponse:
+    def test_today_returns_partial_when_some_queries_fail(self, monkeypatch):
+        mock_supa = MagicMock()
+
+        def table_side(name):
+            t = MagicMock()
+            if name == "profiles":
+                t.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"user_id": MOCK_USER_ID, "name": "Test"}])
+            elif name == "finances":
+                raise RuntimeError("simulated db failure")
+            elif name == "shifts":
+                t.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "goals":
+                t.select.return_value.eq.return_value.neq.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "missions":
+                t.select.return_value.eq.return_value.or_.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "weight_logs":
+                t.select.return_value.eq.return_value.order.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "habits":
+                t.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "focus_status":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            return t
+
+        mock_supa.table.side_effect = table_side
+        monkeypatch.setattr(sync_module, "supabase", mock_supa)
+
+        client = TestClient(app)
+        resp = client.get("/api/v1/today")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "profile" in data
+        assert "today" in data
+        assert data["today"]["finances"] == []

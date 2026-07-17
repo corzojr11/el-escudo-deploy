@@ -217,6 +217,14 @@ async def sync_data(user=Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="Error interno del servidor.")
 
 
+def _calculate_hydration_ml(latest_weight: dict | None) -> int | None:
+    if not latest_weight or not latest_weight.get("weight"):
+        return None
+    raw = float(latest_weight["weight"]) * 35
+    rounded = int(raw / 250 + 0.5) * 250
+    return max(1500, min(3500, rounded))
+
+
 @router.get("/api/v1/today")
 async def today_summary(user=Depends(get_current_user)):
     """Resumen diario liviano para el dashboard. No usa Gemini ni TRM."""
@@ -225,104 +233,127 @@ async def today_summary(user=Depends(get_current_user)):
         now = _bogota_now()
         today_str = now.strftime("%Y-%m-%d")
 
-        # Perfil ligero
-        profile_data = {}
-        try:
-            res_prof = await asyncio.to_thread(
-                lambda: supabase.table("profiles").select("user_id,email,name,level,xp,xp_to_next_level,title,streak").eq("user_id", user.id).execute()
-            )
-            profile_data = res_prof.data[0] if (res_prof.data and len(res_prof.data) > 0) else {}
-        except Exception as exc:
-            logger.warning(f"Profile fetch error: {exc}")
+        async def _fetch_profile():
+            try:
+                res = await asyncio.to_thread(
+                    lambda: supabase.table("profiles")
+                    .select("user_id,email,name,level,xp,xp_to_next_level,title,streak,birth_date,height_cm,health_goal,onboarding_completed_at")
+                    .eq("user_id", user.id).execute()
+                )
+                return res.data[0] if (res.data and len(res.data) > 0) else {}
+            except Exception as exc:
+                logger.warning(f"Profile fetch error: {exc}")
+                return {}
 
-        # Finanzas del día
-        finances_today = []
-        try:
-            query_fin = supabase.table("finances").select("*").eq("user_id", user.id).eq("date", today_str)
-            res_fin = await _execute_finance_query_ordered(query_fin)
-            finances_today = res_fin.data or []
-        except Exception as exc:
-            logger.warning(f"Finances today fetch error: {exc}")
+        async def _fetch_finances():
+            try:
+                query = supabase.table("finances").select("*").eq("user_id", user.id).eq("date", today_str)
+                res = await _execute_finance_query_ordered(query)
+                return res.data or []
+            except Exception as exc:
+                logger.warning(f"Finances today fetch error: {exc}")
+                return []
 
+        async def _fetch_shifts():
+            try:
+                res = await asyncio.to_thread(
+                    lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("is_active", True).execute()
+                )
+                return compute_current_status(res.data or [], now)
+            except Exception as exc:
+                logger.warning(f"Shifts status error: {exc}")
+                return {"status": "free", "message_short": "Sin turnos registrados."}
+
+        async def _fetch_goals():
+            try:
+                res = await asyncio.to_thread(
+                    lambda: supabase.table("goals").select("*").eq("user_id", user.id).neq("status", "archived").execute()
+                )
+                return res.data or []
+            except Exception as exc:
+                logger.warning(f"Goals fetch error: {exc}")
+                return []
+
+        async def _fetch_missions():
+            try:
+                res = await asyncio.to_thread(
+                    lambda: supabase.table("missions").select("*").eq("user_id", user.id)
+                    .or_(f"schedule_date.eq.{today_str},status.eq.active").execute()
+                )
+                return res.data or []
+            except Exception as exc:
+                logger.warning(f"Missions today fetch error: {exc}")
+                return []
+
+        async def _fetch_latest_weight():
+            try:
+                res = await asyncio.to_thread(
+                    lambda: supabase.table("weight_logs").select("*").eq("user_id", user.id)
+                    .order("date", desc=True).order("timestamp", desc=True).limit(1).execute()
+                )
+                return res.data[0] if res.data else None
+            except Exception as exc:
+                logger.warning(f"Weight fetch error: {exc}")
+                return None
+
+        async def _fetch_habits():
+            try:
+                res = await asyncio.to_thread(
+                    lambda: supabase.table("habits").select("*").eq("user_id", user.id).execute()
+                )
+                return res.data or []
+            except Exception as exc:
+                logger.warning(f"Habits fetch error: {exc}")
+                return []
+
+        async def _fetch_focus():
+            try:
+                res = await asyncio.to_thread(
+                    lambda: supabase.table("focus_status")
+                    .select("focus_streak,focus_best,urge_count,last_check_date")
+                    .eq("user_id", user.id).limit(1).execute()
+                )
+                return res.data[0].get("focus_streak", 0) if res.data else 0
+            except Exception as exc:
+                logger.warning(f"Focus fetch error: {exc}")
+                return 0
+
+        # ── Ejecución paralela: 8 consultas independientes ──
+        profile_data, finances_today, shift_status, goals, missions_today, latest_weight, habits_data, focus_streak = await asyncio.gather(
+            _fetch_profile(), _fetch_finances(), _fetch_shifts(), _fetch_goals(),
+            _fetch_missions(), _fetch_latest_weight(), _fetch_habits(), _fetch_focus(),
+        )
+
+        # ── Cálculos derivados (ligeros, secuenciales sobre memoria) ──
         daily_balance = sum(
             (f.get("amount") or 0) if (f.get("type") or "").upper() == "INGRESO" else -(f.get("amount") or 0)
             for f in finances_today
         )
 
-        # Turnos / estado
-        shift_status = {"status": "free", "message_short": "Sin turnos registrados."}
-        try:
-            res_shifts = await asyncio.to_thread(
-                lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("is_active", True).execute()
-            )
-            shift_status = compute_current_status(res_shifts.data or [], now)
-        except Exception as exc:
-            logger.warning(f"Shifts status error: {exc}")
-
-        # Metas activas
-        goals = []
-        try:
-            goals_result = await asyncio.to_thread(
-                lambda: supabase.table("goals").select("*").eq("user_id", user.id).neq("status", "archived").execute()
-            )
-            goals = goals_result.data or []
-        except Exception as exc:
-            logger.warning(f"Goals fetch error: {exc}")
-
-        # Misiones de hoy (scheduled_date == hoy o status active)
-        missions_today = []
-        try:
-            missions_result = await asyncio.to_thread(
-                lambda: supabase.table("missions").select("*").eq("user_id", user.id).or_(f"schedule_date.eq.{today_str},status.eq.active").execute()
-            )
-            missions_today = missions_result.data or []
-        except Exception as exc:
-            logger.warning(f"Missions today fetch error: {exc}")
-
-        # Último peso
-        latest_weight = None
-        try:
-            weight_result = await asyncio.to_thread(
-                lambda: supabase.table("weight_logs").select("*").eq("user_id", user.id).order("date", desc=True).order("timestamp", desc=True).limit(1).execute()
-            )
-            latest_weight = weight_result.data[0] if weight_result.data else None
-        except Exception as exc:
-            logger.warning(f"Weight fetch error: {exc}")
-
-        # Tendencia de peso (último vs anterior)
+        # Tendencia de peso (depende de latest_weight)
         weight_trend = None
-        try:
-            if latest_weight:
-                prev_weight_result = await asyncio.to_thread(
+        if latest_weight:
+            try:
+                prev = await asyncio.to_thread(
                     lambda: supabase.table("weight_logs").select("weight, date")
                     .eq("user_id", user.id)
                     .neq("id", latest_weight.get("id"))
-                    .order("date", desc=True)
-                    .order("timestamp", desc=True)
-                    .limit(1)
+                    .order("date", desc=True).order("timestamp", desc=True).limit(1)
                     .execute()
                 )
-                if prev_weight_result.data:
-                    prev = prev_weight_result.data[0]
-                    weight_trend = round((latest_weight.get("weight") or 0) - (prev.get("weight") or 0), 2)
-        except Exception as exc:
-            logger.warning(f"Weight trend error: {exc}")
+                if prev.data:
+                    weight_trend = round((latest_weight.get("weight") or 0) - (prev.data[0].get("weight") or 0), 2)
+            except Exception as exc:
+                logger.warning(f"Weight trend error: {exc}")
 
-        # Hábitos de hoy
+        # Hábitos completados (depende de habits_data)
         habits_today = []
-        try:
-            habits_result = await asyncio.to_thread(
-                lambda: supabase.table("habits").select("*").eq("user_id", user.id).execute()
-            )
-            habits_data = habits_result.data or []
-            if habits_data:
+        if habits_data:
+            try:
                 habit_ids = [h["id"] for h in habits_data]
                 completions_result = await asyncio.to_thread(
                     lambda: supabase.table("habit_completions")
-                    .select("habit_id, date")
-                    .in_("habit_id", habit_ids)
-                    .eq("user_id", user.id)
-                    .execute()
+                    .select("habit_id, date").in_("habit_id", habit_ids).eq("user_id", user.id).execute()
                 )
                 completions_by_habit = {}
                 for row in completions_result.data or []:
@@ -332,18 +363,11 @@ async def today_summary(user=Depends(get_current_user)):
                     h["completed_today"] = today_str in completed
                     h["completed_dates"] = sorted(completed)
                     habits_today.append(h)
-        except Exception as exc:
-            logger.warning(f"Habits today fetch error: {exc}")
+            except Exception as exc:
+                logger.warning(f"Habits completions error: {exc}")
 
-        # Focus streak
-        focus_streak = 0
-        try:
-            focus_result = await asyncio.to_thread(
-                lambda: supabase.table("focus_status").select("focus_streak,focus_best,urge_count,last_check_date").eq("user_id", user.id).limit(1).execute()
-            )
-            focus_streak = focus_result.data[0].get("focus_streak", 0) if focus_result.data else 0
-        except Exception as exc:
-            logger.warning(f"Focus fetch error: {exc}")
+        # Hidratación (depende de latest_weight)
+        hydration_ml = _calculate_hydration_ml(latest_weight)
 
         response_data = {
             "profile": profile_data,
@@ -358,6 +382,7 @@ async def today_summary(user=Depends(get_current_user)):
                 "weight_trend": weight_trend,
                 "habits_today": habits_today,
                 "focus_streak": focus_streak,
+                "hydration_ml": hydration_ml,
             },
         }
 

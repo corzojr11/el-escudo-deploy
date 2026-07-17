@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { NAV_MODULES } from "@/lib/constants/navigation";
+import { createClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 
 export default function DashboardLayout({
@@ -14,7 +15,27 @@ export default function DashboardLayout({
 }) {
   const [collapsed, setCollapsed] = useState(true);
   const pathname = usePathname();
+  const router = useRouter();
   const activeModule = NAV_MODULES.find((module) => module.href === pathname);
+
+  useEffect(() => {
+    if (pathname === "/onboarding" || pathname === "/perfil") return;
+
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("profiles")
+        .select("onboarding_completed_at")
+        .eq("user_id", user.id)
+        .single()
+        .then(({ data }) => {
+          if (!data?.onboarding_completed_at) {
+            router.push("/onboarding");
+          }
+        });
+    });
+  }, [pathname, router]);
 
   return (
     <div data-theme={activeModule?.id ?? "dashboard"} className="relative flex min-h-screen overflow-hidden">

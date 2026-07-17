@@ -14,15 +14,26 @@ export function Topbar() {
   const pathname = usePathname();
   const activeModule = NAV_MODULES.find((m) => m.href === pathname);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       setUserEmail(user?.email ?? null);
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("user_id", user.id)
+          .single();
+        setUserName(profile?.name || null);
+      }
       setLoadingUser(false);
     });
   }, []);
+
+  const displayName = userName || userEmail;
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background px-4 md:px-6">
@@ -44,9 +55,12 @@ export function Topbar() {
           </span>
         ) : userEmail ? (
           <div className="flex items-center gap-2">
-            <span className="hidden text-sm text-muted-foreground md:block">
-              {userEmail}
-            </span>
+            <Link
+              href="/perfil"
+              className="hidden text-sm text-muted-foreground hover:text-foreground transition-colors md:block"
+            >
+              {displayName}
+            </Link>
             <form action={logout}>
               <button
                 type="submit"
