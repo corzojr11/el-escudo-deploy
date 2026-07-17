@@ -504,3 +504,181 @@ async def parse_receipt(payload: ReceiptParsePayload, user=Depends(get_current_u
         {"confidence": confidence, "type": tx_type, "category": category, "amount": amount},
     )
     return result
+
+
+class FixedExpensePayload(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    amount: float = Field(..., gt=0)
+    category: str = "Servicios"
+    due_date: Optional[str] = None
+    is_paid: bool = False
+
+
+class FixedExpenseUpdatePayload(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    amount: Optional[float] = Field(None, gt=0)
+    category: Optional[str] = None
+    due_date: Optional[str] = None
+    is_paid: Optional[bool] = None
+
+
+class DebtPayload(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    total: float = Field(..., gt=0)
+    remaining: Optional[float] = None
+    monthly_payment: Optional[float] = Field(None, gt=0)
+    due_date: Optional[str] = None
+    notes: str = ""
+
+
+class DebtUpdatePayload(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    total: Optional[float] = Field(None, gt=0)
+    remaining: Optional[float] = Field(None, ge=0)
+    monthly_payment: Optional[float] = Field(None, ge=0)
+    due_date: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+
+
+class DebtPaymentPayload(BaseModel):
+    amount: float = Field(..., gt=0)
+    payment_date: Optional[str] = None
+    notes: str = ""
+
+
+# --- Fixed Expenses ---
+
+@router.get("/api/v1/fixed-expenses")
+async def list_fixed_expenses(user=Depends(get_current_user)):
+    res = await asyncio.to_thread(lambda: supabase.table("fixed_expenses").select("*").eq("user_id", user.id).order("due_date", desc=True, nulls_last=True).execute())
+    return {"fixed_expenses": res.data or []}
+
+
+@router.post("/api/v1/fixed-expenses")
+async def create_fixed_expense(payload: FixedExpensePayload, user=Depends(get_current_user)):
+    res = await asyncio.to_thread(lambda: supabase.table("fixed_expenses").insert({
+        "user_id": user.id,
+        "name": payload.name,
+        "amount": payload.amount,
+        "category": payload.category or "Servicios",
+        "due_date": payload.due_date,
+        "is_paid": payload.is_paid,
+    }).execute())
+    if not res.data:
+        raise __import__("fastapi").HTTPException(status_code=500, detail="Error al crear gasto fijo.")
+    return {"fixed_expense": res.data[0]}
+
+
+@router.put("/api/v1/fixed-expenses/{expense_id}")
+async def update_fixed_expense(expense_id: str, payload: FixedExpenseUpdatePayload, user=Depends(get_current_user)):
+    data = payload.model_dump(exclude_unset=True)
+    if not data:
+        raise BadRequestException("No hay campos para actualizar.")
+    res = await asyncio.to_thread(lambda: supabase.table("fixed_expenses").update(data).eq("id", expense_id).eq("user_id", user.id).execute())
+    if not res.data:
+        raise NotFoundException("Gasto fijo")
+    return {"fixed_expense": res.data[0]}
+
+
+@router.delete("/api/v1/fixed-expenses/{expense_id}")
+async def delete_fixed_expense(expense_id: str, user=Depends(get_current_user)):
+    res = await asyncio.to_thread(lambda: supabase.table("fixed_expenses").delete().eq("id", expense_id).eq("user_id", user.id).execute())
+    if not res.data:
+        raise NotFoundException("Gasto fijo")
+    return {"detail": "Gasto fijo eliminado"}
+
+
+# --- Debts ---
+
+@router.get("/api/v1/debts")
+async def list_debts(user=Depends(get_current_user)):
+    res = await asyncio.to_thread(lambda: supabase.table("debts").select("*").eq("user_id", user.id).order("due_date", desc=True, nulls_last=True).execute())
+    return {"debts": res.data or []}
+
+
+@router.post("/api/v1/debts")
+async def create_debt(payload: DebtPayload, user=Depends(get_current_user)):
+    res = await asyncio.to_thread(lambda: supabase.table("debts").insert({
+        "user_id": user.id,
+        "name": payload.name,
+        "total": payload.total,
+        "remaining": payload.remaining if payload.remaining is not None else payload.total,
+        "monthly_payment": payload.monthly_payment or 0,
+        "due_date": payload.due_date,
+        "notes": payload.notes or "",
+    }).execute())
+    if not res.data:
+        raise __import__("fastapi").HTTPException(status_code=500, detail="Error al crear deuda.")
+    return {"debt": res.data[0]}
+
+
+@router.put("/api/v1/debts/{debt_id}")
+async def update_debt(debt_id: str, payload: DebtUpdatePayload, user=Depends(get_current_user)):
+    data = payload.model_dump(exclude_unset=True)
+    if not data:
+        raise BadRequestException("No hay campos para actualizar.")
+    res = await asyncio.to_thread(lambda: supabase.table("debts").update(data).eq("id", debt_id).eq("user_id", user.id).execute())
+    if not res.data:
+        raise NotFoundException("Deuda")
+    return {"debt": res.data[0]}
+
+
+@router.delete("/api/v1/debts/{debt_id}")
+async def delete_debt(debt_id: str, user=Depends(get_current_user)):
+    res = await asyncio.to_thread(lambda: supabase.table("debts").delete().eq("id", debt_id).eq("user_id", user.id).execute())
+    if not res.data:
+        raise NotFoundException("Deuda")
+    return {"detail": "Deuda eliminada"}
+
+
+@router.post("/api/v1/debts/{debt_id}/payments")
+async def record_debt_payment(debt_id: str, payload: DebtPaymentPayload, user=Depends(get_current_user)):
+    debt_check = await asyncio.to_thread(lambda: supabase.table("debts").select("id,remaining").eq("id", debt_id).eq("user_id", user.id).limit(1).execute())
+    if not debt_check.data:
+        raise NotFoundException("Deuda")
+    current_remaining = float(debt_check.data[0].get("remaining", 0))
+    if payload.amount > current_remaining:
+        raise BadRequestException("El abono no puede superar el saldo pendiente.")
+
+    from zoneinfo import ZoneInfo
+    try:
+        payment_date = payload.payment_date or datetime.now(ZoneInfo("America/Bogota")).strftime("%Y-%m-%d")
+    except Exception:
+        payment_date = payload.payment_date or datetime.now().strftime("%Y-%m-%d")
+
+    await asyncio.to_thread(lambda: supabase.table("debt_payments").insert({
+        "debt_id": debt_id,
+        "user_id": user.id,
+        "amount": payload.amount,
+        "payment_date": payment_date,
+        "notes": payload.notes or "",
+    }).execute())
+
+    new_remaining = round(current_remaining - payload.amount, 2)
+    res = await asyncio.to_thread(lambda: supabase.table("debts").update({"remaining": new_remaining}).eq("id", debt_id).eq("user_id", user.id).execute())
+    return {"debt": res.data[0] if res.data else {"remaining": new_remaining}}
+
+
+@router.get("/api/v1/debts/{debt_id}/payments")
+async def list_debt_payments(debt_id: str, user=Depends(get_current_user)):
+    res = await asyncio.to_thread(lambda: supabase.table("debt_payments").select("*").eq("debt_id", debt_id).eq("user_id", user.id).order("payment_date", desc=True).execute())
+    return {"payments": res.data or []}
+
+
+# --- Budget ---
+
+@router.get("/api/v1/budget")
+async def get_budget(user=Depends(get_current_user)):
+    p = await asyncio.to_thread(lambda: supabase.table("profiles").select("monthly_budget").eq("user_id", user.id).limit(1).execute())
+    budget = float(p.data[0].get("monthly_budget") or 0) if p.data else 0
+    return {"monthly_budget": budget}
+
+
+@router.put("/api/v1/budget")
+async def set_budget(payload: dict, user=Depends(get_current_user)):
+    budget = float(payload.get("monthly_budget", 0))
+    if budget < 0:
+        raise BadRequestException("El presupuesto no puede ser negativo.")
+    await asyncio.to_thread(lambda: supabase.table("profiles").update({"monthly_budget": budget}).eq("user_id", user.id).execute())
+    return {"monthly_budget": budget}

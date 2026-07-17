@@ -75,7 +75,10 @@ def test_wellness_score_100_when_all_max(monkeypatch):
     sleep_table.select.return_value = _make_chain([{"cycles": 6, "quality_score": 5}])
 
     finances_table = MagicMock()
-    finances_table.select.return_value = _make_chain([{"amount": 100000, "type": "INGRESO"}])
+    finances_table.select.return_value = _make_chain([{"amount": 0, "type": "INGRESO"}])
+
+    profiles_table = MagicMock()
+    profiles_table.select.return_value = _make_chain([{"monthly_budget": 200000}])
 
     def table_side(name):
         return {
@@ -86,6 +89,7 @@ def test_wellness_score_100_when_all_max(monkeypatch):
             "weight_logs": weight_table,
             "sleep_logs": sleep_table,
             "finances": finances_table,
+            "profiles": profiles_table,
         }.get(name, MagicMock(select=MagicMock(return_value=_make_chain([]))))
 
     mock_supa.table.side_effect = table_side

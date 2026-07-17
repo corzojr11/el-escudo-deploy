@@ -81,9 +81,16 @@ async def wellness_summary(user=Depends(get_current_user)):
         except Exception:
             return []
 
-    missions_data, habits_result, focus, weights, sleep_data, finances = await asyncio.gather(
+    async def _fetch_budget():
+        try:
+            r = await asyncio.to_thread(lambda: supabase.table("profiles").select("monthly_budget").eq("user_id", user.id).limit(1).execute())
+            return float(r.data[0].get("monthly_budget") or 0) if r.data else 0
+        except Exception:
+            return 0
+
+    missions_data, habits_result, focus, weights, sleep_data, finances, budget = await asyncio.gather(
         _fetch_missions(), _fetch_habits(), _fetch_focus(), _fetch_weight_recent(),
-        _fetch_sleep_recent(), _fetch_finances_month(),
+        _fetch_sleep_recent(), _fetch_finances_month(), _fetch_budget(),
     )
 
     habits_done, habits_total = habits_result
@@ -145,15 +152,15 @@ async def wellness_summary(user=Depends(get_current_user)):
     # --- Finanzas ---
     income = sum(float(f.get("amount", 0)) for f in finances if str(f.get("type", "")).upper() == "INGRESO")
     expense = sum(float(f.get("amount", 0)) for f in finances if str(f.get("type", "")).upper() != "INGRESO")
-    if finances:
-        if income > 0:
-            ratio = 1 - (expense / income)
-            s = max(0, min(round(ratio * 5), 5))
-        else:
-            s = 0
+    if finances and budget > 0:
+        ratio = 1 - (expense / budget) if budget > 0 else 0
+        s = max(0, min(round(ratio * 5), 5))
         score += s
         data_points += 1
-        factors.append({"name": "finanzas", "label": "Finanzas mes", "value": f"${int(income - expense):,}", "score": s, "max": 5})
+        pct = round(expense / budget * 100)
+        factors.append({"name": "finanzas", "label": "Finanzas mes", "value": f"{pct}% usado", "score": s, "max": 5})
+    elif finances:
+        factors.append({"name": "finanzas", "label": "Finanzas mes", "value": "sin presupuesto", "score": None, "max": 5})
     else:
         factors.append({"name": "finanzas", "label": "Finanzas mes", "value": "sin datos", "score": None, "max": 5})
 
