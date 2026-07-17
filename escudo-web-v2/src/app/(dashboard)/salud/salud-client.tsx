@@ -14,7 +14,7 @@ import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatDate, formatShortDate } from "@/lib/api/helpers";
 import { logSleep } from "@/app/actions/plan";
-import type { FocusStatus, WeightLog, ExerciseLog, PersonalRecord, SleepLog } from "@/lib/api/types";
+import type { FocusStatus, WeightLog, ExerciseLog, PersonalRecord, SleepLog, Routine } from "@/lib/api/types";
 
 function todayInputValue() {
   return new Date().toISOString().split("T")[0];
@@ -33,9 +33,10 @@ interface SaludClientProps {
   bioSettings: Record<string, unknown> | null;
   exerciseLogs: ExerciseLog[];
   personalRecords: PersonalRecord[];
+  routines: Routine[];
 }
 
-export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSettings, exerciseLogs, personalRecords }: SaludClientProps) {
+export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSettings, exerciseLogs, personalRecords, routines }: SaludClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
@@ -139,6 +140,28 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
           </p>
         </div>
       </section>
+
+      {routines.length > 0 && (
+        (() => {
+          const todayIdx = new Date().getDay();
+          const todayRoutine = routines.find((r) => r.day_index === todayIdx);
+          if (!todayRoutine) return null;
+          return (
+            <div className="border border-[#2A2A3C] bg-[#17171A] p-4 flex items-center justify-between">
+              <div>
+                <p className="hud-label text-[#7C5DFF]">Rutina de hoy</p>
+                <p className="text-sm text-white">
+                  {todayRoutine.day_name}: {todayRoutine.exercises?.length || 0} ejercicios
+                  {todayRoutine.estimated_minutes ? ` · ${todayRoutine.estimated_minutes} min` : ""}
+                </p>
+              </div>
+              <a href="/rutinas" className="text-xs text-[#7C5DFF] hover:underline">
+                Ver rutina completa
+              </a>
+            </div>
+          );
+        })()
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

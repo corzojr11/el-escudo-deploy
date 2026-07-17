@@ -132,7 +132,7 @@
 | Registro de ejercicio (log) | ✅ | ✅ /salud | ✅ | — |
 | Personal records (PR) | ✅ | ✅ /salud | ✅ | — |
 | Historial reciente de ejercicios | ❌ | ✅ /salud | ✅ | — |
-| Rutinas semanales (PPL) | ✅ | ⚠️ (backend sí) | ⚠️ | P2 |
+| Rutinas semanales (planificacion) | ✅ | ✅ /rutinas | ✅ | — |
 | **Bloque de entrenamiento sugerido** | ✅ Chronos | ❌ | ❌ | P0 |
 | Recuperación / descanso cuando no hay ventana | ✅ | ❌ | ❌ | P0 |
 | Temporizador de descanso entre series | ✅ | ❌ | ❌ | P2 |
