@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -184,16 +184,37 @@ async def wellness_summary(user=Depends(get_current_user)):
         action_route = "/salud"
         action_label = "Ver sueno"
     elif len(weights) >= 4:
-        now_date = _bogota_now().date()
-        week_ago_start = now_date - timedelta(days=now_date.weekday() + 7)
-        week_ago_end = now_date - timedelta(days=now_date.weekday() + 1)
+        today = _bogota_now().date()
+        current_start = today - timedelta(days=6)
+        previous_start = today - timedelta(days=13)
+        previous_end = today - timedelta(days=7)
 
-        recent_week = [w for w in weights if w.get("date") and str(w["date"]) >= (now_date - timedelta(days=7)).isoformat()]
-        prev_week = [w for w in weights if w.get("date") and week_ago_start.isoformat() <= str(w["date"]) <= week_ago_end.isoformat()]
+        def _parse_date(val) -> date | None:
+            if not val:
+                return None
+            try:
+                if isinstance(val, date):
+                    return val
+                if isinstance(val, datetime):
+                    return val.date()
+                return date.fromisoformat(str(val)[:10])
+            except (ValueError, TypeError):
+                return None
 
-        if len(recent_week) >= 2 and len(prev_week) >= 2:
-            avg_recent = sum(float(w.get("weight", 0)) for w in recent_week) / len(recent_week)
-            avg_prev = sum(float(w.get("weight", 0)) for w in prev_week) / len(prev_week)
+        recent = []
+        prev = []
+        for w in weights:
+            d = _parse_date(w.get("date"))
+            if d is None:
+                continue
+            if current_start <= d <= today:
+                recent.append(w)
+            elif previous_start <= d <= previous_end:
+                prev.append(w)
+
+        if len(recent) >= 2 and len(prev) >= 2:
+            avg_recent = sum(float(w.get("weight", 0)) for w in recent) / len(recent)
+            avg_prev = sum(float(w.get("weight", 0)) for w in prev) / len(prev)
             diff = round(avg_recent - avg_prev, 1)
             if abs(diff) > 0.5:
                 trend = "bajando" if diff < 0 else "subiendo"

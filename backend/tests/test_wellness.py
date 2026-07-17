@@ -1,7 +1,9 @@
 """Tests para wellness score e insight semanal."""
 
+from datetime import date as dt_date, timedelta
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from auth import get_current_user
@@ -159,3 +161,48 @@ def test_sleep_normal_allows_weight_insight(monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert "kg" in data["insight"].lower()
+
+
+def test_weight_boundary_not_in_both_periods(monkeypatch):
+    import routers.wellness as wellness_module
+
+    mock_supa = MagicMock()
+    today = dt_date.today()
+    current_start = today - timedelta(days=6)
+    previous_start = today - timedelta(days=13)
+    previous_end = today - timedelta(days=7)
+    boundary = previous_end
+
+    def table_side(name):
+        if name == "weight_logs":
+            return MagicMock(select=MagicMock(return_value=_make_chain([
+                {"weight": 80, "date": current_start.isoformat()},
+                {"weight": 79, "date": today.isoformat()},
+                {"weight": 70, "date": boundary.isoformat()},
+                {"weight": 68, "date": previous_start.isoformat()},
+            ])))
+        return MagicMock(select=MagicMock(return_value=_make_chain([])))
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(wellness_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.get("/api/v1/wellness-summary")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "kg" in data["insight"].lower()
+
+
+def test_profile_equipment_trim_and_dedup():
+    from routers.profile import ProfileUpdatePayload
+
+    p = ProfileUpdatePayload(equipment=["  Barra  ", "barra", "MANCUERNAS", "", "  Rack "])
+    assert p.equipment == ["Barra", "MANCUERNAS", "Rack"]
+
+
+def test_profile_equipment_limit_50():
+    from routers.profile import ProfileUpdatePayload
+    import pydantic
+
+    with pytest.raises(pydantic.ValidationError):
+        ProfileUpdatePayload(equipment=[f"item{i}" for i in range(51)])
