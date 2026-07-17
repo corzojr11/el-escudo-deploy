@@ -84,12 +84,15 @@ CREATE TABLE IF NOT EXISTS public.habit_completions (
 
 ALTER TABLE public.habit_completions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS p_habit_completions_select ON public.habit_completions;
 CREATE POLICY p_habit_completions_select ON public.habit_completions
   FOR SELECT USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS p_habit_completions_insert ON public.habit_completions;
 CREATE POLICY p_habit_completions_insert ON public.habit_completions
   FOR INSERT WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS p_habit_completions_delete ON public.habit_completions;
 CREATE POLICY p_habit_completions_delete ON public.habit_completions
   FOR DELETE USING (user_id = auth.uid());
 
@@ -102,6 +105,13 @@ DECLARE
     rec RECORD;
     d DATE;
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'habits' AND column_name = 'completed_dates'
+    ) THEN
+        RETURN;
+    END IF;
+
     FOR rec IN
         SELECT id, user_id, unnest(completed_dates) AS completed_date
         FROM public.habits
@@ -113,7 +123,6 @@ BEGIN
             VALUES (rec.id, rec.user_id, d)
             ON CONFLICT (habit_id, date) DO NOTHING;
         EXCEPTION WHEN OTHERS THEN
-            -- Ignorar fechas inválidas; no bloquear la migración
             NULL;
         END;
     END LOOP;

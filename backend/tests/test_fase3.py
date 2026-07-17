@@ -65,6 +65,29 @@ class TestMigration032:
         assert "COALESCE(recorded_at" not in sql
         assert "COALESCE(timestamp" not in sql
 
+    def test_migration_032_policies_are_idempotent(self):
+        """032 debe dropear políticas existentes antes de crearlas para no fallar en segunda ejecución."""
+        repo_root = Path(__file__).resolve().parents[2]
+        migration_path = repo_root / "supabase" / "migrations" / "032_fase3_progress_health.sql"
+        sql = migration_path.read_text(encoding="utf-8")
+
+        for policy in ("p_habit_completions_select", "p_habit_completions_insert", "p_habit_completions_delete"):
+            drop_line = f"DROP POLICY IF EXISTS {policy} ON public.habit_completions"
+            create_line = f"CREATE POLICY {policy} ON public.habit_completions"
+            assert drop_line in sql, f"032 debe contener '{drop_line}' para evitar fallar en segunda ejecución"
+            assert create_line in sql, f"032 debe contener '{create_line}'"
+
+    def test_migration_032_completed_dates_migration_is_guarded(self):
+        """032 verifica existencia de completed_dates antes de migrar datos viejos."""
+        repo_root = Path(__file__).resolve().parents[2]
+        migration_path = repo_root / "supabase" / "migrations" / "032_fase3_progress_health.sql"
+        sql = migration_path.read_text(encoding="utf-8")
+
+        assert "column_name = 'completed_dates'" in sql, (
+            "032 debe verificar que completed_dates existe antes de migrar datos"
+        )
+        assert "ON CONFLICT (habit_id, date) DO NOTHING" in sql
+
 
 # ─── Goals / metrics ───────────────────────────────────────────────────────
 
