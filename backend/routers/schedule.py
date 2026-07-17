@@ -15,6 +15,11 @@ try:
 except Exception:
     ZoneInfo = None  # type: ignore
 
+try:
+    from postgrest.exceptions import APIError as PostgrestAPIError
+except Exception:
+    PostgrestAPIError = Exception  # type: ignore
+
 from auth import get_current_user
 from bio import CYCLE_MINUTES
 from database import supabase
@@ -114,6 +119,7 @@ class ShiftPayload(BaseModel):
     day: str
     start: str
     end: str
+    idempotency_key: Optional[str] = None
 
 
 class WakeTimePayload(BaseModel):
@@ -163,11 +169,21 @@ def _extract_json_object(raw_text: str) -> dict:
 # ─── Core shift status computation (exported for /today) ─────────────────────
 
 
-def _shift_minutes_for_date(shift: dict, reference_day_index: int) -> Optional[tuple[int, int, int]]:
+def _is_unique_conflict(exc: Exception) -> bool:
+    code = getattr(exc, "code", None) or ""
+    msg = str(exc).lower()
+    return (
+        code == "23505"
+        or "duplicate key value" in msg
+        or "unique constraint" in msg
+        or "duplicate key" in msg
+    )
+
+
+def _shift_instance_minutes(shift: dict) -> Optional[tuple[int, int, int]]:
     """
-    Devuelve (inicio_minutos, fin_minutos, dia_referencia_offset) para un turno
-    recurrente respecto al día de referencia (0=Lunes). Maneja turnos que cruzan
-    medianoche extendiendo el fin al día siguiente.
+    Devuelve (day_index, inicio_minutos, fin_minutos) para un turno.
+    Si el turno cruza medianoche, fin > 24*60.
     """
     shift_day = _day_name_to_index(shift.get("day", ""))
     if shift_day == 99:
@@ -179,9 +195,7 @@ def _shift_minutes_for_date(shift: dict, reference_day_index: int) -> Optional[t
     fin = _time_to_minutes(eh, em)
     if fin <= inicio:
         fin += 24 * 60
-
-    day_offset = (shift_day - reference_day_index) % 7
-    return (inicio, fin, day_offset)
+    return (shift_day, inicio, fin)
 
 
 def compute_current_status(shifts_data: list, now: Optional[datetime] = None) -> dict:
@@ -199,6 +213,7 @@ def compute_current_status(shifts_data: list, now: Optional[datetime] = None) ->
 
     hoy_index = now.weekday()  # 0=Lunes..6=Domingo
     ahora_minutos = now.hour * 60 + now.minute
+    now_total = hoy_index * 24 * 60 + ahora_minutos
 
     # Normalizar y descartar inválidos
     normalized = []
@@ -223,57 +238,110 @@ def compute_current_status(shifts_data: list, now: Optional[datetime] = None) ->
     if not normalized:
         return {"status": "free", "message_short": "Sin turnos registrados."}
 
+    # Generar instancias semanales (k=-1,0,1) para manejar medianoche y bordes de semana
+    instances = []
+    week_minutes = 7 * 24 * 60
+    for s in normalized:
+        parsed = _shift_instance_minutes(s)
+        if parsed is None:
+            continue
+        day_index, inicio, fin = parsed
+        base_start = day_index * 24 * 60 + inicio
+        base_end = day_index * 24 * 60 + fin
+        for k in (-1, 0, 1):
+            instances.append({
+                "day": s["day"],
+                "start": s["start"],
+                "end": s["end"],
+                "start_total": base_start + k * week_minutes,
+                "end_total": base_end + k * week_minutes,
+            })
+
     # Encontrar turno activo
-    activo = None
-    for s in normalized:
-        parsed = _shift_minutes_for_date(s, hoy_index)
-        if parsed is None:
-            continue
-        inicio, fin, offset = parsed
-        if offset == 0 and inicio <= ahora_minutos < fin:
-            activo = {
-                "day": s["day"],
-                "start": s["start"],
-                "end": s["end"],
-                "remaining_hours": round((fin - ahora_minutos) / 60, 1),
+    for inst in instances:
+        if inst["start_total"] <= now_total < inst["end_total"]:
+            remaining_hours = round((inst["end_total"] - now_total) / 60, 1)
+            msg = f"Turno activo hasta las {inst['end']} ({remaining_hours}h restantes)."
+            return {
+                "status": "in_shift",
+                "shift": {
+                    "day": inst["day"],
+                    "start": inst["start"],
+                    "end": inst["end"],
+                    "remaining_hours": remaining_hours,
+                },
+                "message_short": msg,
             }
-            break
 
-    if activo:
-        msg = f"Turno activo hasta las {activo['end']} ({activo['remaining_hours']}h restantes)."
-        return {"status": "in_shift", "shift": activo, "message_short": msg}
-
-    # Encontrar siguiente turno (más próximo en minutos desde ahora, incluyendo medianoche)
+    # Encontrar siguiente turno (instancia futura más cercana)
     proximo = None
-    min_diff_total: Optional[int] = None
-    for s in normalized:
-        parsed = _shift_minutes_for_date(s, hoy_index)
-        if parsed is None:
-            continue
-        inicio, fin, offset = parsed
-        # minutos desde el inicio de la semana (Lunes 00:00) para que el orden sea total
-        shift_start_total = offset * 24 * 60 + inicio
-        now_total = ahora_minutos  # offset 0 porque hoy es el día de referencia
-        # Si el turno empieza hoy después de ahora, diff directa
-        # Si no, avanzamos semana siguiente (offset + 7)
-        if shift_start_total <= now_total:
-            shift_start_total += 7 * 24 * 60
-        diff = shift_start_total - now_total
-        if min_diff_total is None or diff < min_diff_total:
-            min_diff_total = diff
-            starts_in_hours = round(diff / 60, 1)
-            proximo = {
-                "day": s["day"],
-                "start": s["start"],
-                "end": s["end"],
-                "starts_in_hours": starts_in_hours,
-            }
+    min_diff: Optional[int] = None
+    for inst in instances:
+        diff = inst["start_total"] - now_total
+        if diff > 0 and (min_diff is None or diff < min_diff):
+            min_diff = diff
+            proximo = inst
 
     if proximo:
-        msg = f"Libre. Próximo turno: {proximo['day']} {proximo['start']} (en {proximo['starts_in_hours']}h)."
-        return {"status": "free", "next_shift": proximo, "message_short": msg}
+        starts_in_hours = round((proximo["start_total"] - now_total) / 60, 1)
+        msg = f"Libre. Próximo turno: {proximo['day']} {proximo['start']} (en {starts_in_hours}h)."
+        return {
+            "status": "free",
+            "next_shift": {
+                "day": proximo["day"],
+                "start": proximo["start"],
+                "end": proximo["end"],
+                "starts_in_hours": starts_in_hours,
+            },
+            "message_short": msg,
+        }
 
     return {"status": "free", "message_short": "Sin turnos registrados."}
+
+
+async def _fetch_shift_by_idempotency(user_id: str, key: str) -> Optional[dict]:
+    try:
+        res = await asyncio.to_thread(
+            lambda: supabase.table("shifts")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("idempotency_key", key)
+            .limit(1)
+            .execute()
+        )
+        return res.data[0] if res.data else None
+    except Exception as exc:
+        logger.warning(f"shift idempotency lookup error: {exc}")
+        return None
+
+
+async def _insert_shift_row(user_id: str, payload: dict) -> dict:
+    day = _normalize_day_name_text(payload.get("day", ""))
+    start = _normalize_time_text(payload.get("start", ""))
+    end = _normalize_time_text(payload.get("end", ""))
+    idempotency_key = str(payload.get("idempotency_key") or "").strip() or None
+
+    insert_data = {
+        "user_id": user_id,
+        "day": day,
+        "start": start,
+        "end": end,
+        "is_active": True,
+    }
+    if idempotency_key:
+        insert_data["idempotency_key"] = idempotency_key
+
+    try:
+        res = await asyncio.to_thread(lambda: supabase.table("shifts").insert(insert_data).execute())
+    except Exception as exc:
+        if idempotency_key and _is_unique_conflict(exc):
+            existing = await _fetch_shift_by_idempotency(user_id, idempotency_key)
+            if existing:
+                return existing
+        logger.warning(f"shift insert failed: {exc}")
+        raise
+
+    return res.data[0] if res.data else insert_data
 
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
@@ -417,17 +485,9 @@ async def create_shift(payload: ShiftPayload, user = Depends(get_current_user)):
     end = _normalize_time_text(payload.end)
     if not start or not end:
         raise ApiException(status_code=400, detail="Formato de hora inválido (HH:MM).")
-    res = await asyncio.to_thread(lambda: supabase.table("shifts").insert({
-        "user_id": user.id,
-        "day": day,
-        "start": start,
-        "end": end,
-        "is_active": True,
-    }).execute())
-    if not res.data:
-        raise ApiException(status_code=500, detail="No se pudo crear el turno.")
+    created = await _insert_shift_row(user.id, payload.model_dump(exclude_unset=True))
     await track_event("schedule", "create_shift", user_id=user.id, metadata={"day": day, "start": start, "end": end})
-    return {"shift": res.data[0]}
+    return {"shift": created}
 
 
 @router.put("/api/v1/shifts/{shift_id}")

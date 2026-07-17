@@ -23,10 +23,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_finances_user_idempotency_unique
   ON public.finances(user_id, idempotency_key)
   WHERE idempotency_key IS NOT NULL;
 
--- ─── 2. shifts: índice de día y flag activo ────────────────────────────────
+-- ─── 2. shifts: índice de día, flag activo e idempotencia ─────────────────
 ALTER TABLE public.shifts
   ADD COLUMN IF NOT EXISTS day_index SMALLINT,
-  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+
+-- Evitar duplicados exactos por usuario+clave en turnos
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shifts_user_idempotency_unique
+  ON public.shifts(user_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
 
 -- Función para calcular day_index desde el nombre del día en español
 CREATE OR REPLACE FUNCTION public.compute_shift_day_index(p_day TEXT)

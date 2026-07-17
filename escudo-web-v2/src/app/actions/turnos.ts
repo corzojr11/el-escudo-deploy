@@ -46,11 +46,14 @@ export async function createShift(
     return { success: false, error: "La hora de inicio debe ser anterior a la de fin." };
   }
 
+  const idempotencyKey = `shift-create:${day}:${start}:${end}`;
+
   try {
     await postToBackend<CreateShiftResponse>("/api/v1/shifts", {
       day,
       start,
       end,
+      idempotency_key: idempotencyKey,
     });
     revalidatePath("/turnos");
     revalidatePath("/");

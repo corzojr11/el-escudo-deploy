@@ -83,6 +83,33 @@ class TestScheduleStatus:
         # 2.5h restantes hasta las 02:00
         assert status["shift"]["remaining_hours"] == 2.5
 
+    def test_compute_current_status_overnight_next_day_morning(self):
+        # Viernes 01:00: el turno Jueves 22:00-02:00 aún está activo
+        now = datetime(2026, 7, 17, 1, 0, 0)
+        shifts = [{"id": "1", "day": "Jueves", "start": "22:00", "end": "02:00"}]
+        status = schedule_module.compute_current_status(shifts, now)
+        assert status["status"] == "in_shift"
+        assert status["shift"]["day"] == "Jueves"
+        assert status["shift"]["end"] == "02:00"
+        # 1h restante
+        assert status["shift"]["remaining_hours"] == 1.0
+
+    def test_compute_current_status_sunday_to_monday(self):
+        # Domingo 23:00 -> próximo turno es Lunes 08:00 (9h)
+        now = datetime(2026, 7, 19, 23, 0, 0)  # Domingo
+        shifts = [{"id": "1", "day": "Lunes", "start": "08:00", "end": "17:00"}]
+        status = schedule_module.compute_current_status(shifts, now)
+        assert status["status"] == "free"
+        assert status["next_shift"]["day"] == "Lunes"
+        assert status["next_shift"]["starts_in_hours"] == 9.0
+
+    def test_compute_current_status_accented_wednesday(self):
+        now = datetime(2026, 7, 15, 14, 0, 0)  # Miércoles
+        shifts = [{"id": "1", "day": "Miércoles", "start": "08:00", "end": "17:00"}]
+        status = schedule_module.compute_current_status(shifts, now)
+        assert status["status"] == "in_shift"
+        assert status["shift"]["remaining_hours"] == 3.0
+
     def test_compute_current_status_no_shifts(self):
         status = schedule_module.compute_current_status([], datetime.now())
         assert status["status"] == "free"
@@ -177,6 +204,13 @@ class TestFinancesFase2:
                 def insert_execute():
                     args, _ = tbl.insert.call_args
                     payload = args[0] if args else {}
+                    key = payload.get("idempotency_key")
+                    if key:
+                        for row in stored:
+                            if row.get("idempotency_key") == key and row.get("user_id") == MOCK_USER_ID:
+                                err = Exception("duplicate key value violates unique constraint \"idx_finances_user_idempotency_unique\"")
+                                err.code = "23505"
+                                raise err
                     payload["id"] = f"fin-{len(stored) + 1}"
                     stored.append(payload)
                     return TableResult([payload])
@@ -361,3 +395,142 @@ class TestFinancesFase2:
         assert resp.status_code == 200
         assert "Movimiento" in resp.json()["detail"]
         assert len(stored) == 0
+
+    def test_add_finance_concurrent_idempotency_returns_existing_row(self, monkeypatch):
+        """Simula un conflicto de clave única: la segunda solicitud recupera la fila existente."""
+        mock_supa, stored = self._build_finances_supabase()
+        monkeypatch.setattr(finances_module, "supabase", mock_supa)
+
+        client = TestClient(app)
+        payload = {
+            "description": "Transporte",
+            "amount": 12000,
+            "category": "Transporte",
+            "type": "GASTO",
+            "date": "2026-07-16",
+            "idempotency_key": "concurrent-finance-key",
+        }
+        r1 = client.post("/api/v1/finances", json=payload)
+        assert r1.status_code == 200
+        r2 = client.post("/api/v1/finances", json=payload)
+        assert r2.status_code == 200
+        assert r1.json()["id"] == r2.json()["id"]
+        assert len(stored) == 1
+
+
+# ─── Shifts idempotency ───────────────────────────────────────────────────
+
+class TestShiftsFase2:
+    def _build_shifts_supabase(self):
+        stored = []
+        mock_supa = MagicMock()
+
+        def table_side(name):
+            tbl = MagicMock()
+            if name == "shifts":
+                def insert_execute():
+                    args, _ = tbl.insert.call_args
+                    payload = args[0] if args else {}
+                    key = payload.get("idempotency_key")
+                    if key:
+                        for row in stored:
+                            if row.get("idempotency_key") == key and row.get("user_id") == MOCK_USER_ID:
+                                err = Exception("duplicate key value violates unique constraint \"idx_shifts_user_idempotency_unique\"")
+                                err.code = "23505"
+                                raise err
+                    payload["id"] = f"shift-{len(stored) + 1}"
+                    stored.append(payload)
+                    return TableResult([payload])
+
+                insert_chain = MagicMock()
+                insert_chain.execute.side_effect = insert_execute
+                tbl.insert.return_value = insert_chain
+
+                def select_execute():
+                    eq_calls = getattr(tbl, "_eq_calls", [])
+                    filters = {}
+                    for args, kwargs in eq_calls:
+                        filters[args[0]] = args[1]
+                    matches = [
+                        row for row in stored
+                        if ("user_id" not in filters or row.get("user_id") == filters["user_id"])
+                        and ("idempotency_key" not in filters or row.get("idempotency_key") == filters["idempotency_key"])
+                    ]
+                    return TableResult(matches)
+
+                def select_side(cols):
+                    sel = MagicMock()
+
+                    def eq_side(col, val):
+                        if not hasattr(tbl, "_eq_calls"):
+                            tbl._eq_calls = []
+                        tbl._eq_calls.append(((col, val), {}))
+                        return sel
+
+                    sel.eq.side_effect = eq_side
+                    sel.order.return_value = sel
+                    sel.limit.return_value = sel
+                    sel.execute.side_effect = select_execute
+                    return sel
+
+                tbl.select.side_effect = select_side
+
+                def update_execute():
+                    args, _ = tbl.update.call_args
+                    payload = args[0] if args else {}
+                    for row in stored:
+                        if row.get("user_id") == MOCK_USER_ID:
+                            row.update(payload)
+                            return TableResult([row])
+                    return TableResult([])
+
+                update_chain = MagicMock()
+                update_chain.eq.return_value = update_chain
+                update_chain.execute.side_effect = update_execute
+                tbl.update.return_value = update_chain
+
+                def delete_execute():
+                    for i, row in enumerate(stored):
+                        if row.get("user_id") == MOCK_USER_ID:
+                            deleted = {"id": row.get("id")}
+                            del stored[i]
+                            return TableResult([deleted])
+                    return TableResult([])
+
+                delete_chain = MagicMock()
+                delete_chain.eq.return_value = delete_chain
+                delete_chain.execute.side_effect = delete_execute
+                tbl.delete.return_value = delete_chain
+
+            return tbl
+
+        mock_supa.table.side_effect = table_side
+        return mock_supa, stored
+
+    def test_create_shift_is_idempotent_by_key(self, monkeypatch):
+        mock_supa, stored = self._build_shifts_supabase()
+        monkeypatch.setattr(schedule_module, "supabase", mock_supa)
+
+        client = TestClient(app)
+        payload = {
+            "day": "Viernes",
+            "start": "09:00",
+            "end": "18:00",
+            "idempotency_key": "shift-concurrent-key",
+        }
+        r1 = client.post("/api/v1/shifts", json=payload)
+        r2 = client.post("/api/v1/shifts", json=payload)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json()["shift"]["id"] == r2.json()["shift"]["id"]
+        assert len(stored) == 1
+
+    def test_create_shift_without_key_still_works(self, monkeypatch):
+        mock_supa, stored = self._build_shifts_supabase()
+        monkeypatch.setattr(schedule_module, "supabase", mock_supa)
+
+        client = TestClient(app)
+        payload = {"day": "Lunes", "start": "08:00", "end": "17:00"}
+        r1 = client.post("/api/v1/shifts", json=payload)
+        assert r1.status_code == 200
+        assert len(stored) == 1

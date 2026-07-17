@@ -14,6 +14,11 @@ try:
 except Exception:
     ZoneInfo = None  # type: ignore
 
+try:
+    from postgrest.exceptions import APIError as PostgrestAPIError
+except Exception:
+    PostgrestAPIError = Exception  # type: ignore
+
 from auth import get_current_user
 from database import supabase
 from exceptions import BadRequestException, NotFoundException
@@ -102,9 +107,18 @@ def _parse_iso_date(value: Optional[str]) -> Optional[str]:
         return None
 
 
-async def _find_by_idempotency(user_id: str, key: Optional[str]) -> Optional[dict]:
-    if not key:
-        return None
+def _is_unique_conflict(exc: Exception) -> bool:
+    code = getattr(exc, "code", None) or ""
+    msg = str(exc).lower()
+    return (
+        code == "23505"
+        or "duplicate key value" in msg
+        or "unique constraint" in msg
+        or "duplicate key" in msg
+    )
+
+
+async def _fetch_by_idempotency(user_id: str, key: str) -> Optional[dict]:
     try:
         res = await asyncio.to_thread(
             lambda: supabase.table("finances")
@@ -130,13 +144,6 @@ async def _insert_finance_row(user_id: str, payload: dict) -> dict:
     tx_date = _parse_iso_date(payload.get("date")) or _today_str()
     idempotency_key = str(payload.get("idempotency_key") or "").strip() or None
 
-    if idempotency_key:
-        existing = await _find_by_idempotency(user_id, idempotency_key)
-        if existing:
-            if "type" not in existing:
-                existing["type"] = tx_type
-            return existing
-
     insert_data = {
         "user_id": user_id,
         "description": str(payload.get("description") or ("Ingreso" if tx_type == "INGRESO" else "Gasto")).strip(),
@@ -148,15 +155,28 @@ async def _insert_finance_row(user_id: str, payload: dict) -> dict:
     if idempotency_key:
         insert_data["idempotency_key"] = idempotency_key
 
-    res = await asyncio.to_thread(lambda: supabase.table("finances").insert(insert_data).execute())
-    if not res.data:
-        insert_compat = {k: v for k, v in insert_data.items() if k != "type" and k != "idempotency_key"}
-        res = await asyncio.to_thread(lambda: supabase.table("finances").insert(insert_compat).execute())
-    if res.data and "type" not in res.data[0]:
-        res.data[0]["type"] = tx_type
-    if res.data and "date" not in res.data[0]:
-        res.data[0]["date"] = tx_date
-    return res.data[0] if res.data else insert_data
+    try:
+        res = await asyncio.to_thread(lambda: supabase.table("finances").insert(insert_data).execute())
+    except Exception as exc:
+        if idempotency_key and _is_unique_conflict(exc):
+            existing = await _fetch_by_idempotency(user_id, idempotency_key)
+            if existing:
+                if "type" not in existing:
+                    existing["type"] = tx_type
+                if "date" not in existing:
+                    existing["date"] = tx_date
+                return existing
+        logger.warning(f"finance insert failed: {exc}")
+        raise
+
+    if res.data:
+        row = res.data[0]
+        if "type" not in row:
+            row["type"] = tx_type
+        if "date" not in row:
+            row["date"] = tx_date
+        return row
+    return insert_data
 
 
 @router.get("/api/v1/finances")
