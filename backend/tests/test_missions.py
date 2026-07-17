@@ -318,17 +318,14 @@ def test_migration_037_covers_core_tables():
         "focus_status", "exercises_logs", "personal_records",
         "achievements", "routines", "routine_completions",
     ]
-    guard_tables = required_tables + ["profiles"]
 
     for table in required_tables:
         assert f"CREATE TABLE IF NOT EXISTS public.{table}" in sql, (
             f"037 debe contener CREATE TABLE IF NOT EXISTS para {table}"
         )
 
-    for table in guard_tables:
-        assert "_037_col_exists" in sql, "037 debe usar _037_col_exists para guards de columnas"
-        assert "information_schema.columns" in sql, "037 debe usar information_schema.columns"
-
+    assert "_037_col_exists" in sql, "037 debe usar _037_col_exists"
+    assert "information_schema.columns" in sql, "037 debe usar information_schema.columns"
     assert "ALTER COLUMN" not in sql, "037 no debe contener ALTER COLUMN ... TYPE"
     assert "DROP TABLE" not in sql, "037 no debe contener DROP TABLE"
     assert "DROP COLUMN" not in sql, "037 no debe contener DROP COLUMN"
@@ -336,8 +333,26 @@ def test_migration_037_covers_core_tables():
     assert "TRUNCATE" not in sql, "037 no debe contener TRUNCATE"
     assert "pg_policies" in sql, "037 debe verificar politicas con pg_policies"
     assert "schemaname" in sql, "037 debe calificar schemaname en pg_policies"
-    assert "shifts_user_day_start_end_unique" in sql, "037 debe incluir unique constraint para upsert de turnos"
-    assert "routines_user_day_unique" in sql, "037 debe incluir unique constraint para routines"
-    assert "RAISE NOTICE" in sql, "037 debe contener RAISE NOTICE para manejo de duplicados"
-    assert "count(*)" in sql and "HAVING" in sql, "037 debe comprobar duplicados antes de crear constraints"
-    assert sql.count("ADD COLUMN") >= 30, f"037 debe contener muchos ADD COLUMN guards (encontrados {sql.count('ADD COLUMN')})"
+
+    # Constraints con guard de duplicados
+    assert "RAISE NOTICE" in sql, "037 debe contener RAISE NOTICE"
+    assert "HAVING" in sql and "count(*)" in sql, "037 debe comprobar duplicados"
+
+    # Verificar que shifts tiene guards para columnas del GROUP BY
+    assert "_037_col_exists('shifts','user_id')" in sql
+    assert "_037_col_exists('shifts','day')" in sql
+    assert "_037_col_exists('shifts','start')" in sql
+    assert "_037_col_exists('shifts','end')" in sql
+    assert "shifts_user_day_start_end_unique" in sql
+
+    # Verificar que routines tiene guards para columnas del GROUP BY
+    assert "_037_col_exists('routines','user_id')" in sql
+    assert "_037_col_exists('routines','day_index')" in sql
+    assert "routines_user_day_unique" in sql
+
+    # Verificar que routine_completions tiene guards para columnas del GROUP BY
+    assert "_037_col_exists('routine_completions','user_id')" in sql
+    assert "_037_col_exists('routine_completions','day_index')" in sql
+    assert "_037_col_exists('routine_completions','completed_date')" in sql
+
+    assert sql.count("ADD COLUMN") >= 60, f"037 debe contener muchos ADD COLUMN guards (encontrados {sql.count('ADD COLUMN')})"
