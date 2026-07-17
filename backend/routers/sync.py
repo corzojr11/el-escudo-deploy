@@ -11,6 +11,7 @@ from google import genai
 
 from auth import get_current_user
 from database import supabase
+from routers.schedule import compute_current_status
 from services.observability import track_event
 from trm import get_trm
 
@@ -208,6 +209,131 @@ async def sync_data(user=Depends(get_current_user)):
         await track_event(
             module="sync",
             event="hydrate",
+            status="error",
+            user_id=user.id if hasattr(user, "id") else None,
+            metadata={"error": str(exc)[:120]},
+        )
+        raise HTTPException(status_code=500, detail="Error interno del servidor.")
+
+
+@router.get("/api/v1/today")
+async def today_summary(user=Depends(get_current_user)):
+    """Resumen diario liviano para el dashboard. No usa Gemini ni TRM."""
+    try:
+        from routers.schedule import _bogota_now
+        now = _bogota_now()
+        today_str = now.strftime("%Y-%m-%d")
+
+        # Perfil ligero
+        profile_data = {}
+        try:
+            res_prof = await asyncio.to_thread(
+                lambda: supabase.table("profiles").select("user_id,email,name,level,xp,xp_to_next_level,title,streak").eq("user_id", user.id).execute()
+            )
+            profile_data = res_prof.data[0] if (res_prof.data and len(res_prof.data) > 0) else {}
+        except Exception as exc:
+            logger.warning(f"Profile fetch error: {exc}")
+
+        # Finanzas del día
+        finances_today = []
+        try:
+            res_fin = await asyncio.to_thread(
+                lambda: supabase.table("finances").select("*").eq("user_id", user.id).eq("date", today_str).order("created_at", desc=True).execute()
+            )
+            finances_today = res_fin.data or []
+        except Exception as exc:
+            logger.warning(f"Finances today fetch error: {exc}")
+
+        daily_balance = sum(
+            (f.get("amount") or 0) if (f.get("type") or "").upper() == "INGRESO" else -(f.get("amount") or 0)
+            for f in finances_today
+        )
+
+        # Turnos / estado
+        shift_status = {"status": "free", "message_short": "Sin turnos registrados."}
+        try:
+            res_shifts = await asyncio.to_thread(
+                lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("is_active", True).execute()
+            )
+            shift_status = compute_current_status(res_shifts.data or [], now)
+        except Exception as exc:
+            logger.warning(f"Shifts status error: {exc}")
+
+        # Metas activas
+        goals = []
+        try:
+            goals_result = await asyncio.to_thread(
+                lambda: supabase.table("goals").select("*").eq("user_id", user.id).neq("status", "archived").execute()
+            )
+            goals = goals_result.data or []
+        except Exception as exc:
+            logger.warning(f"Goals fetch error: {exc}")
+
+        # Misiones de hoy (scheduled_date == hoy o status active)
+        missions_today = []
+        try:
+            missions_result = await asyncio.to_thread(
+                lambda: supabase.table("missions").select("*").eq("user_id", user.id).or_(f"schedule_date.eq.{today_str},status.eq.active").execute()
+            )
+            missions_today = missions_result.data or []
+        except Exception as exc:
+            logger.warning(f"Missions today fetch error: {exc}")
+
+        # Último peso
+        latest_weight = None
+        try:
+            weight_result = await asyncio.to_thread(
+                lambda: supabase.table("weight_logs").select("*").eq("user_id", user.id).order("date", desc=True).order("timestamp", desc=True).limit(1).execute()
+            )
+            latest_weight = weight_result.data[0] if weight_result.data else None
+        except Exception as exc:
+            logger.warning(f"Weight fetch error: {exc}")
+
+        # Focus streak
+        focus_streak = 0
+        try:
+            focus_result = await asyncio.to_thread(
+                lambda: supabase.table("focus_status").select("focus_streak,focus_best,urge_count,last_check_date").eq("user_id", user.id).limit(1).execute()
+            )
+            focus_streak = focus_result.data[0].get("focus_streak", 0) if focus_result.data else 0
+        except Exception as exc:
+            logger.warning(f"Focus fetch error: {exc}")
+
+        response_data = {
+            "profile": profile_data,
+            "today": {
+                "date": today_str,
+                "balance": daily_balance,
+                "finances": finances_today,
+                "shift_status": shift_status,
+                "active_goals": goals,
+                "missions_today": missions_today,
+                "latest_weight": latest_weight,
+                "focus_streak": focus_streak,
+            },
+        }
+
+        await track_event(
+            module="sync",
+            event="today",
+            status="ok",
+            user_id=user.id,
+            metadata={"finances_today": len(finances_today), "missions_today": len(missions_today)},
+        )
+
+        return JSONResponse(
+            content=json.loads(json.dumps(response_data, default=str)),
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Today error: {exc}", exc_info=True)
+        await track_event(
+            module="sync",
+            event="today",
             status="error",
             user_id=user.id if hasattr(user, "id") else None,
             metadata={"error": str(exc)[:120]},

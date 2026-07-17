@@ -10,6 +10,11 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel
 from google import genai
 
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None  # type: ignore
+
 from auth import get_current_user
 from bio import CYCLE_MINUTES
 from database import supabase
@@ -28,6 +33,46 @@ TIEMPO_POR_CICLO = CYCLE_MINUTES + LATENCIA_MINUTOS
 
 BUFFER_PRE_SHIFT  = 45
 BUFFER_POST_SHIFT = 75
+
+# ─── Timezone / weekday helpers ───────────────────────────────────────────────
+
+DAY_NAMES_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
+
+def _bogota_now() -> datetime:
+    """Hora actual en America/Bogotá; fallback a hora local del servidor."""
+    if ZoneInfo:
+        try:
+            return datetime.now(ZoneInfo("America/Bogota"))
+        except Exception as exc:
+            logger.warning(f"No se pudo usar zona America/Bogota: {exc}")
+    return datetime.now()
+
+
+def _day_name_to_index(name: str) -> int:
+    raw = (name or "").strip().lower()
+    mapping = {
+        "lunes": 0,
+        "martes": 1,
+        "miercoles": 2,
+        "miércoles": 2,
+        "jueves": 3,
+        "viernes": 4,
+        "sabado": 5,
+        "sábado": 5,
+        "domingo": 6,
+    }
+    return mapping.get(raw, 99)
+
+
+def _day_index_to_name(index: int) -> str:
+    if 0 <= index <= 6:
+        return DAY_NAMES_ES[index]
+    return ""
+
+
+def _normalize_day_name_text(value: str) -> str:
+    return _day_index_to_name(_day_name_to_index(value))
 
 
 def _parse_time(t_str: str) -> tuple:
@@ -75,22 +120,6 @@ class WakeTimePayload(BaseModel):
     t_wake_target: str
 
 
-def _normalize_day_name_text(value: str) -> str:
-    raw = (value or "").strip().lower()
-    mapping = {
-        "lunes": "Lunes",
-        "martes": "Martes",
-        "miercoles": "Miércoles",
-        "miércoles": "Miércoles",
-        "jueves": "Jueves",
-        "viernes": "Viernes",
-        "sabado": "Sábado",
-        "sábado": "Sábado",
-        "domingo": "Domingo",
-    }
-    return mapping.get(raw, value.strip().title() if value else "")
-
-
 def _normalize_time_text(value: str) -> str:
     raw = (value or "").strip().upper()
     if not raw:
@@ -131,12 +160,136 @@ def _extract_json_object(raw_text: str) -> dict:
         return {}
 
 
+# ─── Core shift status computation (exported for /today) ─────────────────────
+
+
+def _shift_minutes_for_date(shift: dict, reference_day_index: int) -> Optional[tuple[int, int, int]]:
+    """
+    Devuelve (inicio_minutos, fin_minutos, dia_referencia_offset) para un turno
+    recurrente respecto al día de referencia (0=Lunes). Maneja turnos que cruzan
+    medianoche extendiendo el fin al día siguiente.
+    """
+    shift_day = _day_name_to_index(shift.get("day", ""))
+    if shift_day == 99:
+        return None
+
+    sh, sm = _parse_time(shift.get("start", "00:00"))
+    eh, em = _parse_time(shift.get("end", "23:59"))
+    inicio = _time_to_minutes(sh, sm)
+    fin = _time_to_minutes(eh, em)
+    if fin <= inicio:
+        fin += 24 * 60
+
+    day_offset = (shift_day - reference_day_index) % 7
+    return (inicio, fin, day_offset)
+
+
+def compute_current_status(shifts_data: list, now: Optional[datetime] = None) -> dict:
+    """Calcula el estado de turno actual/proximo a partir de una lista de turnos.
+
+    Args:
+        shifts_data: lista de dicts con day, start, end.
+        now: momento de referencia; por defecto America/Bogota.
+
+    Returns:
+        dict con status, shift (opcional), next_shift (opcional), message_short.
+    """
+    if now is None:
+        now = _bogota_now()
+
+    hoy_index = now.weekday()  # 0=Lunes..6=Domingo
+    ahora_minutos = now.hour * 60 + now.minute
+
+    # Normalizar y descartar inválidos
+    normalized = []
+    for s in shifts_data:
+        if not isinstance(s, dict):
+            continue
+        day = _normalize_day_name_text(s.get("day", ""))
+        if not day:
+            continue
+        start = _normalize_time_text(s.get("start", ""))
+        end = _normalize_time_text(s.get("end", ""))
+        if not start or not end:
+            continue
+        normalized.append({
+            "day": day,
+            "start": start,
+            "end": end,
+            "day_index": _day_name_to_index(day),
+            "_id": s.get("id"),
+        })
+
+    if not normalized:
+        return {"status": "free", "message_short": "Sin turnos registrados."}
+
+    # Encontrar turno activo
+    activo = None
+    for s in normalized:
+        parsed = _shift_minutes_for_date(s, hoy_index)
+        if parsed is None:
+            continue
+        inicio, fin, offset = parsed
+        if offset == 0 and inicio <= ahora_minutos < fin:
+            activo = {
+                "day": s["day"],
+                "start": s["start"],
+                "end": s["end"],
+                "remaining_hours": round((fin - ahora_minutos) / 60, 1),
+            }
+            break
+
+    if activo:
+        msg = f"Turno activo hasta las {activo['end']} ({activo['remaining_hours']}h restantes)."
+        return {"status": "in_shift", "shift": activo, "message_short": msg}
+
+    # Encontrar siguiente turno (más próximo en minutos desde ahora, incluyendo medianoche)
+    proximo = None
+    min_diff_total: Optional[int] = None
+    for s in normalized:
+        parsed = _shift_minutes_for_date(s, hoy_index)
+        if parsed is None:
+            continue
+        inicio, fin, offset = parsed
+        # minutos desde el inicio de la semana (Lunes 00:00) para que el orden sea total
+        shift_start_total = offset * 24 * 60 + inicio
+        now_total = ahora_minutos  # offset 0 porque hoy es el día de referencia
+        # Si el turno empieza hoy después de ahora, diff directa
+        # Si no, avanzamos semana siguiente (offset + 7)
+        if shift_start_total <= now_total:
+            shift_start_total += 7 * 24 * 60
+        diff = shift_start_total - now_total
+        if min_diff_total is None or diff < min_diff_total:
+            min_diff_total = diff
+            starts_in_hours = round(diff / 60, 1)
+            proximo = {
+                "day": s["day"],
+                "start": s["start"],
+                "end": s["end"],
+                "starts_in_hours": starts_in_hours,
+            }
+
+    if proximo:
+        msg = f"Libre. Próximo turno: {proximo['day']} {proximo['start']} (en {proximo['starts_in_hours']}h)."
+        return {"status": "free", "next_shift": proximo, "message_short": msg}
+
+    return {"status": "free", "message_short": "Sin turnos registrados."}
+
+
 # ─── Endpoints ──────────────────────────────────────────────────────────────
 
 
 @router.get("/api/v1/shifts")
 async def list_shifts(user = Depends(get_current_user)):
-    s = await asyncio.to_thread(lambda: supabase.table("shifts").select("*").eq("user_id", user.id).order("day", desc=False).execute())
+    s = await asyncio.to_thread(
+        lambda: supabase.table("shifts")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", True)
+        .order("day_index", desc=False)
+        .order("start", desc=False)
+        .execute()
+    )
     return {"shifts": s.data or []}
 
 
@@ -229,6 +382,7 @@ async def upload_shift_image(
             "day": s["day"],
             "start": s["start"],
             "end": s["end"],
+            "is_active": True,
         }, on_conflict="user_id,day,start,end").execute())
         if res.data:
             inserted.extend(res.data)
@@ -238,6 +392,7 @@ async def upload_shift_image(
                 "day": shift["day"],
                 "start": shift["start"],
                 "end": shift["end"],
+                "is_active": True,
             })
 
     await track_event(
@@ -255,28 +410,43 @@ async def upload_shift_image(
 
 @router.post("/api/v1/shifts")
 async def create_shift(payload: ShiftPayload, user = Depends(get_current_user)):
+    day = _normalize_day_name_text(payload.day)
+    if not day:
+        raise ApiException(status_code=400, detail="Día de la semana inválido.")
+    start = _normalize_time_text(payload.start)
+    end = _normalize_time_text(payload.end)
+    if not start or not end:
+        raise ApiException(status_code=400, detail="Formato de hora inválido (HH:MM).")
     res = await asyncio.to_thread(lambda: supabase.table("shifts").insert({
         "user_id": user.id,
-        "day": payload.day,
-        "start": payload.start,
-        "end": payload.end,
+        "day": day,
+        "start": start,
+        "end": end,
+        "is_active": True,
     }).execute())
     if not res.data:
         raise ApiException(status_code=500, detail="No se pudo crear el turno.")
-    await track_event("schedule", "create_shift", user_id=user.id, metadata={"day": payload.day, "start": payload.start, "end": payload.end})
+    await track_event("schedule", "create_shift", user_id=user.id, metadata={"day": day, "start": start, "end": end})
     return {"shift": res.data[0]}
 
 
 @router.put("/api/v1/shifts/{shift_id}")
 async def update_shift(shift_id: str, payload: ShiftPayload, user = Depends(get_current_user)):
+    day = _normalize_day_name_text(payload.day)
+    if not day:
+        raise ApiException(status_code=400, detail="Día de la semana inválido.")
+    start = _normalize_time_text(payload.start)
+    end = _normalize_time_text(payload.end)
+    if not start or not end:
+        raise ApiException(status_code=400, detail="Formato de hora inválido (HH:MM).")
     res = await asyncio.to_thread(lambda: supabase.table("shifts").update({
-        "day": payload.day,
-        "start": payload.start,
-        "end": payload.end,
+        "day": day,
+        "start": start,
+        "end": end,
     }).eq("id", shift_id).eq("user_id", user.id).execute())
     if not res.data:
         raise ApiException(status_code=404, detail="Turno no encontrado.")
-    await track_event("schedule", "update_shift", user_id=user.id, metadata={"shift_id": shift_id, "day": payload.day, "start": payload.start, "end": payload.end})
+    await track_event("schedule", "update_shift", user_id=user.id, metadata={"shift_id": shift_id, "day": day, "start": start, "end": end})
     return {"shift": res.data[0]}
 
 
@@ -337,10 +507,10 @@ async def set_wake_time(payload: WakeTimePayload, user = Depends(get_current_use
 
 @router.get("/api/v1/sleep-optimizer")
 async def sleep_optimizer(user = Depends(get_current_user)):
-    dias_es = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"]
-    hoy_nombre = dias_es[datetime.now().weekday()]
+    now = _bogota_now()
+    hoy_nombre = DAY_NAMES_ES[now.weekday()]
 
-    shifts = await asyncio.to_thread(lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("day", hoy_nombre).execute())
+    shifts = await asyncio.to_thread(lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("day", hoy_nombre).eq("is_active", True).execute())
     shifts_data = shifts.data or []
 
     if not shifts_data:
@@ -400,46 +570,6 @@ async def sleep_optimizer(user = Depends(get_current_user)):
 
 @router.get("/api/v1/current-status")
 async def current_status(user = Depends(get_current_user)):
-    dias_es = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"]
-    ahora = datetime.now()
-    hoy_nombre = dias_es[ahora.weekday()]
-    ahora_minutos = ahora.hour * 60 + ahora.minute
-
-    shifts = await asyncio.to_thread(lambda: supabase.table("shifts").select("*").eq("user_id", user.id).execute())
+    shifts = await asyncio.to_thread(lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("is_active", True).execute())
     shifts_data = shifts.data or []
-    dias_idx = {n: i for i, n in enumerate(dias_es)}
-
-    activo = None
-    proximo = None
-
-    for s in shifts_data:
-        dia = s.get("day", "")
-        if dias_idx.get(dia, 99) < dias_idx.get(hoy_nombre, 0):
-            continue
-        sh, sm = _parse_time(s.get("start", "00:00"))
-        eh, em = _parse_time(s.get("end", "23:59"))
-        inicio = sh * 60 + sm
-        fin = eh * 60 + em
-        if fin <= inicio:
-            fin += 24 * 60
-
-        if dia == hoy_nombre and inicio <= ahora_minutos < fin:
-            activo = {"day": dia, "start": s["start"], "end": s["end"],
-                      "remaining_hours": round((fin - ahora_minutos) / 60, 1)}
-            break
-        if not activo and (dia != hoy_nombre or ahora_minutos < inicio):
-            if dia == hoy_nombre:
-                diff = inicio - ahora_minutos
-            else:
-                diff = (dias_idx.get(dia, 0) - dias_idx.get(hoy_nombre, 0)) * 24 * 60 - ahora_minutos + inicio
-            proximo = {"day": dia, "start": s["start"], "end": s["end"],
-                      "starts_in_hours": round(diff / 60, 1)}
-            break
-
-    if activo:
-        msg = f"Turno activo hasta las {activo['end']} ({activo['remaining_hours']}h restantes)."
-        return {"status": "in_shift", "shift": activo, "message_short": msg}
-    if proximo:
-        msg = f"Libre. Proximo turno: {proximo['day']} {proximo['start']} (en {proximo['starts_in_hours']}h)."
-        return {"status": "free", "next_shift": proximo, "message_short": msg}
-    return {"status": "free", "message_short": "Sin turnos registrados."}
+    return compute_current_status(shifts_data)

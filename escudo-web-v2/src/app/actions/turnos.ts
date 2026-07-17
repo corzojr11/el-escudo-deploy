@@ -4,12 +4,14 @@ import { revalidatePath } from "next/cache";
 import {
   fetchFromBackend,
   postToBackend,
+  putToBackend,
   apiRequest,
 } from "@/lib/api/server";
 import type {
   ShiftListResponse,
   CurrentStatusResponse,
   CreateShiftResponse,
+  Shift,
 } from "@/lib/api/types";
 
 export async function getShifts() {
@@ -57,6 +59,46 @@ export async function createShift(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Error al crear el turno",
+    };
+  }
+}
+
+export interface UpdateShiftResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function updateShift(
+  shiftId: string,
+  formData: FormData
+): Promise<UpdateShiftResult> {
+  const day = (formData.get("day") as string) || "";
+  const start = (formData.get("start") as string) || "";
+  const end = (formData.get("end") as string) || "";
+
+  if (!day) {
+    return { success: false, error: "Selecciona un día de la semana." };
+  }
+  if (!start || !end) {
+    return { success: false, error: "Completa la hora de inicio y fin." };
+  }
+  if (start >= end) {
+    return { success: false, error: "La hora de inicio debe ser anterior a la de fin." };
+  }
+
+  try {
+    await putToBackend<{ shift: Shift }>(`/api/v1/shifts/${shiftId}`, {
+      day,
+      start,
+      end,
+    });
+    revalidatePath("/turnos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error al actualizar el turno",
     };
   }
 }

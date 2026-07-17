@@ -13,9 +13,10 @@ import {
   Timer,
   Play,
   Square,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createShift, deleteShift } from "@/app/actions/turnos";
+import { createShift, updateShift, deleteShift } from "@/app/actions/turnos";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -42,6 +43,7 @@ export function TurnosClient({ shifts, currentStatus }: TurnosClientProps) {
   const router = useRouter();
   const [shiftList, setShiftList] = useState<Shift[]>(sortByDay(shifts));
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<{ success?: string; error?: string }>({});
   const [formKey, setFormKey] = useState(0);
@@ -56,6 +58,18 @@ export function TurnosClient({ shifts, currentStatus }: TurnosClientProps) {
       router.refresh();
     } else {
       setFormStatus({ error: result.error ?? "Error al crear el turno" });
+    }
+  }
+
+  async function handleUpdate(shiftId: string, formData: FormData) {
+    setFormStatus({});
+    const result = await updateShift(shiftId, formData);
+    if (result.success) {
+      setFormStatus({ success: "Turno actualizado correctamente." });
+      setEditingId(null);
+      router.refresh();
+    } else {
+      setFormStatus({ error: result.error ?? "Error al actualizar el turno" });
     }
   }
 
@@ -154,6 +168,7 @@ export function TurnosClient({ shifts, currentStatus }: TurnosClientProps) {
           <Button
             onClick={() => {
               setCreating(!creating);
+              setEditingId(null);
               setFormStatus({});
             }}
             size="sm"
@@ -216,27 +231,78 @@ export function TurnosClient({ shifts, currentStatus }: TurnosClientProps) {
                   key={shift.id}
                   className="rounded-2xl border border-border/70 bg-background/35 px-4 py-3 transition-colors hover:border-accent/35"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium text-foreground">{shift.day}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {shift.start} - {shift.end}
-                      </span>
+                  {editingId === shift.id ? (
+                    <form action={(formData) => handleUpdate(shift.id, formData)} className="flex flex-wrap items-end gap-2">
+                      <select
+                        name="day"
+                        defaultValue={shift.day}
+                        required
+                        className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm"
+                      >
+                        {DAYS.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                      <input
+                        name="start"
+                        type="time"
+                        defaultValue={shift.start}
+                        required
+                        className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm"
+                      />
+                      <input
+                        name="end"
+                        type="time"
+                        defaultValue={shift.end}
+                        required
+                        className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm"
+                      />
+                      <SubmitButton>Guardar</SubmitButton>
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(null)}
+                        className="rounded-lg px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Cancelar
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm font-medium text-foreground">{shift.day}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {shift.start} - {shift.end}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingId(shift.id);
+                            setCreating(false);
+                            setFormStatus({});
+                          }}
+                          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent/10 hover:text-accent"
+                          title="Editar turno"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(shift.id, `${shift.day} ${shift.start}-${shift.end}`)}
+                          disabled={deletingId === shift.id}
+                          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-escudo-red/10 hover:text-escudo-red"
+                          title="Eliminar turno"
+                        >
+                          {deletingId === shift.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(shift.id, `${shift.day} ${shift.start}-${shift.end}`)}
-                      disabled={deletingId === shift.id}
-                      className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-escudo-red/10 hover:text-escudo-red"
-                      title="Eliminar turno"
-                    >
-                      {deletingId === shift.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>

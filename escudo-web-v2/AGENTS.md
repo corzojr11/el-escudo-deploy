@@ -76,7 +76,7 @@ src/
 
 **Patrón de módulo**: `page.tsx` (server component) → fetches data → `*-client.tsx` (client component) recibe props.
 
-**Excepción**: Dashboard y OMNI son client components directos (sin separación server/client).
+**Excepción**: OMNI es client component directo (sin separación server/client).
 
 **Auth flow**: Supabase Auth → cookies httpOnly → `proxy.ts` verifica sesión → Server actions leen token de cookies → `Authorization: Bearer` al backend.
 

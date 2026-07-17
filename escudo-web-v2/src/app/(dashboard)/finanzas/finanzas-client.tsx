@@ -6,41 +6,63 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wallet, ArrowDownCircle, ArrowUpCircle, TrendingUp, Plus } from "lucide-react";
-import { createFinance } from "@/app/actions/finances";
+import { Wallet, ArrowDownCircle, ArrowUpCircle, TrendingUp, Plus, Pencil, Trash2, Loader2, Calendar } from "lucide-react";
+import { createFinance, updateFinance, deleteFinance, getFinances, getFinanceSummary } from "@/app/actions/finances";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatCurrency, formatDate } from "@/lib/api/helpers";
-import type { FinanceEntry, FinanceSummaryItem } from "@/lib/api/types";
+import type { FinanceEntry, FinanceSummaryItem, FinanceRange } from "@/lib/api/types";
 
 interface FinanzasClientProps {
   transactions: FinanceEntry[];
   summary: FinanceSummaryItem[];
+  initialRange: FinanceRange;
+  totals: { income: number; expense: number; balance: number };
 }
 
-export function FinanzasClient({ transactions, summary }: FinanzasClientProps) {
+const RANGE_LABELS: Record<FinanceRange, string> = {
+  all: "Todo",
+  today: "Hoy",
+  week: "Semana",
+  month: "Mes",
+};
+
+export function FinanzasClient({ transactions, summary, initialRange, totals }: FinanzasClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
   const [, startTransition] = useTransition();
 
-  const { income, expense } = useMemo(
-    () =>
-      transactions.reduce(
-        (acc, tx) => {
-          if (tx.type === "income") acc.income += tx.amount ?? 0;
-          else acc.expense += tx.amount ?? 0;
-          return acc;
-        },
-        { income: 0, expense: 0 }
-      ),
-    [transactions]
-  );
+  const [range, setRange] = useState<FinanceRange>(initialRange);
+  const [items, setItems] = useState<FinanceEntry[]>(transactions);
+  const [currentSummary, setCurrentSummary] = useState<FinanceSummaryItem[]>(summary);
+  const [currentTotals, setCurrentTotals] = useState(totals);
+  const [loadingRange, setLoadingRange] = useState(false);
 
-  const balanceCalculated = income - expense;
-  const incomeCategories = summary.filter((s) => s.category.startsWith("INGRESO:"));
-  const expenseCategories = summary.filter((s) => !s.category.startsWith("INGRESO:"));
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  async function loadRange(nextRange: FinanceRange) {
+    setLoadingRange(true);
+    setRange(nextRange);
+    try {
+      const [newItems, newSummary] = await Promise.all([getFinances(nextRange), getFinanceSummary(nextRange)]);
+      setItems(newItems);
+      setCurrentSummary(newSummary.summary ?? []);
+      setCurrentTotals({
+        income: newSummary.total_income ?? 0,
+        expense: newSummary.total_expense ?? 0,
+        balance: newSummary.balance ?? 0,
+      });
+    } catch (err) {
+      setStatus({ error: err instanceof Error ? err.message : "Error al cargar movimientos" });
+    } finally {
+      setLoadingRange(false);
+    }
+  }
 
   async function handleSubmit(formData: FormData) {
     setStatus({});
@@ -49,12 +71,56 @@ export function FinanzasClient({ transactions, summary }: FinanzasClientProps) {
       if (result.success) {
         setStatus({ success: "Movimiento registrado correctamente." });
         formRef.current?.reset();
+        await loadRange(range);
         router.refresh();
       } else {
         setStatus({ error: result.error ?? "Error al registrar" });
       }
     });
   }
+
+  async function handleUpdate(financeId: string, formData: FormData) {
+    setStatus({});
+    startTransition(async () => {
+      const result = await updateFinance(financeId, formData);
+      if (result.success) {
+        setStatus({ success: "Movimiento actualizado correctamente." });
+        setEditingId(null);
+        await loadRange(range);
+        router.refresh();
+      } else {
+        setStatus({ error: result.error ?? "Error al actualizar" });
+      }
+    });
+  }
+
+  async function handleDelete(financeId: string) {
+    if (!window.confirm("Eliminar este movimiento?")) return;
+    setDeletingId(financeId);
+    setStatus({});
+    const result = await deleteFinance(financeId);
+    setDeletingId(null);
+    if (result.success) {
+      setStatus({ success: "Movimiento eliminado correctamente." });
+      await loadRange(range);
+      router.refresh();
+    } else {
+      setStatus({ error: result.error ?? "Error al eliminar" });
+    }
+  }
+
+  const { income, expense, balance } = currentTotals;
+  const incomeCategories = currentSummary.filter((s) => s.category.startsWith("INGRESO:"));
+  const expenseCategories = currentSummary.filter((s) => !s.category.startsWith("INGRESO:"));
+
+  const sortedItems = useMemo(
+    () =>
+      [...items].sort(
+        (a, b) =>
+          new Date(b.date ?? b.created_at ?? 0).getTime() - new Date(a.date ?? a.created_at ?? 0).getTime()
+      ),
+    [items]
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -94,10 +160,8 @@ export function FinanzasClient({ transactions, summary }: FinanzasClientProps) {
             <CardDescription className="flex items-center gap-2 text-escudo-gold">
               <Wallet className="h-4 w-4" /> Balance neto
             </CardDescription>
-            <CardTitle
-              className={`text-2xl ${balanceCalculated >= 0 ? "text-escudo-green" : "text-escudo-red"}`}
-            >
-              {formatCurrency(balanceCalculated)}
+            <CardTitle className={`text-2xl ${balance >= 0 ? "text-escudo-green" : "text-escudo-red"}`}>
+              {formatCurrency(balance)}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -138,6 +202,10 @@ export function FinanzasClient({ transactions, summary }: FinanzasClientProps) {
                   <option value="INGRESO">Ingreso</option>
                 </select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="date">Fecha</Label>
+                <Input id="date" name="date" type="date" defaultValue={todayStr} required />
+              </div>
               <FormStatus {...status} />
               <SubmitButton className="w-full">Registrar</SubmitButton>
             </form>
@@ -147,15 +215,36 @@ export function FinanzasClient({ transactions, summary }: FinanzasClientProps) {
         <div className="flex flex-col gap-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <span className="hud-label text-accent">Heatmap</span>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-5 w-5 text-escudo-cyan" /> Por categoria
-              </CardTitle>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <span className="hud-label text-accent">Heatmap</span>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TrendingUp className="h-5 w-5 text-escudo-cyan" /> Por categoria
+                  </CardTitle>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(RANGE_LABELS) as FinanceRange[]).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => loadRange(r)}
+                      disabled={loadingRange}
+                      className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+                        range === r
+                          ? "bg-accent text-white"
+                          : "bg-secondary text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {RANGE_LABELS[r]}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <CardDescription>Distribucion de ingresos y gastos</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {expenseCategories.length === 0 && incomeCategories.length === 0 ? (
-                <EmptyState title="Sin categorias" message="No hay datos agrupados por categoria." />
+                <EmptyState title="Sin categorias" message="No hay datos agrupados por categoria en este rango." />
               ) : (
                 <>
                   {expenseCategories.length > 0 && (
@@ -209,58 +298,109 @@ export function FinanzasClient({ transactions, summary }: FinanzasClientProps) {
             <CardHeader>
               <span className="hud-label text-accent">Recent Log</span>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Wallet className="h-5 w-5 text-escudo-gold" /> Movimientos recientes
+                <Wallet className="h-5 w-5 text-escudo-gold" /> Movimientos
               </CardTitle>
-              <CardDescription>Ultimas transacciones registradas</CardDescription>
+              <CardDescription>Transacciones del rango seleccionado</CardDescription>
             </CardHeader>
             <CardContent>
-              {transactions.length === 0 ? (
-                <EmptyState title="Sin movimientos" message="No se encontraron transacciones individuales." />
+              {sortedItems.length === 0 ? (
+                <EmptyState title="Sin movimientos" message="No se encontraron transacciones en este rango." />
               ) : (
                 <div className="flex flex-col gap-3">
-                  {transactions
-                    .slice()
-                    .sort(
-                      (a, b) =>
-                        new Date(b.date ?? b.created_at ?? 0).getTime() -
-                        new Date(a.date ?? a.created_at ?? 0).getTime()
-                    )
-                    .slice(0, 10)
-                    .map((tx) => (
+                  {sortedItems.map((tx) => {
+                    const isEditing = editingId === tx.id;
+                    return (
                       <div
                         key={tx.id}
                         className="rounded-xl border border-border/70 bg-background/35 px-4 py-3 transition-colors hover:border-accent/35"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-sm font-medium text-foreground">
-                              {tx.description || tx.category || "Sin descripcion"}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {tx.category} · {formatDate(tx.date ?? tx.created_at)}
-                            </span>
+                        {isEditing ? (
+                          <form
+                            action={(formData) => handleUpdate(tx.id, formData)}
+                            className="flex flex-col gap-3"
+                          >
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <Input name="description" defaultValue={tx.description || tx.category} required />
+                              <Input name="amount" type="number" step="0.01" min="0.01" defaultValue={tx.amount} required />
+                              <Input name="category" defaultValue={tx.category} required />
+                              <select
+                                name="type"
+                                defaultValue={tx.type === "income" ? "INGRESO" : "GASTO"}
+                                className="h-10 rounded-xl border border-border/80 bg-input/80 px-3 text-sm"
+                              >
+                                <option value="GASTO">Gasto</option>
+                                <option value="INGRESO">Ingreso</option>
+                              </select>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <Input name="date" type="date" defaultValue={tx.date?.slice(0, 10)} required />
+                            </div>
+                            <div className="flex gap-2">
+                              <SubmitButton>Guardar</SubmitButton>
+                              <button
+                                type="button"
+                                onClick={() => setEditingId(null)}
+                                className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-medium text-foreground">
+                                {tx.description || tx.category || "Sin descripcion"}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {tx.category} · {formatDate(tx.date ?? tx.created_at)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  tx.type === "income"
+                                    ? "border-escudo-green/30 bg-escudo-green/10 text-escudo-green"
+                                    : "border-escudo-red/30 bg-escudo-red/10 text-escudo-red"
+                                }
+                              >
+                                {tx.type === "income" ? "Ingreso" : "Gasto"}
+                              </Badge>
+                              <span
+                                className={`text-sm font-semibold ${tx.type === "income" ? "text-escudo-green" : "text-escudo-red"}`}
+                              >
+                                {tx.type === "income" ? "+" : "-"}
+                                {formatCurrency(tx.amount ?? 0)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setEditingId(tx.id)}
+                                className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent/10 hover:text-accent"
+                                title="Editar"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(tx.id)}
+                                disabled={deletingId === tx.id}
+                                className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-escudo-red/10 hover:text-escudo-red"
+                                title="Eliminar"
+                              >
+                                {deletingId === tx.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant="outline"
-                              className={
-                                tx.type === "income"
-                                  ? "border-escudo-green/30 bg-escudo-green/10 text-escudo-green"
-                                  : "border-escudo-red/30 bg-escudo-red/10 text-escudo-red"
-                              }
-                            >
-                              {tx.type === "income" ? "Ingreso" : "Gasto"}
-                            </Badge>
-                            <span
-                              className={`text-sm font-semibold ${tx.type === "income" ? "text-escudo-green" : "text-escudo-red"}`}
-                            >
-                              {tx.type === "income" ? "+" : "-"}
-                              {formatCurrency(tx.amount ?? 0)}
-                            </span>
-                          </div>
-                        </div>
+                        )}
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

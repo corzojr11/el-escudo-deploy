@@ -2,11 +2,17 @@ import asyncio
 import logging
 import os
 import json
+from datetime import date, datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from google import genai
+
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None  # type: ignore
 
 from auth import get_current_user
 from database import supabase
@@ -19,17 +25,53 @@ _gemini_api_key = os.getenv("GEMINI_API_KEY")
 _ai_client = genai.Client(api_key=_gemini_api_key) if _gemini_api_key else None
 
 
+def _bogota_now() -> datetime:
+    if ZoneInfo:
+        try:
+            return datetime.now(ZoneInfo("America/Bogota"))
+        except Exception as exc:
+            logger.warning(f"No se pudo usar zona America/Bogota: {exc}")
+    return datetime.now()
+
+
+def _date_range_from_query(range_value: str) -> tuple[Optional[str], Optional[str]]:
+    """Devuelve (start_date, end_date) en formato YYYY-MM-DD para el rango pedido."""
+    today = _bogota_now().date()
+    if range_value == "today":
+        return (today.isoformat(), today.isoformat())
+    if range_value == "week":
+        # Lunes a domingo de la semana actual (0=Lunes)
+        start = today - timedelta(days=today.weekday())
+        end = start + timedelta(days=6)
+        return (start.isoformat(), end.isoformat())
+    if range_value == "month":
+        start = today.replace(day=1)
+        # último día del mes
+        if start.month == 12:
+            next_month = start.replace(year=start.year + 1, month=1, day=1)
+        else:
+            next_month = start.replace(month=start.month + 1, day=1)
+        end = next_month - timedelta(days=1)
+        return (start.isoformat(), end.isoformat())
+    return (None, None)
+
+
 class FinanceCreatePayload(BaseModel):
     description: str = "Gasto"
     amount: float = Field(0, gt=0)
     category: str = "General"
     type: Optional[str] = "GASTO"
+    date: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
 
 class FinanceUpdatePayload(BaseModel):
     description: Optional[str] = None
     amount: Optional[float] = Field(None, gt=0)
     category: Optional[str] = None
     type: Optional[str] = None
+    date: Optional[str] = None
+
 
 class ReceiptParsePayload(BaseModel):
     image_base64: str
@@ -38,24 +80,127 @@ class ReceiptParsePayload(BaseModel):
 
 class FinanceQuickEntryPayload(BaseModel):
     text: str
+    idempotency_key: Optional[str] = None
+
+
+def _normalize_finance_type(raw_type: Optional[str]) -> str:
+    tx_type = str(raw_type or "GASTO").upper()
+    return tx_type if tx_type in ("GASTO", "INGRESO") else "GASTO"
+
+
+def _today_str() -> str:
+    return _bogota_now().date().isoformat()
+
+
+def _parse_iso_date(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    try:
+        d = date.fromisoformat(value)
+        return d.isoformat()
+    except Exception:
+        return None
+
+
+async def _find_by_idempotency(user_id: str, key: Optional[str]) -> Optional[dict]:
+    if not key:
+        return None
+    try:
+        res = await asyncio.to_thread(
+            lambda: supabase.table("finances")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("idempotency_key", key)
+            .limit(1)
+            .execute()
+        )
+        return res.data[0] if res.data else None
+    except Exception as exc:
+        logger.warning(f"idempotency lookup error: {exc}")
+        return None
+
+
+async def _insert_finance_row(user_id: str, payload: dict) -> dict:
+    tx_type = _normalize_finance_type(payload.get("type"))
+    normalized_category = str(payload.get("category") or "General").strip() or "General"
+    if normalized_category.startswith("INGRESO:"):
+        normalized_category = normalized_category.replace("INGRESO:", "", 1).strip() or "General"
+        tx_type = "INGRESO"
+
+    tx_date = _parse_iso_date(payload.get("date")) or _today_str()
+    idempotency_key = str(payload.get("idempotency_key") or "").strip() or None
+
+    if idempotency_key:
+        existing = await _find_by_idempotency(user_id, idempotency_key)
+        if existing:
+            if "type" not in existing:
+                existing["type"] = tx_type
+            return existing
+
+    insert_data = {
+        "user_id": user_id,
+        "description": str(payload.get("description") or ("Ingreso" if tx_type == "INGRESO" else "Gasto")).strip(),
+        "amount": float(payload.get("amount") or 0),
+        "category": normalized_category,
+        "type": tx_type,
+        "date": tx_date,
+    }
+    if idempotency_key:
+        insert_data["idempotency_key"] = idempotency_key
+
+    res = await asyncio.to_thread(lambda: supabase.table("finances").insert(insert_data).execute())
+    if not res.data:
+        insert_compat = {k: v for k, v in insert_data.items() if k != "type" and k != "idempotency_key"}
+        res = await asyncio.to_thread(lambda: supabase.table("finances").insert(insert_compat).execute())
+    if res.data and "type" not in res.data[0]:
+        res.data[0]["type"] = tx_type
+    if res.data and "date" not in res.data[0]:
+        res.data[0]["date"] = tx_date
+    return res.data[0] if res.data else insert_data
+
+
+@router.get("/api/v1/finances")
+async def list_finances(
+    range: str = Query("all", pattern="^(all|today|week|month)$"),
+    user = Depends(get_current_user),
+):
+    """Lista movimientos financieros con filtro por rango de fecha."""
+    start, end = _date_range_from_query(range)
+    query = supabase.table("finances").select("*").eq("user_id", user.id)
+    if start and end:
+        query = query.gte("date", start).lte("date", end)
+    query = query.order("date", desc=True).order("created_at", desc=True)
+    res = await asyncio.to_thread(lambda: query.execute())
+    return {"finances": res.data or []}
 
 
 @router.get("/api/v1/finances/summary")
-async def get_finances_summary(user = Depends(get_current_user)):
+async def get_finances_summary(
+    range: str = Query("all", pattern="^(all|today|week|month)$"),
+    user = Depends(get_current_user),
+):
+    start, end = _date_range_from_query(range)
+    query = supabase.table("finances").select("category, amount, type").eq("user_id", user.id)
+    if start and end:
+        query = query.gte("date", start).lte("date", end)
+
     try:
-        res = await asyncio.to_thread(
-            lambda: supabase.table("finances").select("category, amount, type").eq("user_id", user.id).execute()
-        )
+        res = await asyncio.to_thread(lambda: query.execute())
     except Exception:
         # Compat con esquemas antiguos sin columna `type`
-        res = await asyncio.to_thread(
-            lambda: supabase.table("finances").select("category, amount").eq("user_id", user.id).execute()
-        )
+        fallback_query = supabase.table("finances").select("category, amount").eq("user_id", user.id)
+        if start and end:
+            fallback_query = fallback_query.gte("date", start).lte("date", end)
+        res = await asyncio.to_thread(lambda: fallback_query.execute())
     if getattr(res, "error", None):
-        res = await asyncio.to_thread(
-            lambda: supabase.table("finances").select("category, amount").eq("user_id", user.id).execute()
-        )
+        fallback_query = supabase.table("finances").select("category, amount").eq("user_id", user.id)
+        if start and end:
+            fallback_query = fallback_query.gte("date", start).lte("date", end)
+        res = await asyncio.to_thread(lambda: fallback_query.execute())
+
     summary = {}
+    total_income = 0.0
+    total_expense = 0.0
     for item in (res.data or []):
         tx_type = (item.get("type") or "").upper()
         cat = item.get("category", "Otros") or "Otros"
@@ -70,42 +215,23 @@ async def get_finances_summary(user = Depends(get_current_user)):
             amount = float(amount_raw or 0)
         except Exception:
             amount = 0.0
+        if tx_type == "INGRESO":
+            total_income += amount
+        else:
+            total_expense += amount
         summary[cat] = float(summary.get(cat, 0)) + amount
     formatted_summary = [{"category": k, "total": v} for k, v in summary.items()]
-    return {"summary": formatted_summary}
-
-
-def _normalize_finance_type(raw_type: Optional[str]) -> str:
-    tx_type = str(raw_type or "GASTO").upper()
-    return tx_type if tx_type in ("GASTO", "INGRESO") else "GASTO"
-
-
-async def _insert_finance_row(user_id: str, payload: dict) -> dict:
-    tx_type = _normalize_finance_type(payload.get("type"))
-    normalized_category = str(payload.get("category") or "General").strip() or "General"
-    if normalized_category.startswith("INGRESO:"):
-        normalized_category = normalized_category.replace("INGRESO:", "", 1).strip() or "General"
-        tx_type = "INGRESO"
-
-    insert_data = {
-        "user_id": user_id,
-        "description": str(payload.get("description") or ("Ingreso" if tx_type == "INGRESO" else "Gasto")).strip(),
-        "amount": float(payload.get("amount") or 0),
-        "category": normalized_category,
-        "type": tx_type,
+    return {
+        "summary": formatted_summary,
+        "total_income": total_income,
+        "total_expense": total_expense,
+        "balance": total_income - total_expense,
     }
-    res = await asyncio.to_thread(lambda: supabase.table("finances").insert(insert_data).execute())
-    if not res.data:
-        insert_compat = {k: v for k, v in insert_data.items() if k != "type"}
-        res = await asyncio.to_thread(lambda: supabase.table("finances").insert(insert_compat).execute())
-    if res.data and "type" not in res.data[0]:
-        res.data[0]["type"] = tx_type
-    return res.data[0] if res.data else insert_data
 
 
 @router.post("/api/v1/finances")
 async def add_finance(payload: FinanceCreatePayload, user = Depends(get_current_user)):
-    created = await _insert_finance_row(user.id, payload.model_dump())
+    created = await _insert_finance_row(user.id, payload.model_dump(exclude_unset=True))
     await track_event(
         module="finances",
         event="create_transaction",
@@ -188,6 +314,7 @@ async def quick_entry(payload: FinanceQuickEntryPayload, user = Depends(get_curr
         "amount": amount,
         "description": description,
         "category": category,
+        "idempotency_key": payload.idempotency_key,
     })
     await track_event(
         module="finances",
@@ -203,8 +330,8 @@ async def quick_entry(payload: FinanceQuickEntryPayload, user = Depends(get_curr
 async def delete_finance(finance_id: str, user = Depends(get_current_user)):
     res = await asyncio.to_thread(lambda: supabase.table("finances").delete().eq("id", finance_id).eq("user_id", user.id).execute())
     if not res.data:
-        raise NotFoundException("Gasto")
-    return {"detail": "Gasto eliminado exitosamente"}
+        raise NotFoundException("Movimiento")
+    return {"detail": "Movimiento eliminado exitosamente"}
 
 
 @router.put("/api/v1/finances/{finance_id}")
@@ -218,9 +345,14 @@ async def update_finance(finance_id: str, payload: FinanceUpdatePayload, user = 
     if "category" in update_data and isinstance(update_data["category"], str) and update_data["category"].startswith("INGRESO:"):
         update_data["category"] = update_data["category"].replace("INGRESO:", "", 1)
         update_data["type"] = "INGRESO"
+    if "date" in update_data:
+        parsed = _parse_iso_date(update_data["date"])
+        if not parsed:
+            raise BadRequestException("Fecha inválida (YYYY-MM-DD).")
+        update_data["date"] = parsed
     res = await asyncio.to_thread(lambda: supabase.table("finances").update(update_data).eq("id", finance_id).eq("user_id", user.id).execute())
     if not res.data:
-        raise NotFoundException("Gasto")
+        raise NotFoundException("Movimiento")
     return {"finance": res.data[0]}
 
 

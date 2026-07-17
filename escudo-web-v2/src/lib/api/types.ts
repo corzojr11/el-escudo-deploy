@@ -22,6 +22,7 @@ export interface FinanceEntry {
   category: string;
   description?: string;
   date: string;
+  idempotency_key?: string;
   created_at?: string;
 }
 
@@ -146,6 +147,9 @@ export interface FinanceSummaryItem {
 
 export interface FinanceSummaryResponse {
   summary: FinanceSummaryItem[];
+  total_income: number;
+  total_expense: number;
+  balance: number;
 }
 
 export interface BioSettings {
@@ -279,5 +283,28 @@ export interface SyncResponse {
     cost_usd: number;
     cost_cop: number;
     trm: number;
+  };
+}
+
+export type FinanceRange = "all" | "today" | "week" | "month";
+
+export interface ShiftStatusResponse {
+  status: "in_shift" | "free";
+  shift?: CurrentShift;
+  next_shift?: NextShift;
+  message_short: string;
+}
+
+export interface TodayResponse {
+  profile: Profile;
+  today: {
+    date: string;
+    balance: number;
+    finances: FinanceEntry[];
+    shift_status: ShiftStatusResponse;
+    active_goals: Goal[];
+    missions_today: Mission[];
+    latest_weight: WeightLog | null;
+    focus_streak: number;
   };
 }

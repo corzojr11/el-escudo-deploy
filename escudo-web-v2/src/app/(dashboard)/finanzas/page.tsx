@@ -8,14 +8,20 @@ export const metadata = {
 
 export default async function FinanzasPage() {
   const [transactions, summaryRes] = await Promise.all([
-    getFinances(),
-    getFinanceSummary(),
+    getFinances("all"),
+    getFinanceSummary("all"),
   ]);
 
   return (
     <FinanzasClient
       transactions={normalizeFinances(transactions)}
       summary={summaryRes.summary ?? []}
+      initialRange="all"
+      totals={{
+        income: summaryRes.total_income ?? 0,
+        expense: summaryRes.total_expense ?? 0,
+        balance: summaryRes.balance ?? 0,
+      }}
     />
   );
 }

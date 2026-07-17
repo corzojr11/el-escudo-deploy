@@ -1,8 +1,8 @@
 "use server";
 
 import { fetchFromBackend } from "@/lib/api/server";
-import type { SyncResponse } from "@/lib/api/types";
+import type { TodayResponse } from "@/lib/api/types";
 
-export async function getDashboardData(): Promise<SyncResponse> {
-  return fetchFromBackend<SyncResponse>("/api/v1/sync");
+export async function getTodayData(): Promise<TodayResponse> {
+  return fetchFromBackend<TodayResponse>("/api/v1/today");
 }
