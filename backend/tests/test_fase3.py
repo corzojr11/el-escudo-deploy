@@ -670,6 +670,134 @@ class TestWorkoutBlock:
         data = resp.json()
         assert data["workout"] is None
 
+    def test_workout_not_proposed_if_overlaps_next_shift(self, monkeypatch):
+        import routers.schedule as schedule_module
+        from datetime import datetime
+
+        fake_now = datetime(2026, 7, 17, 8, 0)
+        mock_supa = MagicMock()
+
+        def table_side(name):
+            t = MagicMock()
+            if name == "shifts":
+                t.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+                    data=[{"day": "Viernes", "start": "10:00", "end": "18:00"}]
+                )
+            elif name == "user_bio_settings":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"t_wake_target": "06:00", "t_sleep_target": "22:30", "commute_minutes": 35}]
+                )
+            elif name == "profiles":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"name": "Test", "onboarding_completed_at": "2026-01-01"}]
+                )
+            elif name == "sleep_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "weight_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            return t
+
+        mock_supa.table.side_effect = table_side
+        monkeypatch.setattr(schedule_module, "supabase", mock_supa)
+        monkeypatch.setattr(schedule_module, "_bogota_now", lambda: fake_now)
+
+        client = TestClient(app)
+        resp = client.get("/api/v1/plan-diario")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["workout"] is None, "No puede sugerir entrenamiento que solape con turno a las 10:00"
+
+    def test_workout_not_proposed_if_shift_active(self, monkeypatch):
+        import routers.schedule as schedule_module
+        from datetime import datetime
+
+        fake_now = datetime(2026, 7, 17, 14, 0)
+        mock_supa = MagicMock()
+
+        def table_side(name):
+            t = MagicMock()
+            if name == "shifts":
+                t.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+                    data=[{"day": "Viernes", "start": "08:00", "end": "17:00"}]
+                )
+            elif name == "user_bio_settings":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"t_wake_target": "06:00", "t_sleep_target": "22:30", "commute_minutes": 35}]
+                )
+            elif name == "profiles":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"name": "Test", "onboarding_completed_at": "2026-01-01"}]
+                )
+            elif name == "sleep_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "weight_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            return t
+
+        mock_supa.table.side_effect = table_side
+        monkeypatch.setattr(schedule_module, "supabase", mock_supa)
+        monkeypatch.setattr(schedule_module, "_bogota_now", lambda: fake_now)
+
+        client = TestClient(app)
+        resp = client.get("/api/v1/plan-diario")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["workout"] is None, "No puede sugerir entrenamiento durante turno activo"
+
+
+class TestSleepDeadline:
+    def test_sleep_deadline_uses_shift_minus_commute_and_prep(self, monkeypatch):
+        import routers.schedule as schedule_module
+        from datetime import datetime
+
+        fake_now = datetime(2026, 7, 17, 18, 0)
+        mock_supa = MagicMock()
+
+        def table_side(name):
+            t = MagicMock()
+            if name == "shifts":
+                t.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+                    data=[{"day": "Sabado", "start": "08:00", "end": "17:00"}]
+                )
+            elif name == "user_bio_settings":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"t_wake_target": "06:00", "t_sleep_target": "22:30", "commute_minutes": 35}]
+                )
+            elif name == "profiles":
+                t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"name": "Test", "onboarding_completed_at": "2026-01-01"}]
+                )
+            elif name == "sleep_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            elif name == "weight_logs":
+                t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+            return t
+
+        mock_supa.table.side_effect = table_side
+        monkeypatch.setattr(schedule_module, "supabase", mock_supa)
+        monkeypatch.setattr(schedule_module, "_bogota_now", lambda: fake_now)
+
+        client = TestClient(app)
+        resp = client.get("/api/v1/plan-diario")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        windows = data["sleep"]["windows"]
+        wake_times = {w["cycles"]: w["wake_time"] for w in windows}
+        assert wake_times[5] == "06:40"
+
+
+class TestSharedInstances:
+    def test_compute_status_and_find_next_use_shared_helper(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        schedule_path = repo_root / "backend" / "routers" / "schedule.py"
+        sql = schedule_path.read_text(encoding="utf-8")
+        assert "_build_shift_instances" in sql
+        occ = sql.count("_build_shift_instances")
+        assert occ >= 3, f"_build_shift_instances debe usarse al menos en 3 lugares (def + compute + find), encontrado {occ}"
+
 
 class TestSleepLogIsolation:
     def test_sleep_log_isolated_by_user(self, monkeypatch):
