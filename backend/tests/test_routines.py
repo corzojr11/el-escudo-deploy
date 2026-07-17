@@ -204,3 +204,77 @@ def test_upsert_preserves_equipment_and_muscles(monkeypatch):
     assert "mancuernas" in ex["equipment"]
     assert "pecho" in ex["muscles"]
     assert "triceps" in ex["muscles"]
+
+
+def test_complete_routine_is_idempotent(monkeypatch):
+    import routers.routines as routines_module
+
+    mock_supa = MagicMock()
+    completions_table = MagicMock()
+
+    insert_chain = MagicMock()
+    insert_chain.execute.return_value = MockResult([
+        {"id": "c1", "user_id": MOCK_USER_ID, "day_index": 1, "completed_date": "2026-07-17"}
+    ])
+    completions_table.insert.return_value = insert_chain
+
+    duplicate_err = Exception("duplicate key value violates unique constraint")
+    duplicate_err.code = "23505"
+
+    insert_count = [0]
+
+    def insert_side(*args, **kwargs):
+        insert_count[0] += 1
+        if insert_count[0] == 1:
+            return MockResult([{"id": "c1", "user_id": MOCK_USER_ID, "day_index": 1, "completed_date": "2026-07-17"}])
+        raise duplicate_err
+
+    completions_table.insert.return_value.execute.side_effect = insert_side
+
+    select_chain = MagicMock()
+    select_chain.eq.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = MockResult([
+        {"id": "c1", "user_id": MOCK_USER_ID, "day_index": 1, "completed_date": "2026-07-17"}
+    ])
+    completions_table.select.return_value = select_chain
+
+    def table_side(name):
+        if name == "routine_completions":
+            return completions_table
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(routines_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp1 = client.post("/api/v1/routines/1/complete")
+    assert resp1.status_code == 200
+
+    resp2 = client.post("/api/v1/routines/1/complete")
+    assert resp2.status_code == 200
+    assert insert_count[0] >= 2
+
+
+def test_uncomplete_routine_deletes_completion(monkeypatch):
+    import routers.routines as routines_module
+
+    mock_supa = MagicMock()
+    completions_table = MagicMock()
+
+    delete_chain = MagicMock()
+    delete_chain.eq.return_value = delete_chain
+    delete_chain.eq.return_value = delete_chain
+    delete_chain.execute.return_value = MockResult([{"id": "c1"}])
+    completions_table.delete.return_value = delete_chain
+
+    def table_side(name):
+        if name == "routine_completions":
+            return completions_table
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(routines_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.delete("/api/v1/routines/1/complete")
+    assert resp.status_code == 200
+    assert resp.json()["completed"] == False

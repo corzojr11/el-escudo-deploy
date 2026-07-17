@@ -14,7 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import type { TodayResponse, PlanDiarioResponse } from "@/lib/api/types";
+import type { TodayResponse, PlanDiarioResponse, WellnessSummary } from "@/lib/api/types";
 
 function Metric({ label, value, detail, tone = "text-foreground" }: {
   label: string;
@@ -34,9 +34,10 @@ function Metric({ label, value, detail, tone = "text-foreground" }: {
 interface DashboardClientProps {
   data: TodayResponse;
   plan: PlanDiarioResponse;
+  wellness: WellnessSummary;
 }
 
-export function DashboardClient({ data, plan }: DashboardClientProps) {
+export function DashboardClient({ data, plan, wellness }: DashboardClientProps) {
   const profile = data.profile;
   const today = data.today;
   const goals = today.active_goals ?? [];
@@ -104,6 +105,45 @@ export function DashboardClient({ data, plan }: DashboardClientProps) {
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
           <Metric label="Racha actual" value={focusStreak} detail="dias consecutivos" tone="text-[#ffd700]" />
           <Metric label="Misiones listas" value={missions.length} detail="pendientes y completadas" tone="text-[#bcaeff]" />
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="border border-border bg-card p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <div className="relative h-16 w-16">
+                <svg className="h-16 w-16 -rotate-90" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="#2A2A3C" strokeWidth="5" />
+                  <circle cx="32" cy="32" r="28" fill="none" stroke={wellness.score >= 70 ? "#FFD700" : wellness.score >= 40 ? "#7C5DFF" : "#666"} strokeWidth="5"
+                    strokeDasharray={`${wellness.score * 1.76} 176`} strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="font-mono text-lg font-bold text-white">{wellness.score}</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="hud-label">Wellness Score</p>
+              <p className="text-xs text-muted-foreground">{wellness.completeness}% datos disponibles</p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {wellness.factors.slice(0, 4).map((f) => (
+                  <span key={f.name} className={`text-[9px] px-1.5 py-0.5 border ${f.score !== null ? "border-[#2A2A3C] text-gray-300" : "border-dashed border-gray-600 text-gray-600"}`}>
+                    {f.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="border border-border bg-card p-5">
+          <p className="hud-label">Insight semanal</p>
+          <p className="mt-2 text-sm leading-relaxed text-gray-300">{wellness.insight}</p>
+          {wellness.action_route && wellness.action_label && (
+            <a href={wellness.action_route} className="mt-3 inline-block text-xs text-[#7C5DFF] hover:underline">
+              {wellness.action_label} →
+            </a>
+          )}
         </div>
       </section>
 

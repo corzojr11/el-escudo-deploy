@@ -14,6 +14,8 @@ import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatDate, formatShortDate } from "@/lib/api/helpers";
 import { logSleep } from "@/app/actions/plan";
+import { completeRoutineDay, uncompleteRoutineDay } from "@/app/actions/wellness";
+import { RestTimer } from "@/components/dashboard/RestTimer";
 import type { FocusStatus, WeightLog, ExerciseLog, PersonalRecord, SleepLog, Routine } from "@/lib/api/types";
 
 function todayInputValue() {
@@ -58,6 +60,9 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
   const [exDate, setExDate] = useState(todayInputValue());
   const [exStatus, setExStatus] = useState<{ success?: string; error?: string }>({});
   const [exercising, setExercising] = useState(false);
+
+  const [completingRoutine, setCompletingRoutine] = useState(false);
+  const [routineDone, setRoutineDone] = useState(false);
 
   const sortedLogs = useMemo(
     () =>
@@ -149,7 +154,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
           const todayRoutine = routines.find((r) => r.day_index === todayIdx);
           if (!todayRoutine) return null;
           return (
-            <div className="border border-[#2A2A3C] bg-[#17171A] p-4 flex items-center justify-between">
+            <div className="border border-[#2A2A3C] bg-[#17171A] p-4 flex items-center justify-between flex-wrap gap-2">
               <div>
                 <p className="hud-label text-[#7C5DFF]">Rutina de hoy</p>
                 <p className="text-sm text-white">
@@ -157,9 +162,47 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
                   {todayRoutine.estimated_minutes ? ` · ${todayRoutine.estimated_minutes} min` : ""}
                 </p>
               </div>
-              <a href="/rutinas" className="text-xs text-[#7C5DFF] hover:underline">
-                Ver rutina completa
-              </a>
+              <div className="flex items-center gap-2">
+                {routineDone ? (
+                  <>
+                    <span className="text-xs text-[#FFD700]">✓ Completada</span>
+                    <button
+                      onClick={async () => {
+                        setCompletingRoutine(true);
+                        try {
+                          await uncompleteRoutineDay(todayIdx);
+                          setRoutineDone(false);
+                          router.refresh();
+                        } catch {}
+                        setCompletingRoutine(false);
+                      }}
+                      disabled={completingRoutine}
+                      className="text-[10px] text-gray-500 hover:text-gray-300 underline"
+                    >
+                      Desmarcar
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setCompletingRoutine(true);
+                      try {
+                        await completeRoutineDay(todayIdx);
+                        setRoutineDone(true);
+                        router.refresh();
+                      } catch {}
+                      setCompletingRoutine(false);
+                    }}
+                    disabled={completingRoutine}
+                    className="text-xs bg-[#7C5DFF] hover:bg-[#7C5DFF]/90 text-white px-3 py-1 rounded"
+                  >
+                    {completingRoutine ? "..." : "Completar"}
+                  </button>
+                )}
+                <a href="/rutinas" className="text-xs text-[#7C5DFF] hover:underline">
+                  Ver rutina
+                </a>
+              </div>
             </div>
           );
         })()
@@ -481,6 +524,10 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
             {exercising && <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />}
             Registrar ejercicio
           </Button>
+
+          <div className="border-t border-[#2A2A3C] pt-4">
+            <RestTimer />
+          </div>
 
           <div className="border-t border-[#2A2A3C] pt-4">
             <div className="grid grid-cols-2 gap-4">

@@ -178,6 +178,24 @@ export interface Achievement {
   unlocked_at?: string;
 }
 
+export interface WellnessFactor {
+  name: string;
+  label: string;
+  value: string;
+  score: number | null;
+  max: number;
+}
+
+export interface WellnessSummary {
+  date: string;
+  score: number;
+  completeness: number;
+  factors: WellnessFactor[];
+  insight: string;
+  action_route: string | null;
+  action_label: string | null;
+}
+
 export interface FinanceSummaryItem {
   category: string;
   total: number;

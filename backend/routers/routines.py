@@ -101,30 +101,47 @@ async def upsert_routine_day(day_index: int, payload: RoutineDayPayload, user = 
 async def complete_routine_day(day_index: int, user = Depends(get_current_user)):
     if day_index < 0 or day_index > 6:
         raise ApiException(status_code=400, detail="day_index inválido. Debe ser 0 (Domingo) a 6 (Sabado).")
-    current = await asyncio.to_thread(
-        lambda: supabase.table("routines")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("day_index", day_index)
-            .limit(1)
-            .execute()
-    )
-    existing = (current.data or [None])[0] or {}
-    if not existing:
-        raise ApiException(status_code=404, detail="Rutina no encontrada.")
 
-    completed_at = datetime.now(timezone.utc).isoformat()
-    res = await asyncio.to_thread(
-        lambda: supabase.table("routines")
-            .update({"completed_at": completed_at, "updated_at": completed_at})
-            .eq("user_id", user.id)
-            .eq("day_index", day_index)
-            .execute()
-    )
-    if not res.data:
-        raise ApiException(status_code=500, detail="No se pudo completar la rutina.")
-    await track_event("routines", "complete_routine_day", user_id=user.id, metadata={"day_index": day_index})
-    return {"routine": res.data[0]}
+    from zoneinfo import ZoneInfo
+    try:
+        today = datetime.now(ZoneInfo("America/Bogota")).strftime("%Y-%m-%d")
+    except Exception:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    try:
+        res = await asyncio.to_thread(lambda: supabase.table("routine_completions").insert({
+            "user_id": user.id,
+            "day_index": day_index,
+            "completed_date": today,
+        }).execute())
+    except Exception as exc:
+        code = getattr(exc, "code", "")
+        if code == "23505" or "duplicate" in str(exc).lower():
+            existing = await asyncio.to_thread(lambda: supabase.table("routine_completions").select("*").eq("user_id", user.id).eq("day_index", day_index).eq("completed_date", today).limit(1).execute())
+            if existing.data:
+                await track_event("routines", "complete_routine_day", user_id=user.id, metadata={"day_index": day_index, "date": today})
+                return {"completed": True, "completion": existing.data[0]}
+        logger.warning(f"routine completion insert error: {exc}")
+        raise ApiException(status_code=500, detail="No se pudo marcar la rutina como completada.")
+
+    await track_event("routines", "complete_routine_day", user_id=user.id, metadata={"day_index": day_index, "date": today})
+    return {"completed": True, "completion": res.data[0] if res.data else {}}
+
+
+@router.delete("/api/v1/routines/{day_index}/complete")
+async def uncomplete_routine_day(day_index: int, user = Depends(get_current_user)):
+    if day_index < 0 or day_index > 6:
+        raise ApiException(status_code=400, detail="day_index inválido.")
+
+    from zoneinfo import ZoneInfo
+    try:
+        today = datetime.now(ZoneInfo("America/Bogota")).strftime("%Y-%m-%d")
+    except Exception:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    res = await asyncio.to_thread(lambda: supabase.table("routine_completions").delete().eq("user_id", user.id).eq("day_index", day_index).eq("completed_date", today).execute())
+    await track_event("routines", "uncomplete_routine_day", user_id=user.id, metadata={"day_index": day_index, "date": today})
+    return {"completed": False}
 
 
 @router.delete("/api/v1/routines/{day_index}")
