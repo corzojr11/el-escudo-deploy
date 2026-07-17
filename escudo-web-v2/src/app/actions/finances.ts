@@ -6,6 +6,10 @@ import type {
   FinanceEntry,
   FinanceSummaryResponse,
   FinanceRange,
+  FixedExpense,
+  Debt,
+  DebtPayment,
+  ParsedTransaction,
 } from "@/lib/api/types";
 
 export async function getFinanceSummary(
@@ -121,26 +125,28 @@ export async function deleteFinance(financeId: string) {
   }
 }
 
-export async function uploadReceipt(imageBase64: string, mimeType: string = "image/jpeg") {
-  return postToBackend<{
-    type: string; amount: number; description: string; category: string; confidence: number; fallback_mode?: string;
-  }>("/api/v1/finances/parse-receipt", { image_base64: imageBase64, mime_type: mimeType });
+export async function uploadReceipt(
+  imageBase64: string,
+  mimeType: string = "image/jpeg"
+): Promise<ParsedTransaction & { confidence?: number }> {
+  return postToBackend<ParsedTransaction & { confidence: number }>(
+    "/api/v1/finances/parse-receipt",
+    { image_base64: imageBase64, mime_type: mimeType }
+  );
 }
 
-export async function quickFinanceEntry(text: string) {
-  return postToBackend<{
-    type: string; amount: number; description: string; category: string; fallback_mode?: string;
-  }>("/api/v1/finances/quick-entry", { text });
+export async function quickFinanceEntry(text: string): Promise<ParsedTransaction> {
+  return postToBackend<ParsedTransaction>("/api/v1/finances/quick-entry", { text });
 }
 
-export async function parseFinanceText(text: string) {
+export async function parseFinanceText(text: string): Promise<ParsedTransaction> {
   const lower = text.toLowerCase().trim();
   let txType = "GASTO";
   if (/\b(ingreso|sueldo|abono|pago recibido|transferencia|devolucion|salario)\b/.test(lower)) txType = "INGRESO";
   const amountMatch = text.match(/(?:\$|COP\s*)?(\d[\d,.]*)/);
   let amount = 0;
   if (amountMatch) { const raw = amountMatch[1].replace(/,/g, ""); amount = parseFloat(raw) || 0; }
-  if (amount <= 0) return { fallback_mode: "manual_review_required" as const };
+  if (amount <= 0) return { fallback_mode: "manual_review_required", type: "GASTO", amount: 0, description: text.slice(0, 80) || "Gasto", category: "General" };
   let description = text.replace(amountMatch?.[0] || "", "").replace(/\$|COP/gi, "").trim().slice(0, 80);
   if (!description) description = txType === "INGRESO" ? "Ingreso" : "Gasto";
   const categories: Record<string, string[]> = { Comida: ["comida","almuerzo","mercado","restaurante","supermercado","cena"], Transporte: ["transporte","gasolina","uber","taxi","bus","pasaje"], Servicios: ["luz","agua","gas","internet","telefono","servicio","factura","arriendo"], Entretenimiento: ["cine","netflix","spotify","juego","suscripcion"], Sueldo: ["sueldo","salario","nomina","pago"], Compras: ["ropa","zapatos","compra","amazon"] };
@@ -149,49 +155,53 @@ export async function parseFinanceText(text: string) {
   return { type: txType, amount, description, category };
 }
 
-export async function getFixedExpenses() {
-  const res = await fetchFromBackend<{ fixed_expenses: unknown[] }>("/api/v1/fixed-expenses");
+export async function getFixedExpenses(): Promise<FixedExpense[]> {
+  const res = await fetchFromBackend<{ fixed_expenses: FixedExpense[] }>("/api/v1/fixed-expenses");
   return res.fixed_expenses ?? [];
 }
-export async function createFixedExpense(data: { name: string; amount: number; category?: string; due_date?: string }) {
-  const r = await postToBackend<{ fixed_expense: unknown }>("/api/v1/fixed-expenses", data);
+export async function createFixedExpense(data: { name: string; amount: number; category?: string; due_date?: string; is_paid?: boolean }): Promise<{ fixed_expense: FixedExpense }> {
+  const r = await postToBackend<{ fixed_expense: FixedExpense }>("/api/v1/fixed-expenses", data);
   revalidatePath("/finanzas"); revalidatePath("/"); return r;
 }
-export async function updateFixedExpense(id: string, data: Record<string, unknown>) {
-  const r = await putToBackend<{ fixed_expense: unknown }>(`/api/v1/fixed-expenses/${id}`, data);
+export async function updateFixedExpense(id: string, data: Partial<Pick<FixedExpense, "name" | "amount" | "category" | "due_date" | "is_paid">>): Promise<{ fixed_expense: FixedExpense }> {
+  const r = await putToBackend<{ fixed_expense: FixedExpense }>(`/api/v1/fixed-expenses/${id}`, data);
   revalidatePath("/finanzas"); revalidatePath("/"); return r;
 }
-export async function deleteFixedExpense(id: string) {
+export async function deleteFixedExpense(id: string): Promise<void> {
   await apiRequest("DELETE", `/api/v1/fixed-expenses/${id}`);
   revalidatePath("/finanzas"); revalidatePath("/");
 }
 
-export async function getDebts() {
-  const res = await fetchFromBackend<{ debts: unknown[] }>("/api/v1/debts");
+export async function getDebts(): Promise<Debt[]> {
+  const res = await fetchFromBackend<{ debts: Debt[] }>("/api/v1/debts");
   return res.debts ?? [];
 }
-export async function createDebt(data: { name: string; total: number; remaining?: number; due_date?: string; notes?: string }) {
-  const r = await postToBackend<{ debt: unknown }>("/api/v1/debts", data);
+export async function createDebt(data: { name: string; total: number; remaining?: number; monthly_payment?: number; due_date?: string; notes?: string }): Promise<{ debt: Debt }> {
+  const r = await postToBackend<{ debt: Debt }>("/api/v1/debts", data);
   revalidatePath("/finanzas"); revalidatePath("/"); return r;
 }
-export async function updateDebt(id: string, data: Record<string, unknown>) {
-  const r = await putToBackend<{ debt: unknown }>(`/api/v1/debts/${id}`, data);
+export async function updateDebt(id: string, data: Partial<Pick<Debt, "name" | "total" | "remaining" | "monthly_payment" | "due_date" | "notes" | "status">>): Promise<{ debt: Debt }> {
+  const r = await putToBackend<{ debt: Debt }>(`/api/v1/debts/${id}`, data);
   revalidatePath("/finanzas"); revalidatePath("/"); return r;
 }
-export async function deleteDebt(id: string) {
+export async function deleteDebt(id: string): Promise<void> {
   await apiRequest("DELETE", `/api/v1/debts/${id}`);
   revalidatePath("/finanzas"); revalidatePath("/");
 }
-export async function recordDebtPayment(debtId: string, data: { amount: number; notes?: string }) {
-  const r = await postToBackend<{ debt: unknown }>(`/api/v1/debts/${debtId}/payments`, data);
+export async function recordDebtPayment(debtId: string, data: { amount: number; notes?: string; payment_date?: string }): Promise<{ debt: { remaining: number } }> {
+  const r = await postToBackend<{ debt: { remaining: number } }>(`/api/v1/debts/${debtId}/payments`, data);
   revalidatePath("/finanzas"); revalidatePath("/"); return r;
 }
+export async function getDebtPayments(debtId: string): Promise<DebtPayment[]> {
+  const res = await fetchFromBackend<{ payments: DebtPayment[] }>(`/api/v1/debts/${debtId}/payments`);
+  return res.payments ?? [];
+}
 
-export async function getBudget() {
+export async function getBudget(): Promise<number> {
   const res = await fetchFromBackend<{ monthly_budget: number }>("/api/v1/budget");
   return res.monthly_budget ?? 0;
 }
-export async function setBudget(monthlyBudget: number) {
+export async function setBudget(monthlyBudget: number): Promise<{ monthly_budget: number }> {
   const r = await putToBackend<{ monthly_budget: number }>("/api/v1/budget", { monthly_budget: monthlyBudget });
   revalidatePath("/finanzas"); revalidatePath("/perfil"); revalidatePath("/"); return r;
 }
