@@ -326,8 +326,15 @@ def test_migration_037_covers_core_tables():
         assert f"ALTER TABLE IF EXISTS public.{table} ENABLE ROW LEVEL SECURITY" in sql, (
             f"037 debe habilitar RLS para {table}"
         )
+        assert "information_schema.columns" in sql, (
+            "037 debe usar information_schema.columns para columnas de tablas existentes"
+        )
 
     assert "profiles" in sql
-    assert "RAISE NOTICE" not in sql, "037 no debe depender de tablas previas con RAISE NOTICE"
+    assert "ALTER COLUMN" not in sql, "037 no debe contener ALTER COLUMN ... TYPE"
     assert "DROP TABLE" not in sql, "037 no debe contener sentencias destructivas"
-    assert "pg_policies" in sql, "037 debe verificar politicas con pg_policies para no duplicarlas"
+    assert "DROP COLUMN" not in sql, "037 no debe contener sentencias destructivas"
+    assert "DELETE FROM" not in sql, "037 no debe contener sentencias destructivas"
+    assert "pg_policies" in sql, "037 debe verificar politicas con pg_policies"
+    assert "shifts_user_day_start_end_unique" in sql, "037 debe incluir unique constraint para upsert de turnos"
+    assert sql.count("ADD COLUMN") >= 20, f"037 debe contener muchos ADD COLUMN guards (encontrados {sql.count('ADD COLUMN')})"
