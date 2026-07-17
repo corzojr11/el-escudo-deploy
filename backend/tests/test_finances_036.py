@@ -189,6 +189,50 @@ class TestMigration036:
         assert "DEBT_NOT_FOUND" in text
         assert "AMOUNT_EXCEEDS_REMAINING" in text
 
+    def test_no_bare_dollar_quote_inside_do_block(self):
+        """Cada DO $$ o DO $tag$ debe usar un delimitador distinto para funciones internas.
+
+        Si un bloque DO $$ contiene AS $$ (delimitador reutilizado), PostgreSQL
+        interpreta el $$ interno como cierre del bloque externo y falla.
+        """
+        text = _read_migration()
+        lines = text.splitlines()
+        errors = []
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            # Busca lineas que abren un DO con $$ o $tag$
+            if not stripped.startswith("DO "):
+                continue
+            # Extrae el delimitador: DO $$ o DO $tag$
+            outer = stripped[3:].split()[0] if " " in stripped[3:] else stripped[3:]
+            if not outer:
+                continue
+            # Solo nos interesan los DO que contienen CREATE OR REPLACE FUNCTION
+            # (los DO simples con ALTER TABLE / CREATE TABLE no anidan $$)
+            inner_after = "\n".join(lines[i:])
+            # Si dentro de las siguientes lineas aparece CREATE OR REPLACE FUNCTION,
+            # debe usar un delimitador distinto al del DO contenedor.
+            if "CREATE OR REPLACE FUNCTION" not in inner_after:
+                continue
+            # Salta el DO contenedor; busca hasta END <delimitador>;
+            end_marker = f"END {outer};"
+            end_pos = inner_after.find(end_marker)
+            if end_pos == -1:
+                errors.append(
+                    f"Linea {i+1}: DO {outer} no tiene END {outer}; coincidente."
+                )
+                continue
+            block_body = inner_after[len(outer) + 4 : end_pos]
+            # Dentro del cuerpo no debe aparecer AS $$ (delimitador reutilizado)
+            if "AS $$" in block_body:
+                errors.append(
+                    f"Linea {i+1}: DO {outer} contiene 'AS $$' (mismo delimitador). "
+                    "Usa un tag distinto, ej. AS $fn_xxx$."
+                )
+
+        assert not errors, "\n".join(errors)
+
     def test_useful_indexes(self):
         text = _read_migration()
         assert "idx_debts_user" in text

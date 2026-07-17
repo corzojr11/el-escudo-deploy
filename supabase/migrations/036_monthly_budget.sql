@@ -366,7 +366,7 @@ CREATE INDEX IF NOT EXISTS idx_debt_payments_payment_date
 -- ---------------------------------------------------------------------------
 -- 6) updated_at triggers idempotentes para debts y fixed_expenses
 -- ---------------------------------------------------------------------------
-DO $$
+DO $trg_debts$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
@@ -386,20 +386,20 @@ BEGIN
     WHERE tgname = 'trg_debts_updated_at'
   ) THEN
     CREATE OR REPLACE FUNCTION public._set_debts_updated_at()
-    RETURNS TRIGGER LANGUAGE plpgsql SECURITY INVOKER AS $$
+    RETURNS TRIGGER LANGUAGE plpgsql SECURITY INVOKER AS $fn_debts$
     BEGIN
       NEW.updated_at = NOW();
       RETURN NEW;
     END;
-    $$;
+    $fn_debts$;
     CREATE TRIGGER trg_debts_updated_at
       BEFORE UPDATE ON public.debts
       FOR EACH ROW EXECUTE FUNCTION public._set_debts_updated_at();
     RAISE NOTICE '036: trigger debts.updated_at creado.';
   END IF;
-END $$;
+END $trg_debts$;
 
-DO $$
+DO $trg_fixed_expenses$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -409,23 +409,23 @@ BEGIN
     WHERE tgname = 'trg_fixed_expenses_updated_at'
   ) THEN
     CREATE OR REPLACE FUNCTION public._set_fixed_expenses_updated_at()
-    RETURNS TRIGGER LANGUAGE plpgsql SECURITY INVOKER AS $$
+    RETURNS TRIGGER LANGUAGE plpgsql SECURITY INVOKER AS $fn_fixed_expenses$
     BEGIN
       NEW.updated_at = NOW();
       RETURN NEW;
     END;
-    $$;
+    $fn_fixed_expenses$;
     CREATE TRIGGER trg_fixed_expenses_updated_at
       BEFORE UPDATE ON public.fixed_expenses
       FOR EACH ROW EXECUTE FUNCTION public._set_fixed_expenses_updated_at();
     RAISE NOTICE '036: trigger fixed_expenses.updated_at creado.';
   END IF;
-END $$;
+END $trg_fixed_expenses$;
 
 -- ---------------------------------------------------------------------------
 -- 7) RPC atomica record_debt_payment (SOLO si debts y debt_payments existen)
 -- ---------------------------------------------------------------------------
-DO $$
+DO $rpc_block$
 DECLARE
   rpc_exists BOOLEAN;
 BEGIN
@@ -457,7 +457,7 @@ BEGIN
     LANGUAGE plpgsql
     SECURITY DEFINER
     SET search_path = public
-    AS $$
+    AS $rpc_fn$
     DECLARE
       v_remaining   NUMERIC(12,2);
       v_payment_id  UUID;
@@ -493,7 +493,7 @@ BEGIN
         'new_remaining', GREATEST(v_remaining - v_amount, 0)
       );
     END;
-    $$;
+    $rpc_fn$;
 
     RAISE NOTICE '036: funcion public.record_debt_payment creada.';
   ELSE
@@ -509,7 +509,7 @@ BEGIN
     LANGUAGE plpgsql
     SECURITY DEFINER
     SET search_path = public
-    AS $$
+    AS $rpc_fn$
     DECLARE
       v_remaining   NUMERIC(12,2);
       v_payment_id  UUID;
@@ -545,7 +545,7 @@ BEGIN
         'new_remaining', GREATEST(v_remaining - v_amount, 0)
       );
     END;
-    $$;
+    $rpc_fn$;
 
     RAISE NOTICE '036: funcion public.record_debt_payment reemplazada (idempotente).';
   END IF;
@@ -560,7 +560,7 @@ BEGIN
   -- Apoyo para usuarios autenticados: permitir SELECT/INSERT/UPDATE/DELETE en tablas
   -- (la RPC misma queda restringida al backend con service_role)
   RAISE NOTICE '036: permisos de record_debt_payment restringidos a service_role.';
-END $$;
+END $rpc_block$;
 
 -- Asegura que usuarios autenticados conservan acceso base RLS a las tablas nuevas
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.debts TO authenticated;
