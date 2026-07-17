@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import date, datetime, timezone
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
@@ -28,12 +29,38 @@ def _calculate_age(birth_date: date) -> int:
     return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
 
 
+def _is_unique_conflict(exc: Exception) -> bool:
+    code = getattr(exc, "code", None) or ""
+    msg = str(exc).lower()
+    return (
+        code == "23505"
+        or "duplicate key value" in msg
+        or "unique constraint" in msg
+        or "duplicate key" in msg
+    )
+
+
+async def _fetch_weight_by_idempotency(user_id: str, key: str) -> Optional[dict]:
+    try:
+        res = await asyncio.to_thread(
+            lambda: supabase.table("weight_logs")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("idempotency_key", key)
+            .limit(1)
+            .execute()
+        )
+        return res.data[0] if res.data else None
+    except Exception as exc:
+        logger.warning(f"weight idempotency lookup error: {exc}")
+        return None
+
+
 class ProfileUpdatePayload(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=60)
     birth_date: str | None = None
     height_cm: int | None = Field(default=None, ge=100, le=250)
     health_goal: str | None = None
-    onboarding_completed_at: str | None = None
 
     @model_validator(mode="after")
     def validate_optional_fields(self):
@@ -89,11 +116,6 @@ async def get_profile(user=Depends(get_current_user)):
 async def update_profile(payload: ProfileUpdatePayload, user=Depends(get_current_user)):
     data = payload.model_dump(exclude_unset=True)
 
-    if "birth_date" in data and data["birth_date"] is not None:
-        data["birth_date"] = data["birth_date"]
-    if "onboarding_completed_at" in data and data["onboarding_completed_at"] is not None:
-        pass
-
     if not data:
         raise ApiException(status_code=400, detail="No hay campos para actualizar.")
 
@@ -131,16 +153,6 @@ async def complete_onboarding(payload: OnboardingPayload, user=Depends(get_curre
         .execute()
     )
 
-    weight_data = {
-        "user_id": user.id,
-        "weight": payload.weight_kg,
-        "date": today_str,
-        "timestamp": now_iso,
-    }
-    await asyncio.to_thread(
-        lambda: supabase.table("weight_logs").insert(weight_data).execute()
-    )
-
     if not res_profile.data:
         profile_data["user_id"] = user.id
         profile_data["email"] = None
@@ -150,8 +162,36 @@ async def complete_onboarding(payload: OnboardingPayload, user=Depends(get_curre
         profile_data["streak"] = 0
         profile_data["ai_cost_cop"] = 0
         profile_data["created_at"] = now_iso
-        res_profile = await asyncio.to_thread(
-            lambda: supabase.table("profiles").insert(profile_data).execute()
+        try:
+            res_profile = await asyncio.to_thread(
+                lambda: supabase.table("profiles").insert(profile_data).execute()
+            )
+        except Exception:
+            res_profile = await asyncio.to_thread(
+                lambda: supabase.table("profiles")
+                .update(profile_data)
+                .eq("user_id", user.id)
+                .execute()
+            )
+
+    idempotency_key = f"onboarding:{user.id}"
+
+    weight_data = {
+        "user_id": user.id,
+        "weight": payload.weight_kg,
+        "date": today_str,
+        "timestamp": now_iso,
+        "idempotency_key": idempotency_key,
+    }
+
+    try:
+        await asyncio.to_thread(
+            lambda: supabase.table("weight_logs").insert(weight_data).execute()
         )
+    except Exception as exc:
+        if _is_unique_conflict(exc):
+            await _fetch_weight_by_idempotency(user.id, idempotency_key)
+        else:
+            logger.warning(f"onboarding weight insert error: {exc}")
 
     return {"profile": res_profile.data[0] if res_profile.data else profile_data}

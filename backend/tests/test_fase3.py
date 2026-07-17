@@ -416,6 +416,70 @@ class TestProfileValidation:
         with pytest.raises(pydantic.ValidationError):
             OnboardingPayload(name="Test", birth_date=(datetime.now() - timedelta(days=365 * 15)).strftime("%Y-%m-%d"), weight_kg=70, height_cm=170, health_goal="ganar_musculo")
 
+    def test_profile_update_rejects_onboarding_completed_at(self):
+        from routers.profile import ProfileUpdatePayload
+        p = ProfileUpdatePayload(name="Test", onboarding_completed_at="2026-01-01")
+        assert "onboarding_completed_at" not in p.model_dump(exclude_unset=True)
+
+    def test_migration_033_has_profiles_table_guard(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        migration_path = repo_root / "supabase" / "migrations" / "033_profile_onboarding.sql"
+        assert migration_path.exists(), "No se encontro la migracion 033"
+        sql = migration_path.read_text(encoding="utf-8")
+        assert "information_schema.tables" in sql, "033 debe consultar si profiles existe"
+        assert "025_profiles_bootstrap" in sql, "033 debe mencionar 025 como requisito"
+        assert "RAISE NOTICE" in sql, "033 debe emitir NOTICE si profiles no existe"
+
+
+class TestOnboardingIdempotent:
+    def test_onboarding_does_not_duplicate_weight_on_retry(self, monkeypatch):
+        import routers.profile as profile_module
+
+        profile_row = {"user_id": MOCK_USER_ID, "name": "Test"}
+        weight_row = {"id": "w1", "weight": 78, "idempotency_key": f"onboarding:{MOCK_USER_ID}"}
+
+        mock_supa = MagicMock()
+        profiles_table = MagicMock()
+        profiles_table.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[profile_row])
+
+        weight_table = MagicMock()
+        insert_call_count = [0]
+
+        def insert_side(*args, **kwargs):
+            insert_call_count[0] += 1
+            if insert_call_count[0] == 1:
+                return MagicMock(data=[weight_row])
+            exc = Exception("duplicate key value violates unique constraint")
+            exc.code = "23505"
+            raise exc
+
+        weight_table.insert.return_value.execute.side_effect = insert_side
+        weight_table.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+            data=[weight_row]
+        )
+
+        def table_side(name):
+            if name == "profiles":
+                return profiles_table
+            if name == "weight_logs":
+                return weight_table
+            return MagicMock()
+
+        mock_supa.table.side_effect = table_side
+        monkeypatch.setattr(profile_module, "supabase", mock_supa)
+
+        client = TestClient(app)
+        payload = {"name": "Test", "birth_date": "1990-01-15", "weight_kg": 78, "height_cm": 175, "health_goal": "ganar_musculo"}
+
+        resp1 = client.post("/api/v1/onboarding", json=payload)
+        assert resp1.status_code == 200
+
+        resp2 = client.post("/api/v1/onboarding", json=payload)
+        assert resp2.status_code == 200
+
+        assert insert_call_count[0] == 2
+        assert weight_table.select.called
+
 
 class TestHydration:
     def test_hydration_calculation_from_weight(self):

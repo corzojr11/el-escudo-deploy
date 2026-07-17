@@ -1,12 +1,21 @@
 -- =============================================================================
--- EL ESCUDO — Perfil, onboarding e hidratación (033)
+-- EL ESCUDO — Perfil, onboarding e hidratacion (033)
 -- =============================================================================
--- Añade birth_date, height_cm, health_goal y onboarding_completed_at a
+-- Anade birth_date, height_cm, health_goal y onboarding_completed_at a
 -- public.profiles. Totalmente idempotente: no rompe si las columnas ya existen.
+-- No falla si profiles no existe (025_profiles_bootstrap es requisito previo).
 -- =============================================================================
 
 DO $$
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+  ) THEN
+    RAISE NOTICE '033_profile_onboarding: public.profiles no existe. Aplica 025_profiles_bootstrap primero.';
+    RETURN;
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'birth_date'
