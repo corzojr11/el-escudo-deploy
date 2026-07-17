@@ -634,7 +634,7 @@ class DebtPaymentPayload(BaseModel):
 
 @router.get("/api/v1/fixed-expenses")
 async def list_fixed_expenses(user=Depends(get_current_user)):
-    res = await asyncio.to_thread(lambda: supabase.table("fixed_expenses").select("*").eq("user_id", user.id).order("due_date", desc=True, nulls_last=True).execute())
+    res = await asyncio.to_thread(lambda: supabase.table("fixed_expenses").select("*").eq("user_id", user.id).order("due_date", desc=True, nullsfirst=False).execute())
     return {"fixed_expenses": res.data or []}
 
 
@@ -680,7 +680,7 @@ async def delete_fixed_expense(expense_id: str, user=Depends(get_current_user)):
 
 @router.get("/api/v1/debts")
 async def list_debts(user=Depends(get_current_user)):
-    res = await asyncio.to_thread(lambda: supabase.table("debts").select("*").eq("user_id", user.id).order("due_date", desc=True, nulls_last=True).execute())
+    res = await asyncio.to_thread(lambda: supabase.table("debts").select("*").eq("user_id", user.id).order("due_date", desc=True, nullsfirst=False).execute())
     return {"debts": res.data or []}
 
 

@@ -292,3 +292,15 @@ def test_mission_without_date_not_in_today(monkeypatch):
     assert chain.gte.called, "Debe usar gte(scheduled_at, start_of_day)"
     assert chain.lte.called, "Debe usar lte(scheduled_at, end_of_day)"
     assert chain.eq.called, "Debe filtrar por user_id"
+
+
+def test_no_nullslast_in_routers():
+    from pathlib import Path
+    import os as _os
+    routers_dir = Path(__file__).resolve().parents[1] / "routers"
+    for f in routers_dir.glob("*.py"):
+        content = f.read_text(encoding="utf-8")
+        assert "nulls_last" not in content, (
+            f"{f.name} usa nulls_last, que no es compatible con todas las versiones del cliente Supabase. "
+            "Usa nullsfirst=False en su lugar."
+        )

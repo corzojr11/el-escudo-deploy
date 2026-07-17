@@ -64,7 +64,7 @@ async def list_missions(
         now = _bogota_now()
         end_of_today = now.replace(hour=23, minute=59, second=59, microsecond=999999)
         query = query.gt("scheduled_at", end_of_today.isoformat()).eq("status", "active")
-    query = query.order("scheduled_at", desc=True, nulls_last=True)
+    query = query.order("scheduled_at", desc=True, nullsfirst=False)
     res = await asyncio.to_thread(lambda: query.execute())
     return {"missions": res.data or []}
 
