@@ -356,3 +356,25 @@ def test_migration_037_covers_core_tables():
     assert "_037_col_exists('routine_completions','completed_date')" in sql
 
     assert sql.count("ADD COLUMN") >= 60, f"037 debe contener muchos ADD COLUMN guards (encontrados {sql.count('ADD COLUMN')})"
+
+
+def test_multi_fetch_pages_use_allsettled():
+    from pathlib import Path
+    pages_dir = Path(__file__).resolve().parents[2] / "escudo-web-v2" / "src" / "app" / "(dashboard)"
+
+    multi_fetch_globs = [
+        "salud/page.tsx",
+        "turnos/page.tsx",
+        "finanzas/page.tsx",
+        "page.tsx",
+    ]
+
+    for pattern in multi_fetch_globs:
+        for f in pages_dir.glob(pattern):
+            content = f.read_text(encoding="utf-8")
+            has_multiple_awaits = content.count("await") > 1 or content.count("getWeightLogs") > 0 or content.count("getShifts") > 0 or content.count("getFinances") > 0
+            if has_multiple_awaits:
+                assert "allSettled" in content, (
+                    f"{f.name} tiene multiples fetches pero no usa Promise.allSettled. "
+                    "Un fallo en un dato secundario no debe tumbar la pagina completa."
+                )

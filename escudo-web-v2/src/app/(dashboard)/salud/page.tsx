@@ -8,8 +8,12 @@ export const metadata = {
   title: "Salud - El Escudo",
 };
 
+function settle<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  return result.status === "fulfilled" ? result.value : fallback;
+}
+
 export default async function SaludPage() {
-  const [weightLogs, focusStatus, sleepAnalysis, bioResult, exerciseLogs, personalRecords, routines, completions] = await Promise.all([
+  const [w, f, s, b, e, p, r, c] = await Promise.allSettled([
     getWeightLogs(),
     getFocusStatus(),
     getSleepAnalysis(),
@@ -19,16 +23,17 @@ export default async function SaludPage() {
     getRoutines(),
     getTodayRoutineCompletions(),
   ]);
+
   return (
     <SaludClient
-      weightLogs={weightLogs}
-      focusStatus={focusStatus}
-      sleepAnalysis={sleepAnalysis}
-      bioSettings={bioResult.bio_settings}
-      exerciseLogs={exerciseLogs}
-      personalRecords={personalRecords}
-      routines={routines}
-      completedDays={completions}
+      weightLogs={settle(w, [])}
+      focusStatus={settle(f, null)}
+      sleepAnalysis={settle(s, null)}
+      bioSettings={settle(b, { bio_settings: null }).bio_settings}
+      exerciseLogs={settle(e, [])}
+      personalRecords={settle(p, [])}
+      routines={settle(r, [])}
+      completedDays={settle(c, [])}
     />
   );
 }

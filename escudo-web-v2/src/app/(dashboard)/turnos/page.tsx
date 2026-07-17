@@ -6,17 +6,22 @@ export const metadata = {
   title: "Turnos - El Escudo",
 };
 
+function settle<T>(r: PromiseSettledResult<T>, fallback: T): T {
+  return r.status === "fulfilled" ? r.value : fallback;
+}
+
 export default async function TurnosPage() {
-  const [shifts, currentStatus, bioResult] = await Promise.all([
+  const [s, cs, b] = await Promise.allSettled([
     getShifts(),
     getCurrentStatus(),
     getBioSettings(),
   ]);
+
   return (
     <TurnosClient
-      shifts={shifts}
-      currentStatus={currentStatus}
-      bioSettings={bioResult.bio_settings}
+      shifts={settle(s, [])}
+      currentStatus={settle(cs, { status: "free", message_short: "Sin turnos registrados." })}
+      bioSettings={settle(b, { bio_settings: null }).bio_settings}
     />
   );
 }
