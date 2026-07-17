@@ -138,6 +138,27 @@ export interface FocusStatus {
   created_at?: string;
 }
 
+export interface ExerciseLog {
+  id: string;
+  user_id: string;
+  exercise_name: string;
+  weight: number;
+  reps: number;
+  sets: number;
+  rpe: number;
+  date?: string;
+  created_at?: string;
+}
+
+export interface PersonalRecord {
+  id: string;
+  user_id: string;
+  exercise_name: string;
+  max_weight: number;
+  date?: string;
+  created_at?: string;
+}
+
 export interface Habit {
   id: string;
   user_id: string;

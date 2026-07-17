@@ -8,13 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Heart, TrendingDown, TrendingUp, Activity, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
-import { addWeight, updateWeight, deleteWeightLog } from "@/app/actions/health";
+import { addWeight, updateWeight, deleteWeightLog, logExercise } from "@/app/actions/health";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatDate, formatShortDate } from "@/lib/api/helpers";
 import { logSleep } from "@/app/actions/plan";
-import type { FocusStatus, WeightLog, SleepLog } from "@/lib/api/types";
+import type { FocusStatus, WeightLog, ExerciseLog, PersonalRecord, SleepLog } from "@/lib/api/types";
 
 function todayInputValue() {
   return new Date().toISOString().split("T")[0];
@@ -31,9 +31,11 @@ interface SaludClientProps {
     daily_debt_hours: number;
   } | null;
   bioSettings: Record<string, unknown> | null;
+  exerciseLogs: ExerciseLog[];
+  personalRecords: PersonalRecord[];
 }
 
-export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSettings }: SaludClientProps) {
+export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSettings, exerciseLogs, personalRecords }: SaludClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
@@ -46,6 +48,15 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
   const [sleepNotes, setSleepNotes] = useState("");
   const [sleepStatus, setSleepStatus] = useState<{ success?: string; error?: string }>({});
   const [sleeping, setSleeping] = useState(false);
+
+  const [exName, setExName] = useState("");
+  const [exWeight, setExWeight] = useState("");
+  const [exReps, setExReps] = useState("");
+  const [exSets, setExSets] = useState("");
+  const [exRpe, setExRpe] = useState("8");
+  const [exDate, setExDate] = useState(todayInputValue());
+  const [exStatus, setExStatus] = useState<{ success?: string; error?: string }>({});
+  const [exercising, setExercising] = useState(false);
 
   const sortedLogs = useMemo(
     () =>
@@ -336,6 +347,150 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
               <p className="text-sm font-medium text-foreground">{focusStatus?.focus_best} dias</p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-[#2A2A3C] bg-[#17171A]">
+        <CardHeader>
+          <CardTitle className="text-[#FFD700]">Entrenamiento</CardTitle>
+          <CardDescription>Registra tus ejercicios y segui tus records</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {exStatus.success && <FormStatus success={exStatus.success} />}
+          {exStatus.error && <FormStatus error={exStatus.error} />}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <Label className="text-gray-300">Ejercicio</Label>
+              <Input
+                value={exName}
+                onChange={(e) => setExName(e.target.value)}
+                placeholder="Press banca, Sentadilla..."
+                maxLength={200}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Fecha</Label>
+              <Input
+                type="date"
+                value={exDate}
+                onChange={(e) => setExDate(e.target.value)}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white color-scheme-dark"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Peso (kg)</Label>
+              <Input
+                type="number"
+                value={exWeight}
+                onChange={(e) => setExWeight(e.target.value)}
+                placeholder="0"
+                min={0}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Reps</Label>
+              <Input
+                type="number"
+                value={exReps}
+                onChange={(e) => setExReps(e.target.value)}
+                placeholder="0"
+                min={0}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Series</Label>
+              <Input
+                type="number"
+                value={exSets}
+                onChange={(e) => setExSets(e.target.value)}
+                placeholder="0"
+                min={0}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">RPE (1-10)</Label>
+              <Input
+                type="number"
+                value={exRpe}
+                onChange={(e) => setExRpe(e.target.value)}
+                min={1}
+                max={10}
+                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+              />
+            </div>
+          </div>
+          <Button
+            onClick={async () => {
+              if (!exName.trim()) { setExStatus({ error: "El nombre del ejercicio es obligatorio." }); return; }
+              setExercising(true);
+              setExStatus({});
+              try {
+                await logExercise({
+                  exercise_name: exName.trim(),
+                  weight: parseFloat(exWeight) || 0,
+                  reps: parseInt(exReps) || 0,
+                  sets: parseInt(exSets) || 0,
+                  rpe: parseInt(exRpe) || 8,
+                  date: exDate || undefined,
+                });
+                setExStatus({ success: "Ejercicio registrado" });
+                setExName("");
+                setExWeight("");
+                setExReps("");
+                setExSets("");
+                setExRpe("8");
+                router.refresh();
+              } catch (e: unknown) {
+                setExStatus({ error: e instanceof Error ? e.message : "Error al registrar" });
+              } finally {
+                setExercising(false);
+              }
+            }}
+            disabled={exercising}
+            className="bg-[#7C5DFF] hover:bg-[#7C5DFF]/90 text-white"
+          >
+            {exercising && <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />}
+            Registrar ejercicio
+          </Button>
+
+          <div className="border-t border-[#2A2A3C] pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="hud-label mb-2">Records personales</p>
+                {personalRecords.length > 0 ? (
+                  <div className="space-y-1">
+                    {personalRecords.map((pr) => (
+                      <div key={pr.id} className="flex justify-between text-sm border-b border-[#1a1a1e] py-1 last:border-0">
+                        <span className="text-gray-300 truncate">{pr.exercise_name}</span>
+                        <span className="text-[#FFD700] font-mono">{pr.max_weight} kg</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 py-2">Sin records. Registra ejercicios para ver tus marcas.</p>
+                )}
+              </div>
+              <div>
+                <p className="hud-label mb-2">Historial reciente</p>
+                {exerciseLogs.length > 0 ? (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {exerciseLogs.slice(0, 8).map((log) => (
+                      <div key={log.id} className="flex justify-between text-sm border-b border-[#1a1a1e] py-1 last:border-0">
+                        <span className="text-gray-300 truncate">{log.exercise_name}</span>
+                        <span className="text-gray-400 font-mono text-xs">{log.weight > 0 ? `${log.weight}kg` : `${log.sets}x${log.reps}`}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 py-2">Sin ejercicios registrados.</p>
+                )}
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

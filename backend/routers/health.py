@@ -98,11 +98,12 @@ class WeightLogUpdatePayload(BaseModel):
 
 class ExerciseLogPayload(BaseModel):
     extracted_data: Optional[dict] = None
-    exercise_name: str
-    weight: float = 0
-    reps: int = 0
-    sets: int = 0
-    rpe: int = 8
+    exercise_name: str = Field(..., min_length=1, max_length=200)
+    weight: float = Field(default=0, ge=0, le=999)
+    reps: int = Field(default=0, ge=0, le=999)
+    sets: int = Field(default=0, ge=0, le=99)
+    rpe: int = Field(default=8, ge=1, le=10)
+    date: Optional[str] = None
 
 class FitnessSyncPayload(BaseModel):
     steps: Optional[int] = None
@@ -220,7 +221,8 @@ async def log_exercise(payload: ExerciseLogPayload, user = Depends(get_current_u
         "weight": weight,
         "reps": reps,
         "sets": sets,
-        "rpe": rpe
+        "rpe": rpe,
+        "date": payload.date or _today_str(),
     }).execute())
 
     res_pr = await asyncio.to_thread(lambda: supabase.table("personal_records").select("*").eq("user_id", user.id).eq("exercise_name", exercise_name).execute())
@@ -246,6 +248,24 @@ async def log_exercise(payload: ExerciseLogPayload, user = Depends(get_current_u
         metadata={"exercise_name": exercise_name, "weight": weight, "reps": reps, "sets": sets, "rpe": rpe},
     )
     return {"status": "success", "log": res_log.data[0]}
+
+
+@router.get("/api/v1/exercise-logs")
+async def list_exercise_logs(user = Depends(get_current_user), limit: int = Query(50, ge=1, le=100)):
+    res = await asyncio.to_thread(
+        lambda: supabase.table("exercises_logs").select("*").eq("user_id", user.id)
+        .order("date", desc=True).order("created_at", desc=True).limit(limit).execute()
+    )
+    return {"logs": res.data or []}
+
+
+@router.get("/api/v1/personal-records")
+async def list_personal_records(user = Depends(get_current_user)):
+    res = await asyncio.to_thread(
+        lambda: supabase.table("personal_records").select("*").eq("user_id", user.id)
+        .order("max_weight", desc=True).limit(100).execute()
+    )
+    return {"records": res.data or []}
 
 
 # ─── Fitness Integration ────────────────────────────────────────────────────

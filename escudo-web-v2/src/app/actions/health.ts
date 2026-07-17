@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { fetchFromBackend, postToBackend, putToBackend, deleteFromBackend } from "@/lib/api/server";
-import type { FocusStatus, WeightLog } from "@/lib/api/types";
+import type { FocusStatus, WeightLog, ExerciseLog, PersonalRecord } from "@/lib/api/types";
 
 interface WeightLogsResponse {
   data: WeightLog[];
@@ -113,4 +113,28 @@ export async function deleteWeightLog(logId: string): Promise<UpdateWeightResult
       error: err instanceof Error ? err.message : "Error al eliminar el peso",
     };
   }
+}
+
+export async function getExerciseLogs(): Promise<ExerciseLog[]> {
+  const res = await fetchFromBackend<{ logs: ExerciseLog[] }>("/api/v1/exercise-logs");
+  return res.logs ?? [];
+}
+
+export async function getPersonalRecords(): Promise<PersonalRecord[]> {
+  const res = await fetchFromBackend<{ records: PersonalRecord[] }>("/api/v1/personal-records");
+  return res.records ?? [];
+}
+
+export async function logExercise(data: {
+  exercise_name: string;
+  weight: number;
+  reps: number;
+  sets: number;
+  rpe: number;
+  date?: string;
+}): Promise<{ status: string; log: ExerciseLog }> {
+  const result = await postToBackend<{ status: string; log: ExerciseLog }>("/api/v1/log-exercise", data);
+  revalidatePath("/salud");
+  revalidatePath("/");
+  return result;
 }

@@ -1,4 +1,4 @@
-import { getFocusStatus, getWeightLogs } from "@/app/actions/health";
+import { getFocusStatus, getWeightLogs, getExerciseLogs, getPersonalRecords } from "@/app/actions/health";
 import { getSleepAnalysis, getBioSettings } from "@/app/actions/plan";
 import { SaludClient } from "./salud-client";
 
@@ -7,11 +7,13 @@ export const metadata = {
 };
 
 export default async function SaludPage() {
-  const [weightLogs, focusStatus, sleepAnalysis, bioResult] = await Promise.all([
+  const [weightLogs, focusStatus, sleepAnalysis, bioResult, exerciseLogs, personalRecords] = await Promise.all([
     getWeightLogs(),
     getFocusStatus(),
     getSleepAnalysis(),
     getBioSettings(),
+    getExerciseLogs(),
+    getPersonalRecords(),
   ]);
   return (
     <SaludClient
@@ -19,6 +21,8 @@ export default async function SaludPage() {
       focusStatus={focusStatus}
       sleepAnalysis={sleepAnalysis}
       bioSettings={bioResult.bio_settings}
+      exerciseLogs={exerciseLogs}
+      personalRecords={personalRecords}
     />
   );
 }

@@ -129,8 +129,9 @@
 | Funcionalidad | Móvil | Web | Estado | Prioridad |
 |---|---|---|---|---|
 | Peso (CRUD, gráfico) | ✅ | ✅ /salud | ✅ | — |
-| Registro de ejercicio (log) | ✅ | ❌ | ❌ | P2 |
-| Personal records (PR) | ✅ | ❌ | ❌ | P2 |
+| Registro de ejercicio (log) | ✅ | ✅ /salud | ✅ | — |
+| Personal records (PR) | ✅ | ✅ /salud | ✅ | — |
+| Historial reciente de ejercicios | ❌ | ✅ /salud | ✅ | — |
 | Rutinas semanales (PPL) | ✅ | ⚠️ (backend sí) | ⚠️ | P2 |
 | **Bloque de entrenamiento sugerido** | ✅ Chronos | ❌ | ❌ | P0 |
 | Recuperación / descanso cuando no hay ventana | ✅ | ❌ | ❌ | P0 |
