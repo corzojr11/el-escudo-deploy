@@ -1,9 +1,11 @@
 import asyncio
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from auth import get_current_user
 from database import supabase
@@ -13,23 +15,30 @@ logger = logging.getLogger("escudo")
 router = APIRouter()
 
 
+def _bogota_now() -> datetime:
+    try:
+        return datetime.now(ZoneInfo("America/Bogota"))
+    except Exception:
+        return datetime.now()
+
+
 class MissionCreatePayload(BaseModel):
     name: str
     description: Optional[str] = ""
-    status: Optional[str] = "active"
+    status: Optional[str] = Field(default="active", pattern="^(active|completed)$")
     xp_reward: Optional[int] = 0
     category: Optional[str] = "general"
-    priority: Optional[str] = Field(default="medium")
+    priority: Optional[str] = Field(default="medium", pattern="^(high|medium|low)$")
     scheduled_at: Optional[str] = None
 
 
 class MissionUpdatePayload(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[str] = Field(default=None, pattern="^(active|completed)$")
     xp_reward: Optional[int] = None
     category: Optional[str] = None
-    priority: Optional[str] = None
+    priority: Optional[str] = Field(default=None, pattern="^(high|medium|low)$")
     scheduled_at: Optional[str] = None
 
 
@@ -40,14 +49,21 @@ def _mission_row_from_payload(payload: MissionCreatePayload | MissionUpdatePaylo
 @router.get("/api/v1/missions")
 async def list_missions(
     status: Optional[str] = Query(None, pattern="^(active|completed|all)$"),
-    date: Optional[str] = Query(None),
+    date: Optional[str] = Query(None, pattern="^(today|upcoming)$"),
     user=Depends(get_current_user),
 ):
     query = supabase.table("missions").select("*").eq("user_id", user.id)
     if status and status != "all":
         query = query.eq("status", status)
-    if date:
-        query = query.eq("scheduled_at", date)
+    if date == "today":
+        now = _bogota_now()
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = start_of_day + timedelta(days=1)
+        query = query.gte("scheduled_at", start_of_day.isoformat()).lt("scheduled_at", end_of_day.isoformat())
+    elif date == "upcoming":
+        now = _bogota_now()
+        end_of_today = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        query = query.gt("scheduled_at", end_of_today.isoformat()).eq("status", "active")
     query = query.order("scheduled_at", desc=True, nulls_last=True)
     res = await asyncio.to_thread(lambda: query.execute())
     return {"missions": res.data or []}

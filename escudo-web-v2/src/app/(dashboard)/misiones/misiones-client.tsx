@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, Circle, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Check, Circle, Plus, Pencil, Trash2, Loader2, X } from "lucide-react";
 import { createMission, updateMission, deleteMission } from "@/app/actions/missions";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { FormStatus } from "@/components/dashboard/FormStatus";
@@ -15,6 +15,8 @@ import type { Mission } from "@/lib/api/types";
 
 const FILTERS = [
   { key: "all", label: "Todas" },
+  { key: "hoy", label: "Hoy" },
+  { key: "proximas", label: "Proximas" },
   { key: "active", label: "Pendientes" },
   { key: "completed", label: "Completadas" },
 ];
@@ -32,6 +34,7 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
 
@@ -39,9 +42,29 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
   const [scheduledAt, setScheduledAt] = useState("");
-  const [goalId, setGoalId] = useState("");
+
+  function isMissionToday(m: Mission): boolean {
+    if (!m.scheduled_at) return false;
+    const d = new Date(m.scheduled_at);
+    const today = new Date();
+    return (
+      d.getFullYear() === today.getFullYear() &&
+      d.getMonth() === today.getMonth() &&
+      d.getDate() === today.getDate()
+    );
+  }
+
+  function isMissionUpcoming(m: Mission): boolean {
+    if (!m.scheduled_at || m.status === "completed") return false;
+    const d = new Date(m.scheduled_at);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return d > today;
+  }
 
   const filtered = missions.filter((m) => {
+    if (filter === "hoy") return isMissionToday(m);
+    if (filter === "proximas") return isMissionUpcoming(m);
     if (filter === "active") return m.status !== "completed";
     if (filter === "completed") return m.status === "completed";
     return true;
@@ -55,7 +78,6 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
     setDescription("");
     setPriority("medium");
     setScheduledAt("");
-    setGoalId("");
     setEditingId(null);
     setCreating(false);
   }
@@ -70,7 +92,6 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
           description,
           priority,
           scheduled_at: scheduledAt || undefined,
-          goal_id: goalId || undefined,
         });
         setStatus({ success: "Mision creada" });
         resetForm();
@@ -101,8 +122,17 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
     });
   }
 
+  function handleDeleteClick(missionId: string) {
+    if (confirmDeleteId === missionId) {
+      handleDelete(missionId);
+    } else {
+      setConfirmDeleteId(missionId);
+    }
+  }
+
   async function handleDelete(missionId: string) {
     setDeletingId(missionId);
+    setConfirmDeleteId(null);
     setStatus({});
     try {
       await deleteMission(missionId);
@@ -235,7 +265,7 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {FILTERS.map((f) => (
               <button
                 key={f.key}
@@ -299,18 +329,37 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(mission.id)}
-                        disabled={deletingId === mission.id}
-                        className="p-1 text-gray-500 hover:text-red-400 transition-colors"
-                        title="Eliminar"
-                      >
-                        {deletingId === mission.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
+                      {confirmDeleteId === mission.id ? (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleDeleteClick(mission.id)}
+                            disabled={deletingId === mission.id}
+                            className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                            title="Confirmar eliminar"
+                          >
+                            {deletingId === mission.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="p-1 text-gray-500 hover:text-white transition-colors"
+                            title="Cancelar"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleDeleteClick(mission.id)}
+                          className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                          title="Eliminar"
+                        >
                           <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

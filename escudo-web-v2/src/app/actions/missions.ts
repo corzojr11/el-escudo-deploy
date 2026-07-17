@@ -22,7 +22,6 @@ export async function createMission(data: {
   scheduled_at?: string;
   xp_reward?: number;
   category?: string;
-  goal_id?: string;
 }): Promise<{ mission: Mission }> {
   const result = await postToBackend<{ mission: Mission }>("/api/v1/missions", data);
   revalidatePath("/misiones");

@@ -276,9 +276,20 @@ async def today_summary(user=Depends(get_current_user)):
 
         async def _fetch_missions():
             try:
+                from datetime import datetime
+                from zoneinfo import ZoneInfo
+                try:
+                    now = datetime.now(ZoneInfo("America/Bogota"))
+                except Exception:
+                    now = datetime.now()
+                start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_of_day = start_of_day.replace(hour=23, minute=59, second=59, microsecond=999999)
                 res = await asyncio.to_thread(
                     lambda: supabase.table("missions").select("*").eq("user_id", user.id)
-                    .or_(f"schedule_date.eq.{today_str},status.eq.active").execute()
+                    .gte("scheduled_at", start_of_day.isoformat())
+                    .lte("scheduled_at", end_of_day.isoformat())
+                    .order("scheduled_at", desc=False)
+                    .execute()
                 )
                 return res.data or []
             except Exception as exc:

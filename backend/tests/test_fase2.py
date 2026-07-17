@@ -165,9 +165,15 @@ class TestTodayEndpoint:
         )
 
         missions = MagicMock()
-        missions.select.return_value.eq.return_value.or_.return_value.execute.return_value = TableResult(
-            [{"id": "m1", "title": "Entrenar", "status": "active", "schedule_date": "2026-07-16"}]
+        missions_chain = MagicMock()
+        missions_chain.eq.return_value = missions_chain
+        missions_chain.gte.return_value = missions_chain
+        missions_chain.lte.return_value = missions_chain
+        missions_chain.order.return_value = missions_chain
+        missions_chain.execute.return_value = TableResult(
+            [{"id": "m1", "title": "Entrenar", "status": "active", "scheduled_at": "2026-07-16T08:00:00Z"}]
         )
+        missions.select.return_value = missions_chain
 
         weight = MagicMock()
         weight.select.return_value.eq.return_value.order.return_value.order.return_value.limit.return_value.execute.return_value = TableResult(

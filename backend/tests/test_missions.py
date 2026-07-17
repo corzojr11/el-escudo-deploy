@@ -206,3 +206,89 @@ def test_delete_mission_blocks_other_user(monkeypatch):
     client = TestClient(app)
     resp = client.delete("/api/v1/missions/another-user-mission")
     assert resp.status_code == 404
+
+
+def test_create_mission_rejects_invalid_status(monkeypatch):
+    client = TestClient(app)
+    resp = client.post("/api/v1/missions", json={
+        "name": "Test", "status": "invalid_status", "priority": "medium",
+    })
+    assert resp.status_code == 422
+
+
+def test_create_mission_rejects_invalid_priority(monkeypatch):
+    client = TestClient(app)
+    resp = client.post("/api/v1/missions", json={
+        "name": "Test", "status": "active", "priority": "urgent",
+    })
+    assert resp.status_code == 422
+
+
+def test_dashboard_missions_use_scheduled_at_not_schedule_date(monkeypatch):
+    mock_supa = MagicMock()
+    missions_table = MagicMock()
+    chain = MagicMock()
+    chain.eq.return_value = chain
+    chain.gte.return_value = chain
+    chain.lte.return_value = chain
+    chain.order.return_value = chain
+    chain.execute.return_value = MockResult([])
+    missions_table.select.return_value = chain
+
+    def table_side(name):
+        if name == "missions":
+            return missions_table
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    import routers.sync as sync_module
+    monkeypatch.setattr(sync_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.get("/api/v1/today")
+    assert resp.status_code == 200
+    assert missions_table.select.called
+    assert chain.gte.called
+
+
+def test_mission_without_date_not_in_today(monkeypatch):
+    import routers.sync as sync_module
+
+    mock_supa = MagicMock()
+    missions_table = MagicMock()
+    chain = MagicMock()
+    chain.eq.return_value = chain
+    chain.gte.return_value = chain
+    chain.lte.return_value = chain
+    chain.order.return_value = chain
+    chain.execute.return_value = MockResult([
+        {"id": "m1", "name": "Con fecha", "scheduled_at": "2026-07-17T08:00:00Z", "status": "active"},
+    ])
+    missions_table.select.return_value = chain
+
+    def table_side(name):
+        if name == "missions":
+            return missions_table
+        if name == "profiles":
+            t = MagicMock()
+            t.select.return_value.eq.return_value.execute.return_value = MockResult([{"name": "T", "onboarding_completed_at": "2026-01-01"}])
+            return t
+        if name in ("finances", "shifts", "goals", "weight_logs", "habits", "habit_completions", "focus_status"):
+            t = MagicMock()
+            t.select.return_value = MagicMock()
+            t.select.return_value.eq.return_value = MagicMock()
+            t.select.return_value.eq.return_value.execute.return_value = MockResult([])
+            t.select.return_value.eq.return_value.neq.return_value = MagicMock()
+            t.select.return_value.eq.return_value.neq.return_value.execute.return_value = MockResult([])
+            return t
+        return MagicMock()
+
+    mock_supa.table.side_effect = table_side
+    monkeypatch.setattr(sync_module, "supabase", mock_supa)
+
+    client = TestClient(app)
+    resp = client.get("/api/v1/today")
+    assert resp.status_code == 200
+    assert chain.gte.called, "Debe usar gte(scheduled_at, start_of_day)"
+    assert chain.lte.called, "Debe usar lte(scheduled_at, end_of_day)"
+    assert chain.eq.called, "Debe filtrar por user_id"
