@@ -16,6 +16,7 @@ export interface Profile {
   height_cm?: number;
   health_goal?: "ganar_musculo" | "perder_grasa" | "energia_bienestar";
   onboarding_completed_at?: string;
+  equipment?: string[];
 }
 
 export interface FinanceEntry {

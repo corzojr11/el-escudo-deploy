@@ -61,6 +61,7 @@ class ProfileUpdatePayload(BaseModel):
     birth_date: str | None = None
     height_cm: int | None = Field(default=None, ge=100, le=250)
     health_goal: str | None = None
+    equipment: list[str] | None = None
 
     @model_validator(mode="after")
     def validate_optional_fields(self):
@@ -74,6 +75,17 @@ class ProfileUpdatePayload(BaseModel):
             age = _calculate_age(parsed)
             if age < 18 or age > 120:
                 raise ValueError(f"Edad calculada {age} fuera del rango permitido (18-120)")
+        if self.equipment is not None:
+            trimmed = [s.strip() for s in self.equipment if s.strip()]
+            seen = set()
+            deduped = []
+            for s in trimmed:
+                if s.lower() not in seen:
+                    seen.add(s.lower())
+                    deduped.append(s)
+            if len(deduped) > 50:
+                raise ValueError("equipment: maximo 50 items")
+            self.equipment = deduped
         return self
 
 

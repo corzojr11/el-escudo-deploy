@@ -6,14 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Loader2, Save, X } from "lucide-react";
+import { Plus, Trash2, Loader2, Save, X, AlertTriangle } from "lucide-react";
 import { saveRoutineDay, deleteRoutineDay } from "@/app/actions/routines";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import type { Routine } from "@/lib/api/types";
 
 const DAYS = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 
-export function RutinasClient({ routines }: { routines: Routine[] }) {
+export function RutinasClient({ routines, userEquipment }: { routines: Routine[]; userEquipment: string[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
@@ -154,6 +154,20 @@ export function RutinasClient({ routines }: { routines: Routine[] }) {
 
   const hasContent = routines.length > 0;
 
+  const missingEquipment = (() => {
+    if (!userEquipment.length || !current?.exercises?.length) return [];
+    const userEquipLower = userEquipment.map((e) => e.toLowerCase());
+    const missing = new Set<string>();
+    for (const ex of current.exercises) {
+      for (const eq of ex.equipment || []) {
+        if (eq && !userEquipLower.includes(eq.toLowerCase())) {
+          missing.add(eq);
+        }
+      }
+    }
+    return Array.from(missing);
+  })();
+
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 pb-8">
       <Card className="border-[#2A2A3C] bg-[#17171A]">
@@ -231,6 +245,15 @@ export function RutinasClient({ routines }: { routines: Routine[] }) {
           </div>
 
           <div className="border-t border-[#2A2A3C] pt-3">
+            {missingEquipment.length > 0 && (
+              <div className="flex items-start gap-2 mb-3 p-3 border border-[#FFD700]/30 bg-[#FFD700]/5 text-[#FFD700] text-xs">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>
+                  Equipo no registrado en tu perfil: {missingEquipment.join(", ")}.
+                  Agregalo en <a href="/perfil" className="underline">Perfil</a>.
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between mb-3">
               <p className="hud-label">Ejercicios</p>
               <Button

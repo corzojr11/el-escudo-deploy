@@ -143,7 +143,9 @@ def test_sleep_normal_allows_weight_insight(monkeypatch):
             "focus_status": MagicMock(select=MagicMock(return_value=_make_chain([{"focus_streak": 5}]))),
             "weight_logs": MagicMock(select=MagicMock(return_value=_make_chain([
                 {"weight": 80, "date": "2026-07-17"},
+                {"weight": 79, "date": "2026-07-15"},
                 {"weight": 78, "date": "2026-07-10"},
+                {"weight": 77, "date": "2026-07-08"},
             ]))),
             "sleep_logs": MagicMock(select=MagicMock(return_value=_make_chain([{"cycles": 5, "quality_score": 4}]))),
             "finances": MagicMock(select=MagicMock(return_value=_make_chain([]))),

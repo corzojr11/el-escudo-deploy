@@ -183,14 +183,21 @@ async def wellness_summary(user=Depends(get_current_user)):
         insight = f"Tu promedio de {avg_sleep:.1f} ciclos de sueno esta bajo. Intenta dormir mas."
         action_route = "/salud"
         action_label = "Ver sueno"
-    elif len(weights) >= 2:
-        recent = weights[0].get("weight", 0)
-        week_ago = next((w for w in weights[1:] if w.get("date")), None)
-        if week_ago:
-            diff = round(recent - float(week_ago.get("weight", recent)), 1)
+    elif len(weights) >= 4:
+        now_date = _bogota_now().date()
+        week_ago_start = now_date - timedelta(days=now_date.weekday() + 7)
+        week_ago_end = now_date - timedelta(days=now_date.weekday() + 1)
+
+        recent_week = [w for w in weights if w.get("date") and str(w["date"]) >= (now_date - timedelta(days=7)).isoformat()]
+        prev_week = [w for w in weights if w.get("date") and week_ago_start.isoformat() <= str(w["date"]) <= week_ago_end.isoformat()]
+
+        if len(recent_week) >= 2 and len(prev_week) >= 2:
+            avg_recent = sum(float(w.get("weight", 0)) for w in recent_week) / len(recent_week)
+            avg_prev = sum(float(w.get("weight", 0)) for w in prev_week) / len(prev_week)
+            diff = round(avg_recent - avg_prev, 1)
             if abs(diff) > 0.5:
                 trend = "bajando" if diff < 0 else "subiendo"
-                insight = f"Tu peso ha variado {abs(diff)} kg en la ultima semana ({trend})."
+                insight = f"Tu peso promedio cambio {abs(diff)} kg vs la semana pasada ({trend})."
                 action_route = "/salud"
                 action_label = "Ver peso"
     elif not weights:

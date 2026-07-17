@@ -31,6 +31,7 @@ export function PerfilClient({ profile }: Props) {
   const [birthDate, setBirthDate] = useState(profile?.birth_date || "");
   const [heightCm, setHeightCm] = useState(profile?.height_cm?.toString() || "");
   const [healthGoal, setHealthGoal] = useState(profile?.health_goal || "");
+  const [equipment, setEquipment] = useState((profile?.equipment || []).join(", "));
 
   const age = useMemo(() => {
     if (!birthDate) return null;
@@ -81,6 +82,10 @@ export function PerfilClient({ profile }: Props) {
     }
     if (healthGoal && healthGoal !== (profile?.health_goal || "")) {
       data.health_goal = healthGoal;
+    }
+    const equipArray = equipment.split(",").map(s => s.trim()).filter(s => s.length > 0);
+    if (equipArray.join(",") !== (profile?.equipment || []).join(",")) {
+      data.equipment = equipArray;
     }
     if (Object.keys(data).length === 0) {
       setError("No hay cambios para guardar.");
@@ -172,6 +177,17 @@ export function PerfilClient({ profile }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="equipment" className="text-gray-300">Equipamiento disponible (separado por comas)</Label>
+            <Input
+              id="equipment"
+              value={equipment}
+              onChange={(e) => setEquipment(e.target.value)}
+              placeholder="Barra, mancuernas, rack..."
+              className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+            />
           </div>
 
           <Button
