@@ -308,6 +308,13 @@ class TestHealth:
 
 class TestToday:
     def test_today_includes_habits_and_weight_trend(self, monkeypatch):
+        from datetime import datetime as dt
+        from zoneinfo import ZoneInfo
+        import routers.schedule as schedule_module
+
+        fixed_now = dt(2026, 7, 16, 10, 0, 0, tzinfo=ZoneInfo("America/Bogota"))
+        monkeypatch.setattr(schedule_module, "_bogota_now", lambda: fixed_now)
+
         mock_supa = MagicMock()
         profile_row = {"user_id": MOCK_USER_ID, "name": "Test", "level": 1, "xp": 0, "xp_to_next_level": 100}
         weight_rows = [
