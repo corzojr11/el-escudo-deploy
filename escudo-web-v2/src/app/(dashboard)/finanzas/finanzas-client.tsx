@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +70,7 @@ interface FinanzasClientProps {
   initialRange: FinanceRange;
   totals: { income: number; expense: number; balance: number };
   initialBudget: number;
+  initialMonthlyExpense: number;
   fixedExpenses: FixedExpense[];
   debts: Debt[];
 }
@@ -92,7 +93,28 @@ interface DraftTX {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Fecha local en America/Bogota via Intl.DateTimeFormat (sin depender de UTC).
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const get = (token: string) =>
+      parts.find((p) => p.type === token)?.value ?? "";
+    const y = get("year");
+    const m = get("month");
+    const d = get("day");
+    if (y && m && d) return `${y}-${m}-${d}`;
+  } catch {
+    // fallback abajo
+  }
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function validateImageFile(file: File): { ok: true } | { ok: false; error: string } {
@@ -129,6 +151,7 @@ export function FinanzasClient({
   initialRange,
   totals,
   initialBudget,
+  initialMonthlyExpense,
   fixedExpenses: initialFixed,
   debts: initialDebts,
 }: FinanzasClientProps) {
@@ -150,7 +173,7 @@ export function FinanzasClient({
   const [budgetInput, setBudgetInput] = useState<string>(initialBudget ? String(initialBudget) : "");
   const [budgetStatus, setBudgetStatus] = useState<{ success?: string; error?: string }>({});
   const [savingBudget, setSavingBudget] = useState(false);
-  const [monthlyExpense, setMonthlyExpense] = useState<number>(0);
+  const [monthlyExpense, setMonthlyExpense] = useState<number>(initialMonthlyExpense ?? 0);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
 
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>(initialFixed);
@@ -183,13 +206,9 @@ export function FinanzasClient({
   const [parsing, setParsing] = useState(false);
   const [ocrStatus, setOcrStatus] = useState<{ success?: string; error?: string }>({});
   const [ocrBusy, setOcrBusy] = useState(false);
-  const [savingDraft, setSavingDraft] = useState(false);
+const [savingDraft, setSavingDraft] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captureFormRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    void refreshMonthlyExpense();
-  }, []);
 
   async function refreshMonthlyExpense() {
     setMonthlyLoading(true);

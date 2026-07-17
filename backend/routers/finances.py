@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from google import genai
 
 try:
@@ -21,7 +21,7 @@ except Exception:
 
 from auth import get_current_user
 from database import supabase
-from exceptions import BadRequestException, NotFoundException
+from exceptions import ApiException, BadRequestException, NotFoundException
 from services.observability import track_event
 
 logger = logging.getLogger("escudo")
@@ -510,25 +510,79 @@ class FixedExpensePayload(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     amount: float = Field(..., gt=0)
     category: str = "Servicios"
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     is_paid: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, v: str) -> str:
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("El nombre es obligatorio.")
+        return cleaned
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def _clean_category(cls, v: Optional[str]) -> str:
+        cleaned = (v or "").strip()
+        return cleaned or "Servicios"
 
 
 class FixedExpenseUpdatePayload(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     amount: Optional[float] = Field(None, gt=0)
     category: Optional[str] = None
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     is_paid: Optional[bool] = None
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name_opt(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("El nombre no puede estar vacio.")
+        return cleaned
 
 
 class DebtPayload(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     total: float = Field(..., gt=0)
-    remaining: Optional[float] = None
-    monthly_payment: Optional[float] = Field(None, gt=0)
-    due_date: Optional[str] = None
+    remaining: Optional[float] = Field(None, ge=0)
+    monthly_payment: Optional[float] = Field(None, ge=0)
+    due_date: Optional[date] = None
     notes: str = ""
+    status: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _validate_remaining_vs_total(self) -> "DebtPayload":
+        if self.remaining is not None and self.remaining > self.total:
+            raise ValueError("El saldo restante no puede superar el total de la deuda.")
+        return self
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, v: str) -> str:
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("El nombre es obligatorio.")
+        return cleaned
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def _clean_notes(cls, v: Optional[str]) -> str:
+        return (v or "").strip()
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status_cls(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        cleaned = v.strip().lower()
+        if cleaned and cleaned not in ("active", "paid", "archived", "cancelled"):
+            raise ValueError("Estado de deuda invalido. Usa: active, paid, archived, cancelled.")
+        return cleaned or None
 
 
 class DebtUpdatePayload(BaseModel):
@@ -536,9 +590,29 @@ class DebtUpdatePayload(BaseModel):
     total: Optional[float] = Field(None, gt=0)
     remaining: Optional[float] = Field(None, ge=0)
     monthly_payment: Optional[float] = Field(None, ge=0)
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     notes: Optional[str] = None
     status: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name_opt(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("El nombre no puede estar vacio.")
+        return cleaned
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        cleaned = v.strip().lower()
+        if cleaned and cleaned not in ("active", "paid", "archived", "cancelled"):
+            raise ValueError("Estado de deuda invalido. Usa: active, paid, archived, cancelled.")
+        return cleaned or None
 
 
 class BudgetPayload(BaseModel):
@@ -547,8 +621,13 @@ class BudgetPayload(BaseModel):
 
 class DebtPaymentPayload(BaseModel):
     amount: float = Field(..., gt=0)
-    payment_date: Optional[str] = None
+    payment_date: Optional[date] = None
     notes: str = ""
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def _clean_notes(cls, v: Optional[str]) -> str:
+        return (v or "").strip()
 
 
 # --- Fixed Expenses ---
@@ -561,16 +640,17 @@ async def list_fixed_expenses(user=Depends(get_current_user)):
 
 @router.post("/api/v1/fixed-expenses")
 async def create_fixed_expense(payload: FixedExpensePayload, user=Depends(get_current_user)):
-    res = await asyncio.to_thread(lambda: supabase.table("fixed_expenses").insert({
+    insert_data = {
         "user_id": user.id,
         "name": payload.name,
-        "amount": payload.amount,
+        "amount": float(payload.amount),
         "category": payload.category or "Servicios",
-        "due_date": payload.due_date,
-        "is_paid": payload.is_paid,
-    }).execute())
+        "due_date": payload.due_date.isoformat() if payload.due_date else None,
+        "is_paid": bool(payload.is_paid),
+    }
+    res = await asyncio.to_thread(lambda: supabase.table("fixed_expenses").insert(insert_data).execute())
     if not res.data:
-        raise __import__("fastapi").HTTPException(status_code=500, detail="Error al crear gasto fijo.")
+        raise ApiException(status_code=500, detail="Error al crear gasto fijo.")
     return {"fixed_expense": res.data[0]}
 
 
@@ -579,6 +659,9 @@ async def update_fixed_expense(expense_id: str, payload: FixedExpenseUpdatePaylo
     data = payload.model_dump(exclude_unset=True)
     if not data:
         raise BadRequestException("No hay campos para actualizar.")
+    # Serializa fechas a ISO string para el cliente Supabase
+    if "due_date" in data and data["due_date"] is not None and hasattr(data["due_date"], "isoformat"):
+        data["due_date"] = data["due_date"].isoformat()
     res = await asyncio.to_thread(lambda: supabase.table("fixed_expenses").update(data).eq("id", expense_id).eq("user_id", user.id).execute())
     if not res.data:
         raise NotFoundException("Gasto fijo")
@@ -603,17 +686,23 @@ async def list_debts(user=Depends(get_current_user)):
 
 @router.post("/api/v1/debts")
 async def create_debt(payload: DebtPayload, user=Depends(get_current_user)):
-    res = await asyncio.to_thread(lambda: supabase.table("debts").insert({
+    remaining = payload.remaining if payload.remaining is not None else payload.total
+    if remaining > payload.total:
+        raise BadRequestException("El saldo restante no puede superar el total de la deuda.")
+    insert_data = {
         "user_id": user.id,
         "name": payload.name,
-        "total": payload.total,
-        "remaining": payload.remaining if payload.remaining is not None else payload.total,
-        "monthly_payment": payload.monthly_payment or 0,
-        "due_date": payload.due_date,
+        "total": float(payload.total),
+        "remaining": float(remaining),
+        "monthly_payment": float(payload.monthly_payment or 0),
+        "due_date": payload.due_date.isoformat() if payload.due_date else None,
         "notes": payload.notes or "",
-    }).execute())
+    }
+    if payload.status:
+        insert_data["status"] = payload.status
+    res = await asyncio.to_thread(lambda: supabase.table("debts").insert(insert_data).execute())
     if not res.data:
-        raise __import__("fastapi").HTTPException(status_code=500, detail="Error al crear deuda.")
+        raise ApiException(status_code=500, detail="Error al crear deuda.")
     return {"debt": res.data[0]}
 
 
@@ -622,6 +711,27 @@ async def update_debt(debt_id: str, payload: DebtUpdatePayload, user=Depends(get
     data = payload.model_dump(exclude_unset=True)
     if not data:
         raise BadRequestException("No hay campos para actualizar.")
+    # Serializa fecha a ISO string
+    if "due_date" in data and data["due_date"] is not None and hasattr(data["due_date"], "isoformat"):
+        data["due_date"] = data["due_date"].isoformat()
+
+    # Validacion de relacion total >= remaining considerando valores preexistentes
+    if "total" in data or "remaining" in data:
+        existing_res = await asyncio.to_thread(
+            lambda: supabase.table("debts").select("total, remaining").eq("id", debt_id).eq("user_id", user.id).limit(1).execute()
+        )
+        if not existing_res.data:
+            raise NotFoundException("Deuda")
+        existing = existing_res.data[0]
+        new_total = float(data.get("total", existing.get("total") or 0))
+        new_remaining = float(data.get("remaining", existing.get("remaining") or 0))
+        if new_total <= 0:
+            raise BadRequestException("El total debe ser mayor a 0.")
+        if new_remaining < 0:
+            raise BadRequestException("El saldo restante no puede ser negativo.")
+        if new_remaining > new_total:
+            raise BadRequestException("El saldo restante no puede superar el total de la deuda.")
+
     res = await asyncio.to_thread(lambda: supabase.table("debts").update(data).eq("id", debt_id).eq("user_id", user.id).execute())
     if not res.data:
         raise NotFoundException("Deuda")
@@ -638,32 +748,49 @@ async def delete_debt(debt_id: str, user=Depends(get_current_user)):
 
 @router.post("/api/v1/debts/{debt_id}/payments")
 async def record_debt_payment(debt_id: str, payload: DebtPaymentPayload, user=Depends(get_current_user)):
-    from zoneinfo import ZoneInfo
-    try:
-        payment_date = payload.payment_date or datetime.now(ZoneInfo("America/Bogota")).strftime("%Y-%m-%d")
-    except Exception:
-        payment_date = payload.payment_date or datetime.now().strftime("%Y-%m-%d")
+    payment_date_str = payload.payment_date
+    if payment_date_str is None:
+        payment_date_str = date.fromisoformat(_bogota_now().date().isoformat())
+    payment_date_value = payment_date_str if isinstance(payment_date_str, str) else payment_date_str.isoformat()
+
+    rpc_args = {
+        "p_debt_id": debt_id,
+        "p_user_id": user.id,
+        "p_amount": float(payload.amount),
+        "p_payment_date": payment_date_value,
+        "p_notes": payload.notes or "",
+    }
 
     try:
-        res = await asyncio.to_thread(lambda: supabase.rpc("record_debt_payment", {
-            "p_debt_id": debt_id,
-            "p_user_id": user.id,
-            "p_amount": payload.amount,
-            "p_payment_date": payment_date,
-            "p_notes": payload.notes or "",
-        }).execute())
-        if res.data:
-            import json
-            data = json.loads(res.data) if isinstance(res.data, str) else res.data
-            return {"debt": {"remaining": data.get("new_remaining", 0)}}
+        res = await asyncio.to_thread(lambda: supabase.rpc("record_debt_payment", rpc_args).execute())
     except Exception as exc:
-        msg = str(exc).lower()
-        if "supera" in msg or "saldo" in msg:
-            raise BadRequestException("El abono no puede superar el saldo pendiente.")
+        msg = str(exc).upper()
+        if "AMOUNT_EXCEEDS_REMAINING" in msg or "SUPERA" in msg or "SALDO" in msg:
+            raise BadRequestException("El abono no puede superar el saldo pendiente de la deuda.")
+        if "AMOUNT_INVALID" in msg:
+            raise BadRequestException("El monto del abono debe ser mayor a cero.")
+        if "DEBT_NOT_FOUND" in msg:
+            raise NotFoundException("Deuda")
         logger.warning(f"debt payment RPC error: {exc}")
-        raise BadRequestException("Error al registrar el pago.")
+        raise ApiException(status_code=500, detail="Error al registrar el pago.")
 
-    return {"debt": {"remaining": 0}}
+    if not res or not res.data:
+        raise ApiException(status_code=500, detail="Error al registrar el pago.")
+
+    raw = res.data
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            parsed = {}
+    elif isinstance(raw, list) and raw:
+        parsed = raw[0] if isinstance(raw[0], dict) else {}
+    elif isinstance(raw, dict):
+        parsed = raw
+    else:
+        parsed = {}
+
+    return {"debt": {"remaining": float(parsed.get("new_remaining", 0)) if parsed else 0.0}}
 
 
 @router.get("/api/v1/debts/{debt_id}/payments")
@@ -683,5 +810,17 @@ async def get_budget(user=Depends(get_current_user)):
 
 @router.put("/api/v1/budget")
 async def set_budget(payload: BudgetPayload, user=Depends(get_current_user)):
-    await asyncio.to_thread(lambda: supabase.table("profiles").update({"monthly_budget": payload.monthly_budget}).eq("user_id", user.id).execute())
-    return {"monthly_budget": payload.monthly_budget}
+    profiles_res = await asyncio.to_thread(
+        lambda: supabase.table("profiles").select("user_id").eq("user_id", user.id).limit(1).execute()
+    )
+    if not profiles_res.data or len(profiles_res.data) == 0:
+        raise NotFoundException("Perfil del usuario")
+    res = await asyncio.to_thread(
+        lambda: supabase.table("profiles")
+        .update({"monthly_budget": float(payload.monthly_budget)})
+        .eq("user_id", user.id)
+        .execute()
+    )
+    if not res.data:
+        raise ApiException(status_code=500, detail="No se pudo actualizar el presupuesto.")
+    return {"monthly_budget": float(res.data[0].get("monthly_budget", payload.monthly_budget))}

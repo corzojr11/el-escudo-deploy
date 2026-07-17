@@ -8,9 +8,17 @@ export const metadata = {
 };
 
 export default async function FinanzasPage() {
-  const [transactions, summaryRes, budget, fixedExpenses, debts] = await Promise.all([
+  const [
+    transactions,
+    summaryRes,
+    monthSummaryRes,
+    budget,
+    fixedExpenses,
+    debts,
+  ] = await Promise.all([
     getFinances("all"),
     getFinanceSummary("all"),
+    getFinanceSummary("month"),
     getBudget(),
     getFixedExpenses(),
     getDebts(),
@@ -25,6 +33,7 @@ export default async function FinanzasPage() {
       expense: summaryRes.total_expense ?? 0,
       balance: summaryRes.balance ?? 0,
     },
+    initialMonthlyExpense: monthSummaryRes.total_expense ?? 0,
     initialBudget: budget,
     fixedExpenses: fixedExpenses as FixedExpense[],
     debts: debts as Debt[],
