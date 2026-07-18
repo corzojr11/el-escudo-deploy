@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import {
+  CalendarDays,
   CalendarClock,
   Check,
   Circle,
@@ -100,6 +101,9 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
               Estado: activo
             </span>
             <span className="text-muted-foreground">Tu ruta de evolucion personal</span>
+            <a href="/plan-semanal" className="inline-flex items-center gap-2 border border-[#7C5DFF] px-3 py-2 font-mono text-[11px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black">
+              <CalendarDays className="h-4 w-4" /> Abrir plan semanal
+            </a>
           </div>
         </div>
         <div className="border-l-2 border-primary pl-4 lg:mb-1">
