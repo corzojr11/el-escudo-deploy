@@ -1,4 +1,5 @@
 import { getAchievements } from "@/app/actions/achievements";
+import { getMissions } from "@/app/actions/missions";
 import { LogrosClient } from "./logros-client";
 
 export const metadata = {
@@ -6,6 +7,14 @@ export const metadata = {
 };
 
 export default async function LogrosPage() {
-  const achievements = await getAchievements();
-  return <LogrosClient achievements={achievements} />;
+  const [achievementsResult, missionsResult] = await Promise.allSettled([
+    getAchievements(),
+    getMissions({ status: "completed" }),
+  ]);
+  const achievements = achievementsResult.status === "fulfilled" ? achievementsResult.value : [];
+  const completedMissionCount = missionsResult.status === "fulfilled"
+    ? missionsResult.value.missions.length
+    : 0;
+
+  return <LogrosClient achievements={achievements} completedMissionCount={completedMissionCount} />;
 }
