@@ -107,6 +107,7 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
   const inShift = currentStatus.status === "in_shift";
   const currentShift = currentStatus.shift ?? null;
   const nextShift = currentStatus.next_shift ?? null;
+  const hasRegisteredShifts = shiftList.length > 0;
   const prepMinutes = Math.max(0, Number(commuteMin) || 0) + 45;
   const minutesUntilPreparation = nextShift ? Math.round(nextShift.starts_in_hours * 60 - prepMinutes) : null;
 
@@ -133,6 +134,12 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
   const sleepWindows = plan?.sleep.windows ?? [];
   const recommendedCycles = plan?.sleep.recommended_cycles ?? null;
   const openBioSettings = () => document.getElementById("ajustes-biologicos")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const openShiftCreator = () => {
+    setCreating(true);
+    setEditingId(null);
+    setFormStatus({});
+    requestAnimationFrame(() => document.getElementById("horario-semanal")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   if (criticalError) {
     return <ErrorState title="No se pudieron cargar tus turnos" message="No mostraremos una agenda vacia como si fuera tu horario real. Reintenta para cargar Turnos." onRetry={() => router.refresh()} />;
@@ -166,13 +173,30 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
             <CardTitle className="flex items-center gap-2 text-base">
               <Moon className="h-5 w-5 text-accent" /> Tus ciclos de sueño
             </CardTitle>
-            <CardDescription>Hora de acostarte para despertar a tiempo y respetar tu traslado.</CardDescription>
+            <CardDescription>
+              {hasRegisteredShifts
+                ? "Calculado desde tu siguiente turno, con traslado y preparación incluidos."
+                : `Por ahora usa tu alarma manual de ${plan?.sleep.wake_target ?? wakeTime}. Registra tus turnos para calcularlo desde tu horario laboral.`}
+            </CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={openBioSettings}>
             Ajustar horario
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
+          {!hasRegisteredShifts && (
+            <div className="flex flex-col gap-3 rounded-xl border border-escudo-gold/35 bg-escudo-gold/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="max-w-3xl">
+                <p className="font-medium text-foreground">Aún falta tu horario laboral</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  Si entras a trabajar a las 06:00, la app debe despertarte antes. Al registrar los días y la hora de entrada, restará {prepMinutes} min de preparación y traslado antes de calcular tus ciclos.
+                </p>
+              </div>
+              <Button type="button" size="sm" onClick={openShiftCreator} className="shrink-0">
+                <Plus className="mr-1.5 h-4 w-4" /> Registrar horario
+              </Button>
+            </div>
+          )}
           {sleepWindows.length > 0 ? (
             <>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -263,7 +287,7 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
                 <p className="font-medium text-foreground">Aún no has registrado turnos</p>
                 <p className="text-sm text-muted-foreground">Agrega tu horario para que el plan de sueño y tus bloques libres se adapten a tu vida real.</p>
               </div>
-              <Button type="button" size="sm" onClick={() => setCreating(true)}>
+              <Button type="button" size="sm" onClick={openShiftCreator}>
                 <Plus className="mr-1.5 h-4 w-4" /> Agregar turno
               </Button>
             </div>
@@ -271,7 +295,7 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="horario-semanal">
         <CardHeader className="pb-3">
           <span className="hud-label text-accent">Preparation Window</span>
           <CardTitle className="flex items-center gap-2 text-base">
