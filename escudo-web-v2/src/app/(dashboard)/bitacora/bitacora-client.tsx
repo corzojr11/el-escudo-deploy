@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import { createMission } from "@/app/actions/missions";
 import { createPersonalEntry, deletePersonalEntry, updatePersonalEntry } from "@/app/actions/personal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,11 @@ function entryValue(entry: PersonalEntry, key: string): string {
 
 function isTracker(entry: PersonalEntry, trackerType: string) {
   return entry.kind === "discipline" && entryValue(entry, "tracker_type") === trackerType;
+}
+
+function linkedMissionId(entry: PersonalEntry): string | null {
+  const missionId = entry.data?.mission_id;
+  return typeof missionId === "string" && missionId ? missionId : null;
 }
 
 function trackerStreak(entries: PersonalEntry[]): number {
@@ -137,6 +143,33 @@ export function BitacoraClient({
     }
   }
 
+  function turnEntryIntoMission(entry: PersonalEntry, missionName: string, category: string) {
+    if (linkedMissionId(entry)) return;
+
+    setStatus(null);
+    startTransition(async () => {
+      try {
+        const scheduledAt = tomorrow();
+        const { mission } = await createMission({
+          name: missionName,
+          description: entry.content || "Siguiente paso nacido en tu Bitácora.",
+          priority: "medium",
+          scheduled_at: scheduledAt,
+          category,
+        });
+        const updated = await updatePersonalEntry(entry.id, {
+          title: entry.title,
+          content: entry.content,
+          data: { ...entry.data, mission_id: mission.id, mission_scheduled_at: scheduledAt },
+        });
+        setEntries((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+        setStatus("Misión preparada para mañana. La encontrarás en Misiones.");
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "No se pudo preparar la misión.");
+      }
+    });
+  }
+
   function updateBook(entry: PersonalEntry, currentPage: string, totalPages: string) {
     const current = Math.max(0, Number(currentPage) || 0);
     const total = Math.max(current, Number(totalPages) || 0);
@@ -197,8 +230,23 @@ export function BitacoraClient({
             }}><Plus /> Guardar idea</Button>
             {ideas.slice(0, 4).map((entry) => (
               <div key={entry.id} className="border-t border-border pt-3">
-                <div className="flex justify-between gap-2"><p className="font-medium text-foreground">{entry.title}</p><EntryDelete id={entry.id} onDeleted={remove} /></div>
+                <div className="flex items-start justify-between gap-2"><p className="font-medium text-foreground">{entry.title}</p><EntryDelete id={entry.id} onDeleted={remove} /></div>
                 {entry.content && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{entry.content}</p>}
+                {linkedMissionId(entry) ? (
+                  <Link href="/misiones" className="mt-2 inline-block text-xs font-medium text-accent underline-offset-4 hover:underline">
+                    Misión preparada para mañana →
+                  </Link>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => turnEntryIntoMission(entry, `Explorar: ${entry.title}`, "idea")}
+                    className="mt-2"
+                  >
+                    Convertir en misión de mañana
+                  </Button>
+                )}
               </div>
             ))}
           </CardContent>
@@ -256,7 +304,7 @@ export function BitacoraClient({
               setBookCurrent("");
               setBookTotal("");
             }}><Plus /> Agregar libro</Button>
-            {books.length ? books.map((entry) => <BookRow key={entry.id} entry={entry} pending={pending} onSave={updateBook} onDelete={remove} />) : <p className="border-t border-border pt-3 text-sm text-muted-foreground">Añade el libro que quieres retomar. No necesitas leer mucho para volver a empezar.</p>}
+            {books.length ? books.map((entry) => <BookRow key={entry.id} entry={entry} pending={pending} onSave={updateBook} onDelete={remove} onSchedule={turnEntryIntoMission} />) : <p className="border-t border-border pt-3 text-sm text-muted-foreground">Añade el libro que quieres retomar. No necesitas leer mucho para volver a empezar.</p>}
           </CardContent>
         </Card>
 
@@ -332,11 +380,13 @@ function BookRow({
   pending,
   onSave,
   onDelete,
+  onSchedule,
 }: {
   entry: PersonalEntry;
   pending: boolean;
   onSave: (entry: PersonalEntry, current: string, total: string) => void;
   onDelete: (id: string) => void;
+  onSchedule: (entry: PersonalEntry, missionName: string, category: string) => void;
 }) {
   const [current, setCurrent] = useState(entryValue(entry, "current_page"));
   const [total, setTotal] = useState(entryValue(entry, "total_pages"));
@@ -348,5 +398,20 @@ function BookRow({
     <div className="flex justify-between gap-2"><p className="font-medium text-foreground">{entry.title}</p><EntryDelete id={entry.id} onDeleted={onDelete} /></div>
     <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2"><Input type="number" min="0" value={current} onChange={(event) => setCurrent(event.target.value)} aria-label="Página actual" /><Input type="number" min="0" value={total} onChange={(event) => setTotal(event.target.value)} aria-label="Total de páginas" /><Button size="sm" variant="outline" disabled={pending} onClick={() => onSave(entry, current, total)}>Actualizar</Button></div>
     <p className="mt-2 text-xs text-muted-foreground">{currentNumber} / {totalNumber || "?"} páginas - {percentage}%{entryValue(entry, "last_read_date") ? ` - última lectura: ${entryValue(entry, "last_read_date")}` : ""}</p>
+    {linkedMissionId(entry) ? (
+      <Link href="/misiones" className="mt-2 inline-block text-xs font-medium text-accent underline-offset-4 hover:underline">
+        Sesión de lectura preparada para mañana →
+      </Link>
+    ) : (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onClick={() => onSchedule(entry, `Leer 10 páginas de ${entry.title}`, "lectura")}
+        className="mt-3"
+      >
+        Programar lectura de mañana
+      </Button>
+    )}
   </div>;
 }
