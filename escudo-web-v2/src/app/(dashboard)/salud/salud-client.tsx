@@ -86,6 +86,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
   const [exercising, setExercising] = useState(false);
   const sleepInfo = sleepSummary(sleepBedTime, sleepWakeTime);
   const latestExercise = exerciseLogs[0];
+  const latestSleep = sleepAnalysis?.logs?.[0];
 
   const [completingRoutine, setCompletingRoutine] = useState(false);
 
@@ -743,6 +744,23 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
           >
             {sleeping && <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />}
             Registrar sueño
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (!latestSleep) return;
+              setSleepDate(todayInputValue());
+              setSleepBedTime(latestSleep.bed_time);
+              setSleepWakeTime(latestSleep.wake_time);
+              setSleepQuality(String(latestSleep.quality_score || 3));
+              setSleepNotes("");
+              setSleepStatus({ success: "Tomamos tu último horario. Revísalo y registra solo si hoy fue igual." });
+            }}
+            disabled={sleeping || !latestSleep}
+            className="ml-2 border-[#7C5DFF]/60 text-[#c0b2ff] hover:bg-[#7C5DFF]/10 hover:text-[#d7ceff]"
+          >
+            Repetir último sueño
           </Button>
           <Button
             type="button"
