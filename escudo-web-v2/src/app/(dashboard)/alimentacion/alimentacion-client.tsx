@@ -131,7 +131,7 @@ const BASE_RECIPES: BaseRecipe[] = [
   },
 ];
 
-const PLAN_DAYS = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
+const PLAN_DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
 function defaultPlan(): NutritionMealPlanDay[] {
   const breakfasts = BASE_RECIPES.filter((recipe) => recipe.meal === "Desayuno");
@@ -177,10 +177,39 @@ function getMealChecks(entry: PersonalEntry | undefined) {
   return Object.fromEntries(Object.entries(meals).filter(([, value]) => typeof value === "boolean")) as Record<string, boolean>;
 }
 
-function RecipePanel({ recipe }: { recipe: NutritionRecipe }) {
+function RecipePanel({ recipe, expanded, onToggle }: { recipe: NutritionRecipe; expanded: boolean; onToggle: () => void }) {
   const guide = "equipment" in recipe ? recipe as BaseRecipe : null;
 
-  return <Card className="border-[#7C5DFF] bg-[#17171A]"><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="hud-label text-[#FFD700]">RECETA SELECCIONADA · 1 PORCIÓN</p><CardTitle className="text-2xl text-white">{recipe.name}</CardTitle><CardDescription>{recipe.why}</CardDescription></div><div className="flex gap-3 font-mono text-sm"><span className="text-[#FFD700]"><Flame className="mr-1 inline h-4 w-4" />{recipe.calories} kcal</span><span className="text-[#bcaeff]"><Beef className="mr-1 inline h-4 w-4" />{recipe.protein_g} g</span><span className="text-muted-foreground"><Clock3 className="mr-1 inline h-4 w-4" />{recipe.prep_minutes} min</span></div></div></CardHeader><CardContent className="space-y-6"><div className="grid gap-5 md:grid-cols-2"><div><p className="mb-2 flex items-center gap-2 font-semibold text-white"><Scale className="h-4 w-4 text-[#FFD700]" /> Ingredientes: pesa esto</p><ul className="space-y-2 text-sm text-muted-foreground">{recipe.ingredients.map((item) => <li key={item}>- {item}</li>)}</ul></div><div><p className="mb-2 font-semibold text-white">Antes de empezar</p>{guide ? <><p className="text-sm text-muted-foreground">Utensilios: {guide.equipment.join(", ")}.</p><p className="mt-3 text-sm text-muted-foreground">Pesa y deja todos los ingredientes listos antes de encender la estufa.</p></> : <p className="text-sm text-muted-foreground">Lee todos los pasos, pesa los ingredientes y deja listos los utensilios antes de cocinar.</p>}</div></div><div><p className="mb-3 font-semibold text-white">Preparación paso a paso</p><ol className="space-y-3 text-sm leading-6 text-muted-foreground">{recipe.steps.map((item, index) => <li key={`${index}-${item}`} className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center border border-[#7C5DFF] font-mono text-xs text-[#bcaeff]">{index + 1}</span><span>{item}</span></li>)}</ol></div>{guide && <div className="grid gap-5 border-t border-[#2A2A3C] pt-5 md:grid-cols-2"><div><p className="mb-2 font-semibold text-white">Sustituciones económicas si te falta algo</p><ul className="space-y-2 text-sm text-muted-foreground">{guide.substitutions.map((item) => <li key={item}>- {item}</li>)}</ul></div><div><p className="mb-2 font-semibold text-white">Guardar y recalentar</p><p className="text-sm text-muted-foreground">{guide.storage}</p></div></div>}</CardContent></Card>;
+  return <Card className="border-[#7C5DFF] bg-[#17171A]">
+    <CardHeader>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="hud-label text-[#FFD700]">RECETA SELECCIONADA · 1 PORCIÓN</p>
+          <CardTitle className="text-2xl text-white">{recipe.name}</CardTitle>
+          <CardDescription>{recipe.why}</CardDescription>
+        </div>
+        <div className="flex gap-3 font-mono text-sm">
+          <span className="text-[#FFD700]"><Flame className="mr-1 inline h-4 w-4" />{recipe.calories} kcal</span>
+          <span className="text-[#bcaeff]"><Beef className="mr-1 inline h-4 w-4" />{recipe.protein_g} g</span>
+          <span className="text-muted-foreground"><Clock3 className="mr-1 inline h-4 w-4" />{recipe.prep_minutes} min</span>
+        </div>
+      </div>
+    </CardHeader>
+    <CardContent className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-y border-[#2A2A3C] py-3">
+        <p className="text-sm text-muted-foreground">{recipe.ingredients.length} ingredientes pesables · {recipe.steps.length} pasos claros · porción individual</p>
+        <Button type="button" variant="outline" onClick={onToggle} className="border-[#7C5DFF] text-[#d8ccff]">{expanded ? "Ocultar preparación" : "Ver ingredientes y preparación"}</Button>
+      </div>
+      {expanded && <>
+        <div className="grid gap-5 md:grid-cols-2">
+          <div><p className="mb-2 flex items-center gap-2 font-semibold text-white"><Scale className="h-4 w-4 text-[#FFD700]" /> Ingredientes: pesa esto</p><ul className="space-y-2 text-sm text-muted-foreground">{recipe.ingredients.map((item) => <li key={item}>- {item}</li>)}</ul></div>
+          <div><p className="mb-2 font-semibold text-white">Antes de empezar</p>{guide ? <><p className="text-sm text-muted-foreground">Utensilios: {guide.equipment.join(", ")}.</p><p className="mt-3 text-sm text-muted-foreground">Pesa y deja todos los ingredientes listos antes de encender la estufa.</p></> : <p className="text-sm text-muted-foreground">Lee todos los pasos, pesa los ingredientes y deja listos los utensilios antes de cocinar.</p>}</div>
+        </div>
+        <div><p className="mb-3 font-semibold text-white">Preparación paso a paso</p><ol className="space-y-3 text-sm leading-6 text-muted-foreground">{recipe.steps.map((item, index) => <li key={`${index}-${item}`} className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center border border-[#7C5DFF] font-mono text-xs text-[#bcaeff]">{index + 1}</span><span>{item}</span></li>)}</ol></div>
+        {guide && <div className="grid gap-5 border-t border-[#2A2A3C] pt-5 md:grid-cols-2"><div><p className="mb-2 font-semibold text-white">Sustituciones económicas si te falta algo</p><ul className="space-y-2 text-sm text-muted-foreground">{guide.substitutions.map((item) => <li key={item}>- {item}</li>)}</ul></div><div><p className="mb-2 font-semibold text-white">Guardar y recalentar</p><p className="text-sm text-muted-foreground">{guide.storage}</p></div></div>}
+      </>}
+    </CardContent>
+  </Card>;
 }
 
 interface AlimentacionClientProps {
@@ -197,6 +226,9 @@ export function AlimentacionClient({ initialFavorites, initialWeeklyPlan, dailyP
   const [selected, setSelected] = useState<NutritionRecipe>(BASE_RECIPES[2]);
   const [favorites, setFavorites] = useState(initialFavorites);
   const [weeklyPlan, setWeeklyPlan] = useState<NutritionMealPlanDay[]>(initialWeeklyPlan?.days ?? defaultPlan());
+  const [workspace, setWorkspace] = useState<"today" | "recipes" | "week">("today");
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => Math.max(0, bogotaWeekdayIndex()));
+  const [showRecipeDetails, setShowRecipeDetails] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pending, startTransition] = useTransition();
@@ -206,6 +238,7 @@ export function AlimentacionClient({ initialFavorites, initialWeeklyPlan, dailyP
   const allRecipes = [...BASE_RECIPES, ...favorites.map((favorite) => favorite.recipe)];
   const today = bogotaToday();
   const todayPlan = weeklyPlan[bogotaWeekdayIndex()] ?? weeklyPlan[0];
+  const selectedDay = weeklyPlan[selectedDayIndex] ?? weeklyPlan[0];
   const initialCheckin = initialEntries.find((entry) => entry.kind === "discipline" && entry.entry_date === today && entry.data?.tracker_type === "nutrition_daily_checkin");
   const [checkinId, setCheckinId] = useState<string | null>(initialCheckin?.id ?? null);
   const [mealChecks, setMealChecks] = useState<Record<string, boolean>>(() => getMealChecks(initialCheckin));
@@ -220,7 +253,15 @@ export function AlimentacionClient({ initialFavorites, initialWeeklyPlan, dailyP
 
   function selectPlannedRecipe(name: string) {
     const recipe = allRecipes.find((candidate) => candidate.name === name);
-    if (recipe) setSelected(recipe);
+    if (recipe) {
+      setSelected(recipe);
+      setShowRecipeDetails(false);
+    }
+  }
+
+  function openRecipe(name: string) {
+    selectPlannedRecipe(name);
+    setWorkspace("recipes");
   }
 
   function toggleMealCheck(key: string) {
@@ -247,6 +288,8 @@ export function AlimentacionClient({ initialFavorites, initialWeeklyPlan, dailyP
     startTransition(async () => {
       try {
         setSelected((await generateRecipe({ meal, ingredients, minutes: Number(minutes) || 25 })).recipe);
+        setShowRecipeDetails(false);
+        setWorkspace("recipes");
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "No se pudo generar la receta.");
       }
@@ -296,21 +339,41 @@ export function AlimentacionClient({ initialFavorites, initialWeeklyPlan, dailyP
   }
 
   return <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 pb-8">
-    <Card className="border-[#2A2A3C] bg-[#17171A]"><CardHeader><p className="hud-label text-[#bcaeff]">COMBUSTIBLE PARA GANAR MASA</p><CardTitle className="flex items-center gap-2 text-3xl text-white"><ChefHat className="h-7 w-7 text-[#FFD700]" /> Alimentación económica</CardTitle><CardDescription>Comidas con ingredientes de mercado colombiano y porciones en gramos para usar con gramera. Las calorías y la proteína son aproximadas; consulta a un profesional si tienes una condición médica.</CardDescription></CardHeader></Card>
-    <Card className="border-[#2A2A3C] bg-[#17171A]"><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="hud-label text-[#bcaeff]">PLAN DE HOY</p><CardTitle className="text-xl text-white">Come con intención, no por improvisación</CardTitle><CardDescription>{dailyPlan?.shift_status.status === "in_shift" ? "Estás en turno: deja listo lo que puedas llevar y no dependas de decidir con hambre." : "Tus horarios salen de tu descanso y de las comidas que elegiste para esta semana."}</CardDescription></div><span className="border border-[#2A2A3C] px-2 py-1 font-mono text-xs text-[#FFD700]">{Object.values(mealChecks).filter(Boolean).length}/4 LISTAS</span></div></CardHeader><CardContent><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{dailyMeals.map((mealItem) => <div key={mealItem.key} className="border border-[#2A2A3C] bg-[#0C0C0E] p-3"><div className="flex items-center justify-between gap-2"><span className="hud-label text-[#bcaeff]">{mealItem.label}</span><span className="font-mono text-xs text-[#FFD700]">{mealItem.time}</span></div><button type="button" onClick={() => selectPlannedRecipe(mealItem.recipeName)} className="mt-2 min-h-10 text-left text-sm font-semibold text-white hover:text-[#d8ccff]">{mealItem.recipeName || "Elige una receta en tu plan semanal"}</button><Button size="sm" variant="outline" disabled={saving} onClick={() => toggleMealCheck(mealItem.key)} className={`mt-3 w-full border-[#2A2A3C] ${mealChecks[mealItem.key] ? "border-[#7C5DFF] bg-[#7C5DFF]/10 text-white" : "text-muted-foreground"}`}>{mealChecks[mealItem.key] ? "Registrada" : "Marcar lista"}</Button></div>)}</div><p className="mt-4 text-xs text-muted-foreground">Puedes abrir una comida para ver ingredientes y preparación; el registro solo marca tu avance de hoy y no reemplaza orientación profesional.</p></CardContent></Card>
-    <Card className="border-[#2A2A3C] bg-[#17171A]"><CardContent className="space-y-4 p-5"><div className="flex flex-wrap gap-2">{["Todo", "Desayuno", "Almuerzo", "Cena", "Snack"].map((option) => <Button key={option} size="sm" variant={meal === option ? "default" : "outline"} onClick={() => setMeal(option)} className={meal === option ? "bg-[#7C5DFF]" : ""}>{option}</Button>)}</div><div className="grid gap-3 md:grid-cols-[2fr_100px_auto]"><Input value={ingredients} onChange={(event) => setIngredients(event.target.value)} placeholder="¿Qué tienes? Ej.: arroz, pollo, huevos, lentejas" className="border-[#2A2A3C] bg-[#0C0C0E] text-white" /><Input type="number" min="10" max="90" value={minutes} onChange={(event) => setMinutes(event.target.value)} className="border-[#2A2A3C] bg-[#0C0C0E] text-white" /><Button disabled={pending} onClick={generate} className="bg-[#7C5DFF]">{pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Sparkles className="mr-2 h-4 w-4" /> Adaptar receta</>}</Button></div><p className="text-xs text-muted-foreground">La IA crea una variación con ingredientes colombianos y porciones en gramos; las recetas base están disponibles de inmediato.</p></CardContent></Card>
+    <Card className="border-[#2A2A3C] bg-[#17171A]">
+      <CardHeader>
+        <p className="hud-label text-[#bcaeff]">COMBUSTIBLE PARA GANAR MASA</p>
+        <CardTitle className="flex items-center gap-2 text-3xl text-white"><ChefHat className="h-7 w-7 text-[#FFD700]" /> Alimentación económica</CardTitle>
+        <CardDescription>Comidas de mercado colombiano, en gramos y pensadas para repetir sin improvisar.</CardDescription>
+      </CardHeader>
+    </Card>
+
+    <div className="grid gap-2 sm:grid-cols-3" aria-label="Secciones de alimentación">
+      {([
+        ["today", "Hoy", "Qué comer y qué ya resolviste"],
+        ["recipes", "Recetas", "Elige o adapta una comida"],
+        ["week", "Semana", "Deja listo el mercado y el plan"],
+      ] as const).map(([id, title, description]) => <button key={id} type="button" onClick={() => setWorkspace(id)} className={`border p-4 text-left transition-colors ${workspace === id ? "border-[#7C5DFF] bg-[#7C5DFF]/10" : "border-[#2A2A3C] bg-[#17171A] hover:border-[#7C5DFF]/60"}`}><p className="font-semibold text-white">{title}</p><p className="mt-1 text-xs text-muted-foreground">{description}</p></button>)}
+    </div>
+
     {error && <p className="border border-red-500/30 p-3 text-sm text-red-400">{error}</p>}
     {notice && <p className="border border-[#7C5DFF] bg-[#7C5DFF]/10 p-3 text-sm text-[#d8ccff]">{notice}</p>}
-    <RecipePanel recipe={selected} />
-    <div className="flex justify-end"><Button variant="outline" disabled={saving} onClick={saveFavorite} className="border-[#7C5DFF] text-[#d8ccff]"><BookmarkPlus className="mr-2 h-4 w-4" />{saving ? "Guardando..." : "Guardar en mis recetas"}</Button></div>
-    <section><div className="mb-3 flex items-end justify-between"><div><p className="hud-label text-[#bcaeff]">RECETAS BASE</p><h2 className="text-xl font-semibold text-white">Económicas, medibles y fáciles de repetir</h2></div><span className="text-xs text-muted-foreground">Selecciona una para ver sus cantidades</span></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{visible.map((recipe) => <button key={recipe.name} onClick={() => setSelected(recipe)} className={`border p-4 text-left transition-colors ${selected.name === recipe.name ? "border-[#7C5DFF] bg-[#7C5DFF]/10" : "border-[#2A2A3C] bg-[#17171A] hover:border-[#7C5DFF]/60"}`}><div className="flex justify-between gap-2"><span className="hud-label text-[#FFD700]">{recipe.meal} · {recipe.cost}</span><span className="font-mono text-xs text-[#bcaeff]">{recipe.calories} kcal</span></div><p className="mt-2 font-semibold text-white">{recipe.name}</p><p className="mt-1 text-xs text-muted-foreground">{recipe.protein_g} g de proteína · {recipe.prep_minutes} min</p></button>)}</div></section>
-    <section className="border-t border-[#2A2A3C] pt-5">
-      <div className="mb-3"><p className="hud-label text-[#bcaeff]">TU BIBLIOTECA</p><h2 className="text-xl font-semibold text-white">Recetas guardadas</h2></div>
-      {favorites.length === 0 ? <p className="border border-dashed border-[#2A2A3C] p-4 text-sm text-muted-foreground">Guarda una receta base o una creada por IA para construir tu propio recetario.</p> : <div className="grid gap-3 md:grid-cols-2">{favorites.map((favorite) => <div key={favorite.id} className="flex items-center justify-between gap-3 border border-[#2A2A3C] bg-[#17171A] p-4"><button onClick={() => setSelected(favorite.recipe)} className="min-w-0 text-left"><p className="truncate font-semibold text-white">{favorite.name}</p><p className="mt-1 text-xs text-muted-foreground">{favorite.recipe.calories} kcal - {favorite.recipe.protein_g} g de proteína</p></button><Button aria-label={`Eliminar ${favorite.name}`} size="icon" variant="ghost" disabled={saving} onClick={() => removeFavorite(favorite.id)} className="text-muted-foreground hover:text-red-400"><Trash2 className="h-4 w-4" /></Button></div>)}</div>}
-    </section>
-    <section className="border-t border-[#2A2A3C] pt-5">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="hud-label text-[#bcaeff]">PLAN SEMANAL</p><h2 className="flex items-center gap-2 text-xl font-semibold text-white"><CalendarDays className="h-5 w-5 text-[#FFD700]" /> Mercado y comidas sin improvisar</h2><p className="mt-1 text-sm text-muted-foreground">Organiza cuatro momentos del día. Cambia cualquier opción según tu turno, presupuesto o ingredientes.</p></div><Button disabled={saving} onClick={savePlan} className="bg-[#7C5DFF]">{saving ? "Guardando..." : "Guardar semana"}</Button></div>
-      <div className="grid gap-3 lg:grid-cols-2">{weeklyPlan.map((day, index) => <Card key={day.day} className="border-[#2A2A3C] bg-[#17171A]"><CardContent className="space-y-3 p-4"><p className="font-semibold text-white">{day.day}</p>{([ ["breakfast", "Desayuno"], ["lunch", "Almuerzo"], ["dinner", "Cena"], ["snack", "Snack"] ] as const).map(([field, label]) => <label key={field} className="grid grid-cols-[78px_1fr] items-center gap-2 text-xs text-muted-foreground"><span>{label}</span><select value={day[field]} onChange={(event) => updatePlan(index, field, event.target.value)} className="h-9 min-w-0 border border-[#2A2A3C] bg-[#0C0C0E] px-2 text-sm text-white"><option value="">Sin definir</option>{recipeNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>)}</CardContent></Card>)}</div>
-    </section>
+
+    {workspace === "today" && <>
+      <Card className="border-[#2A2A3C] bg-[#17171A]">
+        <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="hud-label text-[#bcaeff]">PLAN DE HOY</p><CardTitle className="text-xl text-white">Resuelve tus comidas una a una</CardTitle><CardDescription>{dailyPlan?.shift_status.status === "in_shift" ? "Estás en turno: abre la siguiente comida y deja listo lo que puedas llevar." : "Tus horarios se ajustan a tu descanso y al plan que organizaste."}</CardDescription></div><span className="border border-[#2A2A3C] px-2 py-1 font-mono text-xs text-[#FFD700]">{Object.values(mealChecks).filter(Boolean).length}/4 LISTAS</span></div></CardHeader>
+        <CardContent><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{dailyMeals.map((mealItem) => <div key={mealItem.key} className="border border-[#2A2A3C] bg-[#0C0C0E] p-4"><div className="flex items-center justify-between gap-2"><span className="hud-label text-[#bcaeff]">{mealItem.label}</span><span className="font-mono text-xs text-[#FFD700]">{mealItem.time}</span></div><button type="button" onClick={() => openRecipe(mealItem.recipeName)} className="mt-3 min-h-10 text-left text-sm font-semibold leading-5 text-white hover:text-[#d8ccff]">{mealItem.recipeName || "Elige una receta"}</button><div className="mt-4 flex gap-2"><Button size="sm" variant="outline" onClick={() => openRecipe(mealItem.recipeName)} className="flex-1 border-[#2A2A3C] text-muted-foreground">Ver</Button><Button size="sm" disabled={saving} onClick={() => toggleMealCheck(mealItem.key)} className={`flex-1 ${mealChecks[mealItem.key] ? "bg-[#7C5DFF] text-white" : "bg-[#2A2A3C] text-white hover:bg-[#7C5DFF]"}`}>{mealChecks[mealItem.key] ? "Lista" : "Hecha"}</Button></div></div>)}</div></CardContent>
+      </Card>
+      <Card className="border-[#2A2A3C] bg-[#17171A]"><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div><p className="font-semibold text-white">¿No sabes qué preparar?</p><p className="mt-1 text-sm text-muted-foreground">Explora recetas por momento del día o adapta una con lo que tengas.</p></div><Button onClick={() => setWorkspace("recipes")} className="bg-[#7C5DFF]"><Sparkles className="mr-2 h-4 w-4" /> Ver recetas</Button></CardContent></Card>
+    </>}
+
+    {workspace === "recipes" && <>
+      <Card className="border-[#2A2A3C] bg-[#17171A]"><CardHeader><p className="hud-label text-[#bcaeff]">RECETARIO</p><CardTitle className="text-xl text-white">Elige una comida o adáptala a lo que tienes</CardTitle><CardDescription>Primero escoge; abre los ingredientes y los pasos solo cuando vayas a cocinar.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex flex-wrap gap-2">{["Todo", "Desayuno", "Almuerzo", "Cena", "Snack"].map((option) => <Button key={option} size="sm" variant={meal === option ? "default" : "outline"} onClick={() => setMeal(option)} className={meal === option ? "bg-[#7C5DFF]" : ""}>{option}</Button>)}</div><div className="grid gap-3 md:grid-cols-[2fr_100px_auto]"><Input value={ingredients} onChange={(event) => setIngredients(event.target.value)} placeholder="Lo que tienes: arroz, pollo, huevos..." className="border-[#2A2A3C] bg-[#0C0C0E] text-white" /><Input aria-label="Minutos disponibles" type="number" min="10" max="90" value={minutes} onChange={(event) => setMinutes(event.target.value)} className="border-[#2A2A3C] bg-[#0C0C0E] text-white" /><Button disabled={pending} onClick={generate} className="bg-[#7C5DFF]">{pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Sparkles className="mr-2 h-4 w-4" /> Adaptar</>}</Button></div></CardContent></Card>
+      <section><div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><p className="hud-label text-[#bcaeff]">RECETAS DISPONIBLES</p><h2 className="text-xl font-semibold text-white">Baratas, pesables y repetibles</h2></div><span className="text-xs text-muted-foreground">{visible.length} opciones</span></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{visible.map((recipe) => <button type="button" key={recipe.name} onClick={() => { setSelected(recipe); setShowRecipeDetails(false); }} className={`border p-4 text-left transition-colors ${selected.name === recipe.name ? "border-[#7C5DFF] bg-[#7C5DFF]/10" : "border-[#2A2A3C] bg-[#17171A] hover:border-[#7C5DFF]/60"}`}><div className="flex justify-between gap-2"><span className="hud-label text-[#FFD700]">{recipe.meal} · {recipe.cost}</span><span className="font-mono text-xs text-[#bcaeff]">{recipe.prep_minutes} min</span></div><p className="mt-2 font-semibold text-white">{recipe.name}</p><p className="mt-1 text-xs text-muted-foreground">{recipe.calories} kcal · {recipe.protein_g} g proteína</p></button>)}</div></section>
+      <RecipePanel recipe={selected} expanded={showRecipeDetails} onToggle={() => setShowRecipeDetails((current) => !current)} />
+      <div className="flex justify-end"><Button variant="outline" disabled={saving} onClick={saveFavorite} className="border-[#7C5DFF] text-[#d8ccff]"><BookmarkPlus className="mr-2 h-4 w-4" />{saving ? "Guardando..." : "Guardar receta"}</Button></div>
+      <details className="border border-[#2A2A3C] bg-[#17171A] p-4"><summary className="cursor-pointer font-semibold text-white">Mis recetas guardadas ({favorites.length})</summary><div className="mt-4 grid gap-3 md:grid-cols-2">{favorites.length === 0 ? <p className="text-sm text-muted-foreground">Aún no tienes recetas guardadas.</p> : favorites.map((favorite) => <div key={favorite.id} className="flex items-center justify-between gap-3 border border-[#2A2A3C] bg-[#0C0C0E] p-3"><button type="button" onClick={() => { setSelected(favorite.recipe); setShowRecipeDetails(false); }} className="min-w-0 text-left"><p className="truncate font-semibold text-white">{favorite.name}</p><p className="mt-1 text-xs text-muted-foreground">{favorite.recipe.calories} kcal · {favorite.recipe.protein_g} g proteína</p></button><Button aria-label={`Eliminar ${favorite.name}`} size="icon" variant="ghost" disabled={saving} onClick={() => removeFavorite(favorite.id)} className="text-muted-foreground hover:text-red-400"><Trash2 className="h-4 w-4" /></Button></div>)}</div></details>
+    </>}
+
+    {workspace === "week" && <Card className="border-[#2A2A3C] bg-[#17171A]"><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="hud-label text-[#bcaeff]">PLAN SEMANAL</p><CardTitle className="flex items-center gap-2 text-xl text-white"><CalendarDays className="h-5 w-5 text-[#FFD700]" /> Una compra, siete días más claros</CardTitle><CardDescription>Edita un día por vez. Así planeas sin enfrentarte a una cuadrícula interminable.</CardDescription></div><Button disabled={saving} onClick={savePlan} className="bg-[#7C5DFF]">{saving ? "Guardando..." : "Guardar semana"}</Button></div></CardHeader><CardContent className="space-y-5"><div className="flex flex-wrap gap-2">{weeklyPlan.map((day, index) => <Button key={day.day} type="button" size="sm" variant={selectedDayIndex === index ? "default" : "outline"} onClick={() => setSelectedDayIndex(index)} className={selectedDayIndex === index ? "bg-[#7C5DFF]" : ""}>{day.day.slice(0, 3)}</Button>)}</div><div className="border border-[#2A2A3C] bg-[#0C0C0E] p-5"><p className="mb-4 text-lg font-semibold text-white">{selectedDay.day}</p><div className="grid gap-4 md:grid-cols-2">{([ ["breakfast", "Desayuno"], ["lunch", "Almuerzo"], ["dinner", "Cena"], ["snack", "Snack"] ] as const).map(([field, label]) => <label key={field} className="space-y-2 text-sm text-muted-foreground"><span className="block font-medium text-white">{label}</span><select value={selectedDay[field]} onChange={(event) => updatePlan(selectedDayIndex, field, event.target.value)} className="h-10 w-full border border-[#2A2A3C] bg-[#17171A] px-3 text-sm text-white"><option value="">Sin definir</option>{recipeNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>)}</div></div></CardContent></Card>}
   </div>;
 }
