@@ -37,8 +37,8 @@ async def generate_recipe(payload: RecipeRequest, user=Depends(get_current_user)
                 "calories": 650,
                 "protein_g": 32,
                 "prep_minutes": 10,
-                "ingredients": ["Avena", "leche", "banano", "mani o mantequilla de mani", "huevos o proteina"],
-                "steps": ["Cocina la avena con leche.", "Agrega banano y mani.", "Acompanala con huevos o proteina."],
+                "ingredients": ["100 g avena", "300 ml leche entera", "120 g banano pelado", "30 g mani", "2 huevos (100 g sin cascara)"],
+                "steps": ["Pon la leche y la avena en una olla a fuego medio. Revuelve 5 a 7 minutos hasta que este cremosa.", "Pela y corta el banano en rodajas; pesa el mani.", "Cocina los huevos en una sarten a fuego medio-bajo 2 a 3 minutos por lado, hasta que la clara no se vea transparente.", "Sirve la avena con banano y mani, y acompana con los huevos."],
                 "why": "Opcion practica de alta energia para apoyar el aumento de peso.",
             },
             "fallback": True,
@@ -50,8 +50,9 @@ async def generate_recipe(payload: RecipeRequest, user=Depends(get_current_user)
         f"ingredientes disponibles: {payload.ingredients or 'comunes y economicos'}; maximo {payload.minutes} minutos. "
         "Para ganar musculo/peso prioriza proteina y energia sin prometer resultados. "
         "Cada ingrediente DEBE incluir cantidad en gramos o mililitros, incluso huevos (ej. 2 huevos, 100 g). "
+        "Escribe pasos para una persona sin experiencia: indica fuego, minutos, orden y una senal visible de que cada alimento esta cocido. "
         "Responde JSON con name, calories (numero aproximado), protein_g (numero aproximado), prep_minutes, "
-        "ingredients (lista de strings con gramos), steps (lista de 3 a 5 strings) y why (una frase)."
+        "ingredients (lista de strings con gramos), steps (lista de 4 a 7 strings detallados) y why (una frase)."
     )
     try:
         response = await complete_chat([{"role": "system", "content": "Eres un asistente de cocina practica. No das consejo medico."}, {"role": "user", "content": prompt}], json_output=True, temperature=0.5, max_tokens=450)
@@ -66,8 +67,8 @@ async def generate_recipe(payload: RecipeRequest, user=Depends(get_current_user)
                 "calories": 780,
                 "protein_g": 45,
                 "prep_minutes": 25,
-                "ingredients": ["Arroz", "pollo", "huevos", "aguacate", "verduras"],
-                "steps": ["Cocina el arroz.", "Saltea el pollo y las verduras.", "Sirve con huevo y aguacate."],
+                "ingredients": ["90 g arroz crudo", "180 g pollo crudo sin hueso", "2 huevos (100 g sin cascara)", "80 g aguacate", "100 g verduras picadas", "10 g aceite"],
+                "steps": ["Lava el arroz y cocina 90 g con 180 ml de agua: cuando hierva, tapa y deja a fuego minimo 15 minutos.", "Corta el pollo en cubos. Cocina con el aceite en una sarten a fuego medio 8 a 10 minutos, hasta que no se vea rosado por dentro.", "Agrega verduras y cocina 4 minutos hasta que esten calientes y suaves.", "En otro espacio de la sarten cocina los huevos revolviendo 2 minutos, hasta que no haya partes liquidas.", "Sirve arroz, pollo con verduras, huevos y 80 g de aguacate."],
                 "why": "Combina carbohidrato, proteina y grasas para una comida completa.",
             },
             "fallback": True,
