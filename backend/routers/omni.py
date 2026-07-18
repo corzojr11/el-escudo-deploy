@@ -17,6 +17,7 @@ from services.omni_service import (
     _check_omni_rate_limit,
     _get_daily_cost,
     DAILY_COST_LIMIT,
+    _interpret_command,
 )
 from services.omni_proposals import create_proposal, confirm_proposal, cancel_proposal
 from services.agent_service import run_agent_checks, get_patterns_insights
@@ -46,6 +47,11 @@ class ConfirmProposalPayload(BaseModel):
     session_id: str | None = None
 
 
+class ContextualAdvicePayload(BaseModel):
+    section: str = Field(..., pattern="^(dashboard|omni|metas|habitos|misiones|turnos|finanzas|salud|rutinas|logros|bitacora|perfil)$")
+    question: str = Field(..., min_length=3, max_length=500)
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _lite_profile(payload: ProcessCommandPayload) -> dict:
@@ -59,6 +65,38 @@ def _equipment(payload: ProcessCommandPayload, lite_profile: dict) -> list:
 
 def _tasks(payload: ProcessCommandPayload) -> list:
     return [t.get("title") for t in (payload.context_tasks or [])] if payload.context_tasks else []
+
+
+async def _section_snapshot(section: str, user_id: str) -> str:
+    """Resumen breve y seguro para consejos de OMNI solicitados por el usuario."""
+    table_fields = {
+        "finanzas": ("finances", "type,amount,category,date", 5),
+        "salud": ("weight_logs", "weight,date", 3),
+        "misiones": ("missions", "name,status,priority", 5),
+        "habitos": ("habits", "name,streak", 5),
+        "turnos": ("shifts", "day,start,end", 7),
+        "rutinas": ("routines", "day_name,objective,estimated_minutes", 7),
+    }
+    if section == "bitacora":
+        try:
+            result = await asyncio.to_thread(
+                lambda: supabase.table("personal_entries").select("kind", count="exact").eq("user_id", user_id).execute()
+            )
+            return f"La bitácora tiene {result.count or 0} entradas. No se envía su contenido privado a OMNI."
+        except Exception:
+            return "No hay resumen disponible de la bitácora; no se envía contenido privado a OMNI."
+    if section not in table_fields:
+        return "No hay datos adicionales para esta sección."
+
+    table, fields, limit = table_fields[section]
+    try:
+        result = await asyncio.to_thread(
+            lambda: supabase.table(table).select(fields).eq("user_id", user_id).limit(limit).execute()
+        )
+        rows = result.data or []
+        return f"Datos recientes de {section}: {rows}" if rows else f"Aún no hay datos en {section}."
+    except Exception:
+        return f"No hay resumen disponible de {section}."
 
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
@@ -158,6 +196,29 @@ async def process_command(payload: ProcessCommandPayload, user = Depends(get_cur
         )
 
     return result
+
+
+@router.post("/api/v1/omni/contextual-advice")
+async def contextual_advice(payload: ContextualAdvicePayload, user=Depends(get_current_user)):
+    """Genera orientación contextual sin ejecutar ni proponer mutaciones."""
+    _check_omni_rate_limit(user.id)
+    from services.omni_service import _omni_client
+    if not _omni_client:
+        return {"response": "OMNI no está disponible en este momento. Intenta de nuevo más tarde.", "cost_cop": 0}
+
+    trm = await get_trm()
+    if not trm:
+        raise HTTPException(status_code=503, detail="No se pudo calcular el costo de OMNI.")
+
+    snapshot = await _section_snapshot(payload.section, user.id)
+    command = (
+        f"Consulta de orientación para la sección {payload.section}. "
+        "No ejecutes acciones ni afirmes que cambiaste datos. "
+        f"Datos disponibles: {snapshot}. Pregunta: {payload.question.strip()}"
+    )
+    result = await _interpret_command(command, user, trm, {"section": payload.section}, [], [])
+    response = result.get("respuesta_usuario") or result.get("mensaje_sistema") or "No pude preparar una respuesta útil ahora."
+    return {"response": response, "cost_cop": result.get("interaction_cost_cop", 0)}
 
 
 @router.post("/api/v1/process-command/{proposal_id}/confirm")

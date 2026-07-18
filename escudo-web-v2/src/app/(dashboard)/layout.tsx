@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Topbar } from "@/components/dashboard/Topbar";
+import { ContextualOmni } from "@/components/dashboard/ContextualOmni";
 import { NAV_MODULES } from "@/lib/constants/navigation";
 import { createClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ export default function DashboardLayout({
         )}
       >
         <Topbar />
+        <ContextualOmni key={pathname} section={activeModule?.id ?? "dashboard"} />
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
     </div>
