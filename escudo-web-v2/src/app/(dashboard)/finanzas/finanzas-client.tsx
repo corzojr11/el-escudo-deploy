@@ -51,6 +51,7 @@ import {
   recordDebtPayment,
   getDebtPayments,
 } from "@/app/actions/finances";
+import { createPersonalEntry, updatePersonalEntry } from "@/app/actions/personal";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { ErrorState } from "@/components/dashboard/ErrorState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
@@ -73,8 +74,10 @@ interface FinanzasClientProps {
   totals: { income: number; expense: number; balance: number };
   initialBudget: number;
   initialMonthlyExpense: number;
+  initialMonthlyIncome: number;
   fixedExpenses: FixedExpense[];
   debts: Debt[];
+  personalEntries: import("@/lib/api/types").PersonalEntry[];
   loadErrors: string[];
   criticalError: boolean;
 }
@@ -156,8 +159,10 @@ export function FinanzasClient({
   totals,
   initialBudget,
   initialMonthlyExpense,
+  initialMonthlyIncome,
   fixedExpenses: initialFixed,
   debts: initialDebts,
+  personalEntries,
   loadErrors,
   criticalError,
 }: FinanzasClientProps) {
@@ -180,6 +185,7 @@ export function FinanzasClient({
   const [budgetStatus, setBudgetStatus] = useState<{ success?: string; error?: string }>({});
   const [savingBudget, setSavingBudget] = useState(false);
   const [monthlyExpense, setMonthlyExpense] = useState<number>(initialMonthlyExpense ?? 0);
+  const [monthlyIncome] = useState<number>(initialMonthlyIncome ?? 0);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
 
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>(initialFixed);
@@ -212,7 +218,11 @@ export function FinanzasClient({
   const [parsing, setParsing] = useState(false);
   const [ocrStatus, setOcrStatus] = useState<{ success?: string; error?: string }>({});
   const [ocrBusy, setOcrBusy] = useState(false);
-const [savingDraft, setSavingDraft] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const protocolEntry = personalEntries.find((entry) => entry.kind === "discipline" && entry.data?.tracker_type === "financial_protocol");
+  const [financialGoal, setFinancialGoal] = useState(typeof protocolEntry?.data.goal === "string" ? protocolEntry.data.goal : "");
+  const [emergencyTarget, setEmergencyTarget] = useState(String(protocolEntry?.data.emergency_target ?? ""));
+  const [protocolBusy, setProtocolBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captureFormRef = useRef<HTMLFormElement>(null);
 
@@ -693,6 +703,29 @@ const [savingDraft, setSavingDraft] = useState(false);
   const budgetSaldo = budget - monthlyExpense;
   const budgetOver = monthlyExpense > budget && budgetConfigured;
   const debtMonthlyCommitment = debts.reduce((acc, debt) => acc + (debt.monthly_payment ?? 0), 0);
+  const fixedMonthlyTotal = fixedExpenses.reduce((acc, item) => acc + (item.amount ?? 0), 0);
+  const protocolChecks = Array.isArray(protocolEntry?.data.weekly_checks)
+    ? protocolEntry.data.weekly_checks.filter((item): item is string => typeof item === "string")
+    : [];
+  const protocolActions = ["Registre todos mis gastos", "Evite una compra impulsiva", "Separe ahorro o abono", "Revise vencimientos"];
+  const emergencyProposal = fixedMonthlyTotal * 3;
+
+  async function saveFinancialProtocol(nextChecks = protocolChecks) {
+    setProtocolBusy(true);
+    try {
+      const data = { tracker_type: "financial_protocol", goal: financialGoal.trim(), emergency_target: Number(emergencyTarget) || 0, weekly_checks: nextChecks };
+      if (protocolEntry) await updatePersonalEntry(protocolEntry.id, { title: "Protocolo financiero", content: "Presupuesto, deuda, fondo y disciplina semanal.", data });
+      else await createPersonalEntry({ kind: "discipline", title: "Protocolo financiero", content: "Presupuesto, deuda, fondo y disciplina semanal.", data });
+      setStatus({ success: "Protocolo financiero actualizado." });
+      router.refresh();
+    } catch (error) { setStatus({ error: error instanceof Error ? error.message : "No se pudo guardar el protocolo." }); }
+    finally { setProtocolBusy(false); }
+  }
+
+  function toggleProtocolCheck(action: string) {
+    const next = protocolChecks.includes(action) ? protocolChecks.filter((item) => item !== action) : [...protocolChecks, action];
+    void saveFinancialProtocol(next);
+  }
   const financialFocus = !budgetConfigured
     ? {
         title: "Define tu margen del mes",
@@ -747,6 +780,33 @@ const [savingDraft, setSavingDraft] = useState(false);
           </p>
         </div>
       </section>
+
+      <Card className="border-[#2A2A3C] bg-[#17171A]">
+        <CardHeader>
+          <span className="hud-label text-[#bcaeff]">PROTOCOLO DE LIBERTAD</span>
+          <CardTitle className="text-white">Control de tu dinero, sin esconder lo importante</CardTitle>
+          <CardDescription>Convierte tus ingresos, gastos, deudas y decisiones de la semana en una salida concreta.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              ["50% Necesidades", monthlyIncome * 0.5, "Gastos fijos y lo esencial"],
+              ["30% Flexibles", monthlyIncome * 0.3, "Compras que puedes ajustar"],
+              ["20% Libertad", monthlyIncome * 0.2, "Ahorro y salida de deudas"],
+            ].map(([label, amount, note]) => <div key={String(label)} className="border border-[#2A2A3C] p-4"><span className="hud-label text-muted-foreground">{label}</span><p className="mt-1 text-xl font-semibold text-[#FFD700]">{formatCurrency(Number(amount))}</p><p className="mt-1 text-xs text-muted-foreground">{note}</p></div>)}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3 border border-[#2A2A3C] p-4">
+              <p className="text-sm font-semibold text-white">Plan para salir de deudas</p>
+              <p className="text-sm text-muted-foreground">Deuda pendiente: <b className="text-[#FFD700]">{formatCurrency(totalDebtRemaining)}</b> · Compromiso mensual: <b className="text-white">{formatCurrency(debtMonthlyCommitment)}</b></p>
+              <Input value={financialGoal} onChange={(event) => setFinancialGoal(event.target.value)} placeholder="Meta principal: Ej. pagar tarjeta antes de diciembre" className="border-[#2A2A3C] bg-[#0C0C0E] text-white" />
+              <div className="flex gap-2"><Input type="number" min="0" value={emergencyTarget} onChange={(event) => setEmergencyTarget(event.target.value)} placeholder={`Fondo de emergencia sugerido: ${formatCurrency(emergencyProposal)}`} className="border-[#2A2A3C] bg-[#0C0C0E] text-white" /><Button disabled={protocolBusy} onClick={() => void saveFinancialProtocol()} className="bg-[#7C5DFF]">{protocolBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}</Button></div>
+              <p className="text-xs text-muted-foreground">Fondo sugerido: 3 meses de gastos fijos ({formatCurrency(emergencyProposal)}). Tu objetivo: {Number(protocolEntry?.data.emergency_target ?? 0) > 0 ? formatCurrency(Number(protocolEntry?.data.emergency_target)) : "por definir"}.</p>
+            </div>
+            <div className="space-y-3 border border-[#2A2A3C] p-4"><p className="text-sm font-semibold text-white">Reto financiero de esta semana</p><p className="text-xs text-muted-foreground">{protocolChecks.length}/4 compromisos cumplidos. No busca culpa: busca visibilidad y repeticion.</p>{protocolActions.map((action) => <button key={action} disabled={protocolBusy} onClick={() => toggleProtocolCheck(action)} className="flex w-full items-center gap-2 text-left text-sm"><span className={protocolChecks.includes(action) ? "text-[#7C5DFF]" : "text-muted-foreground"}>{protocolChecks.includes(action) ? <CheckCircle2 className="h-4 w-4" /> : <CircleAlert className="h-4 w-4" />}</span><span className={protocolChecks.includes(action) ? "text-muted-foreground line-through" : "text-white"}>{action}</span></button>)}</div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

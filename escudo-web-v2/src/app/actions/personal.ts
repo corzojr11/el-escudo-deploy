@@ -4,7 +4,11 @@ import { deleteFromBackend, fetchFromBackend, postToBackend, putToBackend } from
 import type { PersonalEntry, PersonalEntryKind } from "@/lib/api/types";
 import { revalidatePath } from "next/cache";
 
-const PATH = "/bitacora";
+function revalidatePersonalViews() {
+  revalidatePath("/bitacora");
+  revalidatePath("/plan-semanal");
+  revalidatePath("/finanzas");
+}
 
 export async function getPersonalEntries(): Promise<PersonalEntry[]> {
   const result = await fetchFromBackend<{ entries: PersonalEntry[] }>("/api/v1/personal-entries");
@@ -19,7 +23,7 @@ export async function createPersonalEntry(data: {
   data?: Record<string, unknown>;
 }): Promise<PersonalEntry> {
   const result = await postToBackend<{ entry: PersonalEntry }>("/api/v1/personal-entries", data);
-  revalidatePath(PATH);
+  revalidatePersonalViews();
   return result.entry;
 }
 
@@ -28,11 +32,11 @@ export async function updatePersonalEntry(
   data: Pick<PersonalEntry, "title" | "content" | "data">
 ): Promise<PersonalEntry> {
   const result = await putToBackend<{ entry: PersonalEntry }>(`/api/v1/personal-entries/${id}`, data);
-  revalidatePath(PATH);
+  revalidatePersonalViews();
   return result.entry;
 }
 
 export async function deletePersonalEntry(id: string): Promise<void> {
   await deleteFromBackend(`/api/v1/personal-entries/${id}`);
-  revalidatePath(PATH);
+  revalidatePersonalViews();
 }
