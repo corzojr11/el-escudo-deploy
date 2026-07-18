@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, Flame, CalendarDays, Plus, Loader2 } from "lucide-react";
+import { CheckSquare, Flame, CalendarDays, Plus, Loader2, TrendingUp, Target } from "lucide-react";
 import { createHabit, toggleHabitToday } from "@/app/actions/habits";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
@@ -19,19 +19,35 @@ interface HabitosClientProps {
   habits: Habit[];
 }
 
-function getLast7Days(): Date[] {
+function bogotaToday(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts();
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
+function getRecentDays(count: number): Date[] {
   const days: Date[] = [];
-  const today = new Date();
-  for (let i = 6; i >= 0; i--) {
+  const [year, month, day] = bogotaToday().split("-").map(Number);
+  const today = new Date(Date.UTC(year, month - 1, day, 12));
+  for (let i = count - 1; i >= 0; i--) {
     const d = new Date(today);
-    d.setDate(today.getDate() - i);
+    d.setUTCDate(today.getUTCDate() - i);
     days.push(d);
   }
   return days;
 }
 
 function toISODate(date: Date): string {
-  return date.toISOString().split("T")[0];
+  return date.toISOString().slice(0, 10);
+}
+
+function dayLabel(date: Date, options: Intl.DateTimeFormatOptions): string {
+  return date.toLocaleDateString("es-CO", { ...options, timeZone: "UTC" });
 }
 
 function HabitCard({
@@ -40,13 +56,13 @@ function HabitCard({
   toggling,
 }: {
   habit: Habit;
-  onToggle: (habit: Habit, markDone: boolean) => void;
+  onToggle: (habit: Habit, date: string, markDone: boolean) => void;
   toggling: string | null;
 }) {
-  const last7Days = useMemo(() => getLast7Days(), []);
+  const last7Days = useMemo(() => getRecentDays(7), []);
   const completedDates = new Set(habit.completed_dates ?? []);
   const completedThisWeek = last7Days.filter((d) => completedDates.has(toISODate(d))).length;
-  const today = toISODate(new Date());
+  const today = bogotaToday();
   const doneToday = completedDates.has(today);
 
   return (
@@ -77,19 +93,23 @@ function HabitCard({
             {last7Days.map((day) => {
               const iso = toISODate(day);
               const completed = completedDates.has(iso);
-              const label = day.toLocaleDateString("es-CO", { weekday: "narrow" });
+              const label = dayLabel(day, { weekday: "narrow" });
               return (
                 <div key={iso} className="flex flex-col items-center gap-1" title={`${iso}: ${completed ? "Completado" : "Pendiente"}`}>
-                  <div
+                  <button
+                    type="button"
+                    aria-label={`${completed ? "Desmarcar" : "Completar"} ${habit.name} el ${iso}`}
+                    disabled={toggling === `${habit.id}:${iso}`}
+                    onClick={() => onToggle(habit, iso, !completed)}
                     className={cn(
-                      "flex aspect-square w-full items-center justify-center rounded-xl border text-xs font-medium",
+                      "flex aspect-square w-full items-center justify-center rounded-xl border text-xs font-medium transition-colors disabled:opacity-50",
                       completed
                         ? "border-escudo-green/30 bg-escudo-green/20 text-escudo-green"
-                        : "border-border bg-secondary/70 text-muted-foreground"
+                        : "border-border bg-secondary/70 text-muted-foreground hover:border-primary/50 hover:text-primary"
                     )}
                   >
-                    {completed && <CheckSquare className="h-3 w-3" />}
-                  </div>
+                    {toggling === `${habit.id}:${iso}` ? <Loader2 className="h-3 w-3 animate-spin" /> : completed && <CheckSquare className="h-3 w-3" />}
+                  </button>
                   <span className="text-[10px] uppercase text-muted-foreground">{label}</span>
                 </div>
               );
@@ -105,11 +125,11 @@ function HabitCard({
             type="button"
             size="sm"
             variant={doneToday ? "outline" : "default"}
-            disabled={toggling === habit.id}
-            onClick={() => onToggle(habit, !doneToday)}
+            disabled={toggling === `${habit.id}:${today}`}
+            onClick={() => onToggle(habit, today, !doneToday)}
             className={doneToday ? "border-escudo-green/30 bg-escudo-green/10 text-escudo-green" : ""}
           >
-            {toggling === habit.id ? (
+            {toggling === `${habit.id}:${today}` ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
             ) : (
               <CheckSquare className="mr-1 h-4 w-4" />
@@ -143,12 +163,12 @@ export function HabitosClient({ habits }: HabitosClientProps) {
     });
   }
 
-  async function handleToggle(habit: Habit, markDone: boolean) {
-    setToggling(habit.id);
+  async function handleToggle(habit: Habit, date: string, markDone: boolean) {
+    setToggling(`${habit.id}:${date}`);
     const formData = new FormData();
     formData.set("habit_id", habit.id);
     formData.set("mark_done", markDone ? "true" : "false");
-    formData.set("date", today);
+    formData.set("date", date);
     const result = await toggleHabitToday(null, formData);
     setToggling(null);
 
@@ -156,9 +176,22 @@ export function HabitosClient({ habits }: HabitosClientProps) {
     else setStatus({ error: result.error ?? "Error al actualizar el habito" });
   }
 
-  const today = toISODate(new Date());
+  const today = bogotaToday();
   const completedToday = habits.filter((h) => (h.completed_dates ?? []).includes(today)).length;
   const totalStreak = habits.reduce((sum, h) => sum + (h.streak ?? 0), 0);
+  const last7Days = useMemo(() => getRecentDays(7), []);
+  const previous7Days = useMemo(() => getRecentDays(14).slice(0, 7), []);
+  const expectedThisWeek = habits.reduce((total, habit) => total + (habit.frequency === "weekly" ? 1 : 7), 0);
+  const completedThisWeek = habits.reduce(
+    (total, habit) => total + last7Days.filter((day) => (habit.completed_dates ?? []).includes(toISODate(day))).length,
+    0
+  );
+  const completedPreviousWeek = habits.reduce(
+    (total, habit) => total + previous7Days.filter((day) => (habit.completed_dates ?? []).includes(toISODate(day))).length,
+    0
+  );
+  const focusHabit = habits.find((habit) => !(habit.completed_dates ?? []).includes(today));
+  const monthDays = useMemo(() => getRecentDays(30), []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -236,6 +269,58 @@ export function HabitosClient({ habits }: HabitosClientProps) {
               </CardHeader>
             </Card>
           </div>
+
+          {habits.length > 0 && (
+            <div className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+              <Card>
+                <CardHeader className="pb-3">
+                  <span className="hud-label text-accent">Ritmo mensual</span>
+                  <CardTitle className="flex items-center gap-2 text-base"><CalendarDays className="h-4 w-4 text-primary" /> Ultimos 30 dias</CardTitle>
+                  <CardDescription>Tu constancia real por dia. Cada bloque muestra habitos completados.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-[repeat(10,minmax(0,1fr))] gap-2 sm:grid-cols-[repeat(15,minmax(0,1fr))]">
+                    {monthDays.map((day) => {
+                      const iso = toISODate(day);
+                      const completed = habits.filter((habit) => (habit.completed_dates ?? []).includes(iso)).length;
+                      const level = completed === 0 ? "border-border bg-secondary/60 text-muted-foreground" : completed === habits.length ? "border-escudo-green/50 bg-escudo-green/25 text-escudo-green" : "border-primary/50 bg-primary/20 text-primary";
+                      return (
+                        <div key={iso} title={`${iso}: ${completed}/${habits.length} habitos`} className={cn("flex aspect-square items-center justify-center rounded-sm border text-[10px] font-medium", level)}>
+                          {dayLabel(day, { day: "numeric" })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <span className="hud-label text-escudo-gold">Revision semanal</span>
+                  <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-4 w-4 text-escudo-gold" /> Tu ritmo</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm">
+                  <div className="border-b border-border pb-3">
+                    <p className="text-2xl font-bold text-foreground">{completedThisWeek} <span className="text-sm font-normal text-muted-foreground">/ {expectedThisWeek}</span></p>
+                    <p className="mt-1 text-xs text-muted-foreground">registros previstos esta semana</p>
+                  </div>
+                  <p className="leading-6 text-muted-foreground">
+                    {completedThisWeek > completedPreviousWeek
+                      ? "Vas mejor que la semana pasada. Protege una accion pequena manana."
+                      : completedThisWeek === completedPreviousWeek
+                        ? "Mantienes el ritmo. Una accion concreta hoy puede inclinar la semana a tu favor."
+                        : "Esta semana ha sido mas pesada. Retoma solo un habito, no intentes arreglarlo todo hoy."}
+                  </p>
+                  {focusHabit && (
+                    <div className="flex items-start gap-2 border border-primary/35 bg-primary/10 p-3">
+                      <Target className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <p className="text-xs leading-5 text-foreground"><span className="font-semibold">Siguiente paso:</span> {focusHabit.name}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {habits.length === 0 ? (
             <EmptyState
