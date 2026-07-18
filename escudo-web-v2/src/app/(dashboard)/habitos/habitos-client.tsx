@@ -17,6 +17,7 @@ import type { Habit } from "@/lib/api/types";
 
 interface HabitosClientProps {
   habits: Habit[];
+  survivalMode: boolean;
 }
 
 function bogotaToday(): string {
@@ -142,7 +143,7 @@ function HabitCard({
   );
 }
 
-export function HabitosClient({ habits }: HabitosClientProps) {
+export function HabitosClient({ habits, survivalMode }: HabitosClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
@@ -206,6 +207,25 @@ export function HabitosClient({ habits }: HabitosClientProps) {
           </p>
         </div>
       </section>
+
+      {survivalMode && (
+        <section className="border border-primary/60 bg-card p-5">
+          <p className="hud-label text-primary">Modo supervivencia</p>
+          <div className="mt-2 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h3 className="font-heading text-lg font-bold text-foreground">Hoy basta con un habito base</h3>
+              <p className="mt-1 text-sm text-muted-foreground">No tienes que recuperar toda la semana hoy. Conserva una accion que te cuide.</p>
+            </div>
+            {focusHabit ? (
+              <button type="button" onClick={() => handleToggle(focusHabit, today, true)} disabled={toggling === `${focusHabit.id}:${today}`} className="border border-primary px-3 py-2 text-sm font-semibold text-primary hover:bg-primary hover:text-black disabled:opacity-50">
+                {toggling === `${focusHabit.id}:${today}` ? "Guardando..." : `Completar: ${focusHabit.name}`}
+              </button>
+            ) : (
+              <span className="text-sm text-escudo-green">Ya protegiste tus habitos de hoy.</span>
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">

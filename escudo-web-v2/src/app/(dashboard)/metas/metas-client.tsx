@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -124,6 +125,14 @@ function GoalCard({
             </span>
           )}
         </div>
+        {!isArchived && status !== "completed" && (
+          <Link
+            href={`/misiones?meta=${goal.id}`}
+            className="inline-flex border border-[#7C5DFF] px-3 py-2 font-mono text-[11px] uppercase text-[#d5ccff] transition-colors hover:bg-[#7C5DFF] hover:text-black"
+          >
+            Crear misión para esta meta
+          </Link>
+        )}
       </CardContent>
     </Card>
   );

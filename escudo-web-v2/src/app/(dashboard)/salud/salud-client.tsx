@@ -23,6 +23,15 @@ function todayInputValue() {
   return new Date().toISOString().split("T")[0];
 }
 
+function sleepSummary(bedTime: string, wakeTime: string) {
+  const toMinutes = (time: string) => {
+    const [hours = "0", minutes = "0"] = time.split(":");
+    return Number(hours) * 60 + Number(minutes);
+  };
+  const duration = (toMinutes(wakeTime) - toMinutes(bedTime) + 24 * 60) % (24 * 60);
+  return { cycles: Math.max(1, Math.round(duration / 90)), hours: (duration / 60).toFixed(1) };
+}
+
 interface SaludClientProps {
   weightLogs: WeightLog[];
   focusStatus: FocusStatus | null;
@@ -49,7 +58,6 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
   const [sleepDate, setSleepDate] = useState(todayInputValue());
   const [sleepBedTime, setSleepBedTime] = useState(String(bioSettings?.t_sleep_target || "22:30"));
   const [sleepWakeTime, setSleepWakeTime] = useState(String(bioSettings?.t_wake_target || "06:00"));
-  const [sleepCycles, setSleepCycles] = useState("5");
   const [sleepQuality, setSleepQuality] = useState("3");
   const [sleepNotes, setSleepNotes] = useState("");
   const [sleepStatus, setSleepStatus] = useState<{ success?: string; error?: string }>({});
@@ -63,6 +71,8 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
   const [exDate, setExDate] = useState(todayInputValue());
   const [exStatus, setExStatus] = useState<{ success?: string; error?: string }>({});
   const [exercising, setExercising] = useState(false);
+  const sleepInfo = sleepSummary(sleepBedTime, sleepWakeTime);
+  const latestExercise = exerciseLogs[0];
 
   const [completingRoutine, setCompletingRoutine] = useState(false);
 
@@ -544,6 +554,24 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
             {exercising && <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />}
             Registrar ejercicio
           </Button>
+          {latestExercise && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setExName(latestExercise.exercise_name);
+                setExWeight(String(latestExercise.weight));
+                setExReps(String(latestExercise.reps));
+                setExSets(String(latestExercise.sets));
+                setExRpe(String(latestExercise.rpe ?? 8));
+                setExDate(todayInputValue());
+                setExStatus({ success: `Datos de ${latestExercise.exercise_name} cargados. Revisa y registra cuando estés listo.` });
+              }}
+              className="ml-2 border-[#7C5DFF] text-[#B9A9FF] hover:bg-[#7C5DFF]/10 hover:text-white"
+            >
+              Repetir {latestExercise.exercise_name}
+            </Button>
+          )}
 
           <div className="border-t border-[#2A2A3C] pt-4">
             <RestTimer />
@@ -622,16 +650,9 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
                 className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white color-scheme-dark"
               />
             </div>
-            <div>
-              <Label className="text-gray-300">Ciclos</Label>
-              <Input
-                type="number"
-                value={sleepCycles}
-                onChange={(e) => setSleepCycles(e.target.value)}
-                min={1}
-                max={8}
-                className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
-              />
+            <div className="border border-[#2A2A3C] bg-[#0C0C0E] px-3 py-2">
+              <p className="text-xs text-gray-300">Ciclos calculados</p>
+              <p className="mt-1 font-mono text-sm text-[#FFD700]">{sleepInfo.cycles} ciclos · {sleepInfo.hours} h</p>
             </div>
             <div>
               <Label className="text-gray-300">Calidad (1-5)</Label>
@@ -663,7 +684,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
                   date: sleepDate,
                   bed_time: sleepBedTime,
                   wake_time: sleepWakeTime,
-                  cycles: parseInt(sleepCycles) || 5,
+                  cycles: sleepInfo.cycles,
                   quality_score: parseInt(sleepQuality) || 3,
                   notes: sleepNotes,
                 });

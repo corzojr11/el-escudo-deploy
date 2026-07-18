@@ -11,7 +11,7 @@ import { Check, Circle, Plus, Pencil, Trash2, Loader2, X } from "lucide-react";
 import { createMission, updateMission, deleteMission } from "@/app/actions/missions";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { FormStatus } from "@/components/dashboard/FormStatus";
-import type { Mission } from "@/lib/api/types";
+import type { Goal, Mission } from "@/lib/api/types";
 
 const FILTERS = [
   { key: "all", label: "Todas" },
@@ -27,7 +27,15 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: "border-gray-500/30 bg-gray-500/10 text-gray-400",
 };
 
-export function MisionesClient({ missions }: { missions: Mission[] }) {
+export function MisionesClient({
+  missions,
+  goals,
+  initialGoalId,
+}: {
+  missions: Mission[];
+  goals: Goal[];
+  initialGoalId?: string;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [filter, setFilter] = useState("all");
@@ -42,6 +50,8 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [goalId, setGoalId] = useState(initialGoalId || "");
+  const [progressIncrement, setProgressIncrement] = useState("");
 
   function isMissionToday(m: Mission): boolean {
     if (!m.scheduled_at) return false;
@@ -78,6 +88,8 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
     setDescription("");
     setPriority("medium");
     setScheduledAt("");
+    setGoalId("");
+    setProgressIncrement("");
     setEditingId(null);
     setCreating(false);
   }
@@ -92,6 +104,8 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
           description,
           priority,
           scheduled_at: scheduledAt || undefined,
+          goal_id: goalId || undefined,
+          progress_increment: goalId && progressIncrement ? Number(progressIncrement) : 0,
         });
         setStatus({ success: "Misión creada" });
         resetForm();
@@ -112,6 +126,8 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
           description,
           priority,
           scheduled_at: scheduledAt || undefined,
+          goal_id: goalId || null,
+          progress_increment: goalId && progressIncrement ? Number(progressIncrement) : 0,
         });
         setStatus({ success: "Misión actualizada" });
         resetForm();
@@ -150,8 +166,11 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
     const newStatus = mission.status === "completed" ? "active" : "completed";
     try {
       const result = await updateMission(mission.id, { status: newStatus });
-      if (result.new_achievement) {
-        setStatus({ success: `Logro desbloqueado: ${result.new_achievement}` });
+      const progressMessage = result.goal_progress
+        ? `Sumaste ${result.goal_progress.applied_increment} de progreso a tu meta.`
+        : undefined;
+      if (result.new_achievement || progressMessage) {
+        setStatus({ success: [progressMessage, result.new_achievement && `Logro desbloqueado: ${result.new_achievement}`].filter(Boolean).join(" ") });
       }
       router.refresh();
     } catch (e: unknown) {
@@ -166,6 +185,8 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
     setDescription(mission.description || "");
     setPriority(mission.priority || "medium");
     setScheduledAt(mission.scheduled_at?.substring(0, 10) || "");
+    setGoalId(mission.goal_id || "");
+    setProgressIncrement(mission.progress_increment ? String(mission.progress_increment) : "");
     setEditingId(mission.id);
     setCreating(true);
   }
@@ -183,7 +204,7 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
             </div>
             {!creating && (
               <Button
-                onClick={() => { resetForm(); setCreating(true); }}
+                onClick={() => { resetForm(); setGoalId(initialGoalId || ""); setCreating(true); }}
                 className="bg-[#7C5DFF] hover:bg-[#7C5DFF]/90 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -248,6 +269,37 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
                   </div>
                 </div>
               </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-gray-300">Meta vinculada</Label>
+                  <select
+                    value={goalId}
+                    onChange={(event) => setGoalId(event.target.value)}
+                    className="mt-1 h-10 w-full border border-[#2A2A3C] bg-[#0C0C0E] px-3 text-sm text-white"
+                  >
+                    <option value="">Sin meta vinculada</option>
+                    {goals.filter((goal) => goal.status !== "archived").map((goal) => (
+                      <option key={goal.id} value={goal.id}>{goal.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-gray-300">Progreso al completar</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={progressIncrement}
+                    onChange={(event) => setProgressIncrement(event.target.value)}
+                    disabled={!goalId}
+                    placeholder={goalId ? "Ej.: 1, 5 o 30" : "Elige una meta primero"}
+                    className="mt-1 border-[#2A2A3C] bg-[#0C0C0E] text-white"
+                  />
+                </div>
+              </div>
+              {goalId && (
+                <p className="text-xs text-gray-400">Al completar la misión, este avance se sumará una sola vez a la meta. Reabrirla no lo descuenta.</p>
+              )}
               <div className="flex gap-2">
                 <Button
                   onClick={() => (editingId ? handleUpdate(editingId) : handleCreate())}
@@ -317,6 +369,12 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
                       </p>
                       {mission.scheduled_at && (
                         <p className="text-[10px] text-gray-500">{mission.scheduled_at.substring(0, 10)}</p>
+                      )}
+                      {mission.goal_id && (
+                        <p className="text-[10px] text-[#B7A5FF]">
+                          Meta: {goals.find((goal) => goal.id === mission.goal_id)?.name || "Vinculada"}
+                          {mission.progress_increment ? ` · +${mission.progress_increment}` : ""}
+                        </p>
                       )}
                     </div>
                     {mission.priority && (

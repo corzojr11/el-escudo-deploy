@@ -80,6 +80,7 @@ interface FinanzasClientProps {
   personalEntries: import("@/lib/api/types").PersonalEntry[];
   loadErrors: string[];
   criticalError: boolean;
+  initialCaptureText: string;
 }
 
 const RANGE_LABELS: Record<FinanceRange, string> = {
@@ -165,6 +166,7 @@ export function FinanzasClient({
   personalEntries,
   loadErrors,
   criticalError,
+  initialCaptureText,
 }: FinanzasClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -213,7 +215,7 @@ export function FinanzasClient({
   const debtFormRef = useRef<HTMLFormElement>(null);
 
   const [draft, setDraft] = useState<DraftTX | null>(null);
-  const [captureText, setCaptureText] = useState("");
+  const [captureText, setCaptureText] = useState(initialCaptureText);
   const [captureStatus, setCaptureStatus] = useState<{ success?: string; error?: string }>({});
   const [parsing, setParsing] = useState(false);
   const [ocrStatus, setOcrStatus] = useState<{ success?: string; error?: string }>({});
@@ -985,7 +987,7 @@ export function FinanzasClient({
         </Card>
 
         <div className="flex flex-col gap-6 lg:col-span-2">
-          <Card>
+          <Card id="captura-rapida">
             <CardHeader>
               <span className="hud-label text-accent">Quick Capture</span>
               <CardTitle className="flex items-center gap-2 text-base">

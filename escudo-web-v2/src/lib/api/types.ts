@@ -43,6 +43,9 @@ export interface Mission {
   category?: string;
   priority?: "high" | "medium" | "low";
   scheduled_at?: string;
+  goal_id?: string;
+  progress_increment?: number;
+  progress_applied_at?: string;
   created_at?: string;
   updated_at?: string;
 }

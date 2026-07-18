@@ -65,6 +65,13 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
   const focusStreak = today.focus_streak ?? 0;
   const habits = today.habits_today ?? [];
   const habitsDone = habits.filter((h) => h.completed_today).length;
+  const survivalMode = plan?.shift_status?.status === "in_shift" || Boolean(plan?.sleep.fatigue_alert);
+  const survivalReason = plan?.shift_status?.status === "in_shift"
+    ? "Estas en turno. Hoy la meta es sostener lo importante, no llenar mas pendientes."
+    : plan?.sleep.fatigue_alert
+      ? "Tu descanso necesita prioridad. Reduce la carga y protege una accion posible."
+      : null;
+  const priorityHabit = habits.find((habit) => !habit.completed_today);
 
   const level = profile?.level ?? 0;
   const xp = profile?.xp ?? 0;
@@ -87,6 +94,17 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
       : missions.some((mission) => mission.status !== "completed")
         ? { label: "Elige una sola misión pendiente y ciérrala antes de abrir otra tarea.", href: "/misiones", cta: "Ver misiones" }
         : { label: "Tu día está despejado. Define el siguiente paso que más protege tu futuro.", href: "/metas", cta: "Definir meta" };
+
+  const visibleMissions = survivalMode
+    ? missions.filter((mission) => mission.status !== "completed").slice(0, 1)
+    : missions.slice(0, 3);
+  const focusMessage = survivalMode
+    ? "Reduce el alcance: una misión ligera y un hábito base son suficiente para hoy."
+    : missions.filter((mission) => mission.status !== "completed").length > 3
+      ? "Tienes varias misiones abiertas. Elige solo una antes de sumar otra."
+      : goals.length === 0
+        ? "Convierte una intención importante en una meta antes de abrir más tareas."
+        : "Tu siguiente avance está en cerrar una misión que ya sostiene una meta activa.";
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-8">
@@ -140,6 +158,25 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
           <Metric label="Misiones listas" value={missions.length} detail="pendientes y completadas" tone="text-[#bcaeff]" />
         </div>
       </section>
+
+      {survivalMode && survivalReason && (
+        <section className="border border-[#7C5DFF] bg-card p-5">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+            <div>
+              <p className="hud-label text-[#bcaeff]">Modo supervivencia</p>
+              <h3 className="mt-1 font-heading text-lg font-bold text-foreground">Hoy basta con sostener lo esencial</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{survivalReason}</p>
+            </div>
+            <a href={immediateAction.href} className="shrink-0 border border-[#7C5DFF] px-3 py-2 font-mono text-[11px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black">
+              {immediateAction.cta}
+            </a>
+          </div>
+          <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+            <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Una mision:</span> {visibleMissions[0]?.name || visibleMissions[0]?.title || "No agregues una nueva hasta cerrar lo urgente."}</p>
+            <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Un habito:</span> {priorityHabit?.name || "Tu descanso ya cuenta como prioridad."}</p>
+          </div>
+        </section>
+      )}
 
       {wellness ? <section className="grid gap-4 md:grid-cols-2">
         <div className="border border-border bg-card p-5">
@@ -371,7 +408,7 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
             <span className="font-mono text-[11px] text-muted-foreground">{completedMissions} / {missions.length} COMPLETADAS</span>
           </div>
           <div className="mt-1">
-            {missions.length ? missions.map((mission) => {
+            {visibleMissions.length ? visibleMissions.map((mission) => {
               const isDone = mission.status === "completed";
               const missionName = mission.name || mission.title || "Sin nombre";
               return (
@@ -391,9 +428,10 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
         </div>
         <div className="border border-border bg-card p-5">
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-[#7c5dff]" /><p className="hud-label">OMNI insights</p></div>
-          <p className="mt-5 font-heading text-lg font-semibold leading-snug text-foreground">Tu progreso se construye con una acción clara cada día.</p>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">OMNI puede ayudarte a convertir una meta en el siguiente paso concreto.</p>
-          <div className="mt-6 flex items-center gap-2 border-t border-border pt-4 text-xs text-[#ffd700]"><Zap className="h-4 w-4" /> Sistema listo para continuar</div>
+          <p className="mt-5 font-heading text-lg font-semibold leading-snug text-foreground">{focusMessage}</p>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">OMNI puede ayudarte a aterrizarlo sin convertirlo en otro formulario.</p>
+          <a href="/omni" className="mt-4 inline-flex border border-[#7C5DFF] px-3 py-2 font-mono text-[11px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black">Hablar con OMNI</a>
+          <div className="mt-4 flex items-center gap-2 border-t border-border pt-4 text-xs text-[#ffd700]"><Zap className="h-4 w-4" /> Sistema listo para continuar</div>
         </div>
       </section>
 

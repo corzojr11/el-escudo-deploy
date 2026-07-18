@@ -306,6 +306,26 @@ def test_no_nullslast_in_routers():
         )
 
 
+def test_mission_progress_payload_rejects_negative_values():
+    client = TestClient(app)
+    response = client.post("/api/v1/missions", json={
+        "name": "Avance invalido", "progress_increment": -1,
+    })
+    assert response.status_code == 422
+
+
+def test_migration_038_applies_goal_progress_once_and_is_guarded():
+    from pathlib import Path
+
+    migration = Path(__file__).resolve().parents[2] / "supabase" / "migrations" / "038_mission_goal_progress.sql"
+    sql = migration.read_text(encoding="utf-8")
+    assert "information_schema.tables" in sql
+    assert "progress_applied_at IS NULL" in sql
+    assert "FOR UPDATE" in sql
+    assert "apply_mission_goal_progress" in sql
+    assert "GRANT EXECUTE ON FUNCTION public.apply_mission_goal_progress" in sql
+
+
 def test_migration_037_covers_core_tables():
     from pathlib import Path
     repo_root = Path(__file__).resolve().parents[2]
@@ -385,10 +405,13 @@ def test_multi_fetch_failures_are_visible_not_fake_data():
 
     root = Path(__file__).resolve().parents[2] / "escudo-web-v2" / "src" / "app" / "(dashboard)"
     dashboard = (root / "dashboard-client.tsx").read_text(encoding="utf-8")
+    dashboard_page = (root / "page.tsx").read_text(encoding="utf-8")
     finances = (root / "finanzas" / "finanzas-client.tsx").read_text(encoding="utf-8")
     shifts = (root / "turnos" / "turnos-client.tsx").read_text(encoding="utf-8")
 
     assert "No se pudo cargar Wellness" in dashboard
-    assert "No se pudo cargar el plan del dia" in dashboard
+    # Plan and wellness are secondary data: their allSettled fallback keeps the
+    # dashboard useful instead of replacing it with an error screen.
+    assert "allSettled" in dashboard_page
     assert "criticalError" in finances and "No se pudieron cargar tus movimientos" in finances
     assert "criticalError" in shifts and "No se pudieron cargar tus turnos" in shifts

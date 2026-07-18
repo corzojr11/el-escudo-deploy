@@ -12,7 +12,13 @@ function valueOr<T>(r: PromiseSettledResult<T>, fallback: T): T {
   return r.status === "fulfilled" ? r.value : fallback;
 }
 
-export default async function FinanzasPage() {
+export default async function FinanzasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ captura?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const initialCaptureText = typeof params.captura === "string" ? params.captura.slice(0, 180) : "";
   const [tx, sm, mo, bu, fe, db, entries] = await Promise.allSettled([
     getFinances("all"),
     getFinanceSummary("all"),
@@ -52,6 +58,7 @@ export default async function FinanzasPage() {
       personalEntries={valueOr(entries, []) as PersonalEntry[]}
       loadErrors={loadErrors}
       criticalError={criticalError}
+      initialCaptureText={initialCaptureText}
     />
   );
 }

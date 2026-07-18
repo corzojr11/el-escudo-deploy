@@ -22,6 +22,8 @@ export async function createMission(data: {
   scheduled_at?: string;
   xp_reward?: number;
   category?: string;
+  goal_id?: string;
+  progress_increment?: number;
 }): Promise<{ mission: Mission }> {
   const result = await postToBackend<{ mission: Mission }>("/api/v1/missions", data);
   revalidatePath("/misiones");
@@ -33,8 +35,8 @@ export async function createMission(data: {
 export async function updateMission(
   missionId: string,
   data: Record<string, unknown>
-): Promise<{ mission: Mission; new_achievement?: string }> {
-  const result = await putToBackend<{ mission: Mission; new_achievement?: string }>(`/api/v1/missions/${missionId}`, data);
+): Promise<{ mission: Mission; new_achievement?: string; goal_progress?: { applied_increment: number; new_value: number } }> {
+  const result = await putToBackend<{ mission: Mission; new_achievement?: string; goal_progress?: { applied_increment: number; new_value: number } }>(`/api/v1/missions/${missionId}`, data);
   revalidatePath("/misiones");
   revalidatePath("/logros");
   revalidatePath("/");

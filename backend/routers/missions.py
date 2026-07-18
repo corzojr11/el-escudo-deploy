@@ -30,6 +30,8 @@ class MissionCreatePayload(BaseModel):
     category: Optional[str] = "general"
     priority: Optional[str] = Field(default="medium", pattern="^(high|medium|low)$")
     scheduled_at: Optional[str] = None
+    goal_id: Optional[str] = None
+    progress_increment: float = Field(default=0, ge=0, le=1_000_000)
 
 
 class MissionUpdatePayload(BaseModel):
@@ -40,10 +42,41 @@ class MissionUpdatePayload(BaseModel):
     category: Optional[str] = None
     priority: Optional[str] = Field(default=None, pattern="^(high|medium|low)$")
     scheduled_at: Optional[str] = None
+    goal_id: Optional[str] = None
+    progress_increment: Optional[float] = Field(default=None, ge=0, le=1_000_000)
 
 
 def _mission_row_from_payload(payload: MissionCreatePayload | MissionUpdatePayload) -> dict:
     return payload.model_dump(exclude_unset=True)
+
+
+async def _validate_goal_for_user(goal_id: str, user_id: str) -> None:
+    goal = await asyncio.to_thread(
+        lambda: supabase.table("goals")
+        .select("id")
+        .eq("id", goal_id)
+        .eq("user_id", user_id)
+        .neq("status", "archived")
+        .limit(1)
+        .execute()
+    )
+    if not goal.data:
+        raise ApiException(status_code=400, detail="La meta seleccionada no existe o esta archivada.")
+
+
+async def _apply_mission_goal_progress(mission_id: str, user_id: str) -> Optional[dict]:
+    """Apply a mission's confirmed progress exactly once through the database RPC."""
+    try:
+        result = await asyncio.to_thread(
+            lambda: supabase.rpc(
+                "apply_mission_goal_progress",
+                {"p_mission_id": mission_id, "p_user_id": user_id},
+            ).execute()
+        )
+        return result.data[0] if result.data else None
+    except Exception as exc:
+        logger.error("No se pudo aplicar el progreso de la mision %s: %s", mission_id, exc)
+        raise ApiException(status_code=500, detail="La mision se completo, pero no se pudo actualizar su meta.")
 
 
 @router.get("/api/v1/missions")
@@ -71,6 +104,9 @@ async def list_missions(
 
 @router.post("/api/v1/missions")
 async def create_mission(payload: MissionCreatePayload, user=Depends(get_current_user)):
+    if payload.goal_id:
+        await _validate_goal_for_user(payload.goal_id, user.id)
+
     row = {
         "user_id": user.id,
         "name": payload.name,
@@ -80,6 +116,8 @@ async def create_mission(payload: MissionCreatePayload, user=Depends(get_current
         "category": payload.category or "general",
         "priority": (payload.priority or "medium").lower(),
         "scheduled_at": payload.scheduled_at,
+        "goal_id": payload.goal_id,
+        "progress_increment": payload.progress_increment if payload.goal_id else 0,
     }
     res = await asyncio.to_thread(lambda: supabase.table("missions").insert(row).execute())
     if not res.data:
@@ -90,11 +128,17 @@ async def create_mission(payload: MissionCreatePayload, user=Depends(get_current
 @router.put("/api/v1/missions/{mission_id}")
 async def update_mission(mission_id: str, payload: MissionUpdatePayload, user=Depends(get_current_user)):
     check = await asyncio.to_thread(
-        lambda: supabase.table("missions").select("id").eq("id", mission_id).eq("user_id", user.id).limit(1).execute()
+        lambda: supabase.table("missions")
+        .select("id,status,goal_id,progress_increment,progress_applied_at")
+        .eq("id", mission_id)
+        .eq("user_id", user.id)
+        .limit(1)
+        .execute()
     )
     if not check.data:
         raise NotFoundException("Misión")
 
+    existing = check.data[0]
     update_data = _mission_row_from_payload(payload)
     if "priority" in update_data and update_data["priority"] is not None:
         update_data["priority"] = str(update_data["priority"]).lower()
@@ -108,7 +152,14 @@ async def update_mission(mission_id: str, payload: MissionUpdatePayload, user=De
         update_data["status"] = str(update_data["status"]).strip()
     if "scheduled_at" in update_data and update_data["scheduled_at"] is not None:
         update_data["scheduled_at"] = str(update_data["scheduled_at"]).strip() or None
-    update_data = {k: v for k, v in update_data.items() if v is not None}
+    if "goal_id" in update_data and update_data["goal_id"] is not None:
+        await _validate_goal_for_user(str(update_data["goal_id"]), user.id)
+    if existing.get("progress_applied_at") and ("goal_id" in update_data or "progress_increment" in update_data):
+        raise ApiException(
+            status_code=400,
+            detail="No puedes cambiar la meta o el avance de una mision que ya sumo progreso.",
+        )
+    update_data = {k: v for k, v in update_data.items() if v is not None or k == "goal_id"}
 
     if not update_data:
         raise ApiException(status_code=400, detail="No se recibieron cambios para la misión.")
@@ -117,8 +168,14 @@ async def update_mission(mission_id: str, payload: MissionUpdatePayload, user=De
         lambda: supabase.table("missions").update(update_data).eq("id", mission_id).eq("user_id", user.id).execute()
     )
 
+    goal_progress = None
+    # The RPC is idempotent. Retrying after a transient error can safely finish
+    # a progress update that was not confirmed on the mission yet.
+    if payload.status == "completed" and not existing.get("progress_applied_at"):
+        goal_progress = await _apply_mission_goal_progress(mission_id, user.id)
+
     new_achievement = None
-    if payload.status == "completed":
+    if payload.status == "completed" and existing.get("status") != "completed":
         try:
             completed = await asyncio.to_thread(
                 lambda: supabase.table("missions").select("id", count="exact").eq("user_id", user.id).eq("status", "completed").execute()
@@ -147,6 +204,8 @@ async def update_mission(mission_id: str, payload: MissionUpdatePayload, user=De
             logger.error(f"Error al desbloquear logro para {user.id}: {e}")
 
     result = {"mission": res.data[0]}
+    if goal_progress:
+        result["goal_progress"] = goal_progress
     if new_achievement:
         result["new_achievement"] = new_achievement
     return result

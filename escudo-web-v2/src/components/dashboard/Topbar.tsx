@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Bell, User, LogOut, Loader2 } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Bell, User, LogOut, Loader2, Sparkles, Wallet } from "lucide-react";
 import { MobileNav } from "./MobileNav";
 import { NAV_MODULES } from "@/lib/constants/navigation";
 import { createClient } from "@/lib/auth/client";
@@ -12,10 +12,12 @@ import { cn } from "@/lib/utils";
 
 export function Topbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const activeModule = NAV_MODULES.find((m) => m.href === pathname);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [quickExpense, setQuickExpense] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -35,6 +37,14 @@ export function Topbar() {
 
   const displayName = userName || userEmail;
 
+  function openQuickExpense(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const capture = quickExpense.trim();
+    if (!capture) return;
+    router.push(`/finanzas?captura=${encodeURIComponent(capture)}`);
+    setQuickExpense("");
+  }
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background px-4 md:px-6">
       <div className="flex items-center gap-3">
@@ -47,7 +57,34 @@ export function Topbar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
+        <Link
+          href="/omni"
+          className="inline-flex h-9 items-center gap-2 border border-[#7C5DFF] bg-secondary px-3 font-mono text-[11px] uppercase text-[#d5ccff] transition-colors hover:bg-[#7C5DFF] hover:text-black"
+          aria-label="Abrir OMNI"
+          title="Hablar con OMNI"
+        >
+          <Sparkles className="h-4 w-4" />
+          <span className="hidden xl:inline">OMNI</span>
+        </Link>
+        <form onSubmit={openQuickExpense} className="hidden items-center gap-2 lg:flex">
+          <Wallet className="h-4 w-4 text-[#FFD700]" aria-hidden="true" />
+          <input
+            value={quickExpense}
+            onChange={(event) => setQuickExpense(event.target.value)}
+            placeholder="Gasto rápido: almuerzo 18.000"
+            aria-label="Capturar gasto rápido"
+            className="h-9 w-56 border border-border bg-secondary px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-[#7C5DFF] xl:w-72"
+          />
+        </form>
+        <Link
+          href="/finanzas#captura-rapida"
+          className="inline-flex h-9 w-9 items-center justify-center border border-border bg-secondary text-[#FFD700] transition-colors hover:border-[#FFD700] lg:hidden"
+          aria-label="Registrar gasto rápido"
+          title="Registrar gasto rápido"
+        >
+          <Wallet className="h-4 w-4" />
+        </Link>
         <Bell className="hidden h-4 w-4 text-muted-foreground md:block" aria-hidden="true" />
         {loadingUser ? (
           <span className="flex h-9 w-9 items-center justify-center">
