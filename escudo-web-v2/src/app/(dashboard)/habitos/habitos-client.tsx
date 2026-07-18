@@ -7,9 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, Flame, CalendarDays, Plus, Loader2, TrendingUp, Target } from "lucide-react";
+import { BookOpen, CalendarDays, CheckSquare, Droplets, Dumbbell, Flame, Loader2, Moon, Plus, Target, TrendingUp } from "lucide-react";
 import { createHabit, toggleHabitToday } from "@/app/actions/habits";
-import { EmptyState } from "@/components/dashboard/EmptyState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { cn } from "@/lib/utils";
@@ -177,6 +176,20 @@ export function HabitosClient({ habits, survivalMode }: HabitosClientProps) {
     else setStatus({ error: result.error ?? "Error al actualizar el habito" });
   }
 
+  function selectStarterHabit(name: string, frequency: "daily" | "weekly" = "daily") {
+    const form = formRef.current;
+    if (!form) return;
+
+    const nameField = form.elements.namedItem("name");
+    const frequencyField = form.elements.namedItem("frequency");
+
+    if (nameField instanceof HTMLInputElement) {
+      nameField.value = name;
+      nameField.focus();
+    }
+    if (frequencyField instanceof HTMLSelectElement) frequencyField.value = frequency;
+  }
+
   const today = bogotaToday();
   const completedToday = habits.filter((h) => (h.completed_dates ?? []).includes(today)).length;
   const totalStreak = habits.reduce((sum, h) => sum + (h.streak ?? 0), 0);
@@ -227,14 +240,16 @@ export function HabitosClient({ habits, survivalMode }: HabitosClientProps) {
         </section>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-1">
           <CardHeader>
-            <span className="hud-label text-accent">Create Habit</span>
+            <span className="hud-label text-accent">PASO 1</span>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Plus className="h-5 w-5 text-escudo-gold" /> Nuevo habito
+              <Plus className="h-5 w-5 text-escudo-gold" /> {habits.length === 0 ? "Define tu primer hábito" : "Nuevo hábito"}
             </CardTitle>
-            <CardDescription>Agrega una rutina y empieza a marcarla hoy</CardDescription>
+            <CardDescription>
+              {habits.length === 0 ? "Elige una base a la derecha o escribe la tuya." : "Agrega una rutina y empieza a marcarla hoy."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form ref={formRef} action={handleCreateHabit} className="flex flex-col gap-4">
@@ -255,12 +270,12 @@ export function HabitosClient({ habits, survivalMode }: HabitosClientProps) {
                 </select>
               </div>
               <FormStatus {...status} />
-              <SubmitButton className="w-full">Crear habito</SubmitButton>
+              <SubmitButton className="w-full">Crear hábito</SubmitButton>
             </form>
           </CardContent>
         </Card>
 
-        <div className="flex flex-col gap-6 lg:col-span-2">
+        <div className="flex flex-col gap-6 xl:col-span-2">
           <div className="grid gap-4 sm:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
@@ -343,10 +358,41 @@ export function HabitosClient({ habits, survivalMode }: HabitosClientProps) {
           )}
 
           {habits.length === 0 ? (
-            <EmptyState
-              title="Aún no tienes hábitos"
-              message="Crea tu primer habito para empezar a registrar tu constancia."
-            />
+            <Card>
+              <CardHeader className="pb-3">
+                <span className="hud-label text-primary">PRIMER CICLO</span>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Target className="h-5 w-5 text-primary" /> Elige una base para hoy
+                </CardTitle>
+                <CardDescription>Empieza con un hábito pequeño y repetible. Puedes cambiarlo cuando tu rutina lo necesite.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Button type="button" variant="outline" onClick={() => selectStarterHabit("Tomar 2 L de agua")} className="h-auto justify-start gap-3 px-4 py-4 text-left">
+                    <Droplets className="h-5 w-5 shrink-0 text-escudo-cyan" />
+                    <span><span className="block font-semibold">Tomar agua</span><span className="block text-xs font-normal text-muted-foreground">Una acción fácil para empezar hoy.</span></span>
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => selectStarterHabit("Leer 10 minutos")} className="h-auto justify-start gap-3 px-4 py-4 text-left">
+                    <BookOpen className="h-5 w-5 shrink-0 text-escudo-gold" />
+                    <span><span className="block font-semibold">Leer 10 minutos</span><span className="block text-xs font-normal text-muted-foreground">Un avance breve antes de cerrar el día.</span></span>
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => selectStarterHabit("Entrenar 30 minutos", "weekly")} className="h-auto justify-start gap-3 px-4 py-4 text-left">
+                    <Dumbbell className="h-5 w-5 shrink-0 text-escudo-green" />
+                    <span><span className="block font-semibold">Entrenar con constancia</span><span className="block text-xs font-normal text-muted-foreground">Tres sesiones semanales también cuentan.</span></span>
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => selectStarterHabit("Dormir a mi hora objetivo")} className="h-auto justify-start gap-3 px-4 py-4 text-left">
+                    <Moon className="h-5 w-5 shrink-0 text-primary" />
+                    <span><span className="block font-semibold">Cuidar mi descanso</span><span className="block text-xs font-normal text-muted-foreground">Protege la hora que te permite recuperar energía.</span></span>
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 border-t border-border pt-4 text-sm sm:grid-cols-3">
+                  <div><span className="hud-label text-muted-foreground">01</span><p className="mt-1 font-semibold text-foreground">Elige uno</p><p className="mt-1 text-xs leading-5 text-muted-foreground">No necesitas corregir toda tu vida esta semana.</p></div>
+                  <div><span className="hud-label text-muted-foreground">02</span><p className="mt-1 font-semibold text-foreground">Márcalo hoy</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Cada registro protege la racha y hace visible el avance.</p></div>
+                  <div><span className="hud-label text-muted-foreground">03</span><p className="mt-1 font-semibold text-foreground">Revisa el ritmo</p><p className="mt-1 text-xs leading-5 text-muted-foreground">La semana te mostrará qué vale la pena mantener o ajustar.</p></div>
+                </div>
+              </CardContent>
+            </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {habits.map((habit) => (
