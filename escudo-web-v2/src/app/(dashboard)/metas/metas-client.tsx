@@ -206,12 +206,28 @@ export function MetasClient({ goals }: MetasClientProps) {
     });
   }
 
+  function selectStarterGoal(name: string, target: string, unit: string, description: string) {
+    setShowCreate(true);
+
+    requestAnimationFrame(() => {
+      const form = createFormRef.current;
+      if (!form) return;
+
+      const fields = { name, target_value: target, unit, description };
+      for (const [fieldName, value] of Object.entries(fields)) {
+        const field = form.elements.namedItem(fieldName);
+        if (field instanceof HTMLInputElement) field.value = value;
+      }
+      form.querySelector<HTMLInputElement>("[name='name']")?.focus();
+    });
+  }
+
   const activeGoals = goals.filter((g) => g.status === "active" || !g.status);
   const completedGoals = goals.filter((g) => g.status === "completed");
   const archivedGoals = goals.filter((g) => g.status === "archived");
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+    <div className="flex w-full flex-col gap-5">
       <section className="panel-neon rounded-[28px] p-5 md:p-6">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
@@ -250,14 +266,24 @@ export function MetasClient({ goals }: MetasClientProps) {
           </div>
 
           {goals.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="flex min-h-56 flex-col items-center justify-center gap-3 p-8 text-center">
-                <Target className="h-8 w-8 text-escudo-gold" />
-                <div>
-                  <h4 className="font-semibold">Empieza con una meta simple</h4>
-                  <p className="mt-1 max-w-md text-sm text-muted-foreground">Por ejemplo: subir 3 kg, leer 2 libros o ahorrar para una deuda. Después podrás registrar cada avance.</p>
+            <Card>
+              <CardContent className="p-5 md:p-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="flex gap-3">
+                    <Target className="mt-0.5 h-5 w-5 shrink-0 text-escudo-gold" />
+                    <div>
+                      <h4 className="font-semibold">Elige una meta para empezar</h4>
+                      <p className="mt-1 text-sm text-muted-foreground">Selecciona una idea y la prepararemos en el formulario. Después podrás ajustarla a tu manera.</p>
+                    </div>
+                  </div>
+                  {!showCreate && <Button type="button" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Crear desde cero</Button>}
                 </div>
-                {!showCreate && <Button type="button" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Crear mi primera meta</Button>}
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <Button type="button" variant="outline" className="h-auto justify-start whitespace-normal px-4 py-3 text-left" onClick={() => selectStarterGoal("Subir 3 kg", "3", "kg", "Ganar peso de forma gradual")}>Subir de peso</Button>
+                  <Button type="button" variant="outline" className="h-auto justify-start whitespace-normal px-4 py-3 text-left" onClick={() => selectStarterGoal("Reducir una deuda", "500000", "COP", "Avanzar con un pago concreto")}>Salir de deudas</Button>
+                  <Button type="button" variant="outline" className="h-auto justify-start whitespace-normal px-4 py-3 text-left" onClick={() => selectStarterGoal("Leer 2 libros", "2", "libros", "Construir una rutina de lectura")}>Leer más</Button>
+                  <Button type="button" variant="outline" className="h-auto justify-start whitespace-normal px-4 py-3 text-left" onClick={() => selectStarterGoal("Entrenar 12 veces", "12", "sesiones", "Mantener constancia este mes")}>Entrenar con constancia</Button>
+                </div>
               </CardContent>
             </Card>
           ) : (
