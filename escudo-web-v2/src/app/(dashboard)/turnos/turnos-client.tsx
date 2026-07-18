@@ -18,6 +18,7 @@ import {
   Moon,
   AlarmClock,
   CircleAlert,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createShift, updateShift, deleteShift } from "@/app/actions/turnos";
@@ -38,6 +39,31 @@ function sortByDay(shifts: Shift[]): Shift[] {
 function formatRemaining(hours: number): string {
   if (hours < 1) return `${Math.round(hours * 60)} min`;
   return `${hours.toFixed(1)}h`;
+}
+
+const CYCLE_MINUTES = 90;
+const SLEEP_LATENCY_MINUTES = 15;
+const CYCLE_OPTIONS = [4, 5, 6];
+
+function bogotaMinutesNow(): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Bogota",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const value = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  return value("hour") * 60 + value("minute");
+}
+
+function timeToMinutes(value: string): number {
+  const [hours = "0", minutes = "0"] = value.split(":");
+  return Number(hours) * 60 + Number(minutes);
+}
+
+function formatClock(minutes: number): string {
+  const normalized = ((minutes % 1440) + 1440) % 1440;
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
 }
 
 interface TurnosClientProps {
@@ -62,6 +88,8 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
   const [commuteMin, setCommuteMin] = useState(String(bioSettings?.commute_minutes || 35));
   const [savingBio, setSavingBio] = useState(false);
   const [bioMsg, setBioMsg] = useState<{ success?: string; error?: string }>({});
+  const [nowMinutes, setNowMinutes] = useState(bogotaMinutesNow);
+  const [targetWakeTime, setTargetWakeTime] = useState(plan?.sleep.wake_target ?? wakeTime);
 
   async function handleCreate(formData: FormData) {
     setFormStatus({});
@@ -133,6 +161,14 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
 
   const sleepWindows = plan?.sleep.windows ?? [];
   const recommendedCycles = plan?.sleep.recommended_cycles ?? null;
+  const sleepNowWindows = CYCLE_OPTIONS.map((cycles) => ({
+    cycles,
+    wakeTime: formatClock(nowMinutes + SLEEP_LATENCY_MINUTES + cycles * CYCLE_MINUTES),
+  }));
+  const wakeTargetWindows = CYCLE_OPTIONS.map((cycles) => ({
+    cycles,
+    sleepTime: formatClock(timeToMinutes(targetWakeTime) - SLEEP_LATENCY_MINUTES - cycles * CYCLE_MINUTES),
+  }));
   const openBioSettings = () => document.getElementById("ajustes-biologicos")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const openShiftCreator = () => {
     setCreating(true);
@@ -235,6 +271,50 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
           ) : (
             <p className="text-sm text-muted-foreground">Configura tu hora de despertar y traslado para calcular tus ciclos de sueño.</p>
           )}
+          <div className="grid gap-3 border-t border-border/70 pt-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-border/70 bg-background/35 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-foreground">Si te acuestas ahora</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Hora real de Bogotá: {formatClock(nowMinutes)}. Incluye 15 min para conciliar el sueño.</p>
+                </div>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setNowMinutes(bogotaMinutesNow())} aria-label="Actualizar hora actual">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {sleepNowWindows.map((window) => (
+                  <div key={window.cycles} className="rounded-lg border border-border/70 p-2 text-center">
+                    <p className="text-xs text-muted-foreground">{window.cycles} ciclos</p>
+                    <p className="mt-1 text-base font-bold text-foreground">{window.wakeTime}</p>
+                    {window.cycles === 5 && <p className="mt-1 text-[10px] font-medium text-escudo-gold">Equilibrado</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-background/35 p-4">
+              <label className="font-medium text-foreground" htmlFor="wake-target-calculator">Si quieres despertar a</label>
+              <div className="mt-2 flex items-center gap-3">
+                <input
+                  id="wake-target-calculator"
+                  type="time"
+                  value={targetWakeTime}
+                  onChange={(event) => setTargetWakeTime(event.target.value)}
+                  className="h-10 rounded-lg border border-border/80 bg-input/80 px-3 text-sm text-foreground outline-none focus-visible:border-accent/60"
+                />
+                <span className="text-xs text-muted-foreground">acostarte a:</span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {wakeTargetWindows.map((window) => (
+                  <div key={window.cycles} className="rounded-lg border border-border/70 p-2 text-center">
+                    <p className="text-xs text-muted-foreground">{window.cycles} ciclos</p>
+                    <p className="mt-1 text-base font-bold text-foreground">{window.sleepTime}</p>
+                    {window.cycles === 5 && <p className="mt-1 text-[10px] font-medium text-escudo-gold">Equilibrado</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
