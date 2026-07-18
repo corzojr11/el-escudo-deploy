@@ -267,26 +267,29 @@ export default function OmniPage() {
   const isBusy = sending || confirming || cancelling;
 
   return (
-    <div className="flex flex-col gap-4">
-      <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
-        <div className="relative flex items-center gap-3">
-          <span className="relative inline-flex">
-            <Zap className="h-7 w-7 text-escudo-green" />
-            <span className="animate-pulse-led absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-escudo-green" />
-          </span>
-          <div>
-            <span className="hud-label text-escudo-green">Navir Online</span>
-            <h2 className="font-heading text-3xl font-black tracking-[0.12em] text-glow text-foreground">
-              &gt; OMNI_
-            </h2>
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 pb-4">
+      <section className="border border-border bg-card px-4 py-4 sm:px-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center border border-primary/60 bg-primary/15 text-primary">
+              <Zap className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="hud-label text-accent">Asistente personal</p>
+              <h2 className="font-heading text-2xl font-bold tracking-[0.08em] text-foreground">OMNI</h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">Ordena lo que te esta pasando y define un siguiente paso.</p>
+            </div>
           </div>
+          <span className="hidden shrink-0 border border-escudo-green/35 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-escudo-green sm:inline-block">
+            Contexto activo
+          </span>
         </div>
       </section>
 
       {(patterns?.suggestion || patterns?.patterns[0]) && (
-        <Card>
+        <Card className="border-l-2 border-l-primary">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-            <div>
+            <div className="min-w-0">
               <p className="hud-label text-escudo-green">Sugerencia personal</p>
               <p className="mt-1 text-sm text-foreground">{patterns.suggestion || patterns.patterns[0].insight}</p>
             </div>
@@ -307,17 +310,17 @@ export default function OmniPage() {
         </Card>
       )}
 
-      <Card className="flex h-[calc(100dvh-17rem)] min-h-[34rem] flex-col overflow-hidden">
+      <Card className="flex h-[calc(100dvh-14rem)] min-h-[34rem] max-h-[46rem] flex-col overflow-hidden">
         <CardContent className="flex flex-1 flex-col gap-0 p-0">
-          <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-2">
-              <MessageCircle className="h-4 w-4 text-accent" />
+              <MessageCircle className="h-4 w-4 text-primary" />
               <div>
-                <p className="text-sm font-semibold text-foreground">Conversacion actual</p>
-                <p className="text-xs text-muted-foreground">Escribe como hablas. OMNI respondera a la situacion completa.</p>
+                <p className="text-sm font-semibold text-foreground">Conversacion</p>
+                <p className="text-xs text-muted-foreground">Una respuesta para toda tu situacion.</p>
               </div>
             </div>
-            <span className="hud-label text-escudo-green">Activo</span>
+            <span className="hud-label text-primary">OMNI // activo</span>
           </div>
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
             {loading ? (
@@ -330,17 +333,20 @@ export default function OmniPage() {
                 <p className="text-sm text-muted-foreground">{error}</p>
               </div>
             ) : messages.length === 0 && !pendingProposal ? (
-              <div className="flex flex-col items-center gap-3 py-12 text-center">
-                <Sparkles className="h-10 w-10 text-escudo-green/40" />
-                <p className="text-sm text-muted-foreground">
-                  OMNI esta listo. Escribe un comando para empezar.
-                </p>
-                <div className="flex flex-wrap justify-center gap-2 pt-2">
+              <div className="mx-auto flex max-w-xl flex-col items-center gap-3 py-12 text-center">
+                <span className="grid h-12 w-12 place-items-center border border-primary/50 bg-primary/10 text-primary">
+                  <Sparkles className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="font-heading text-lg font-semibold text-foreground">Empieza por lo que te pesa hoy</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">Puedes hablar de tu trabajo, dinero, rutina o una idea sin convertirlo en un formulario.</p>
+                </div>
+                <div className="grid w-full grid-cols-1 gap-2 pt-2 sm:grid-cols-2">
                   {QUICK_PROMPTS.map((hint) => (
                     <button
                       key={hint}
                       type="button"
-                      className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-escudo-green/30 hover:text-escudo-green"
+                      className="border border-border bg-background px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:border-primary/60 hover:bg-primary/10 hover:text-foreground"
                       onClick={() => {
                         inputRef.current = hint;
                         setInput(hint);
@@ -355,19 +361,24 @@ export default function OmniPage() {
             ) : (
               <div className="flex flex-col gap-4">
                 {messages.map((msg) => (
-                  <div key={msg.id} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                  <div key={msg.id} className={cn("flex items-start gap-2.5", msg.role === "user" ? "justify-end" : "justify-start")}>
+                    {msg.role === "assistant" && (
+                      <span className="mt-1 grid h-8 w-8 shrink-0 place-items-center border border-primary/45 bg-primary/10 text-primary">
+                        <Zap className="h-3.5 w-3.5" />
+                      </span>
+                    )}
                     <div
                       className={cn(
-                        "max-w-[min(100%,46rem)] rounded-2xl border px-4 py-3 text-sm",
+                        "max-w-[min(100%,42rem)] border px-4 py-3 text-sm shadow-none",
                         msg.role === "user"
-                          ? "max-w-[min(100%,38rem)] border-primary/40 bg-primary/16 text-foreground"
+                          ? "max-w-[min(100%,38rem)] border-primary/60 bg-primary/15 text-foreground"
                           : msg.isError
                             ? "border-escudo-red/20 bg-escudo-red/10 text-escudo-red"
-                            : "border-accent/15 bg-background/45 text-foreground"
+                            : "border-border bg-card text-foreground"
                       )}
                     >
                       {msg.role === "assistant" && (
-                        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-accent">
+                        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-primary">
                           <Zap className="h-3.5 w-3.5" /> NAVIR
                         </div>
                       )}
@@ -394,6 +405,11 @@ export default function OmniPage() {
                         )}
                       </div>
                     </div>
+                    {msg.role === "user" && (
+                      <span className="mt-1 grid h-8 w-8 shrink-0 place-items-center border border-primary/60 bg-primary text-primary-foreground">
+                        <UserRound className="h-3.5 w-3.5" />
+                      </span>
+                    )}
                   </div>
                 ))}
 
@@ -473,8 +489,8 @@ export default function OmniPage() {
             )}
           </div>
 
-          <div className="border-t border-border/60 bg-background/50 px-4 py-3">
-            <div className="flex items-center gap-2">
+          <div className="border-t border-border bg-card px-4 py-3">
+            <div className="flex items-end gap-2">
               <textarea
                 id="omni-command"
                 rows={1}
@@ -493,8 +509,8 @@ export default function OmniPage() {
                 placeholder="Cuentame que esta pasando o pide una accion concreta..."
                 disabled={isBusy}
                 className={cn(
-                  "min-h-11 max-h-32 flex-1 resize-y rounded-xl border border-border/80 bg-input/80 px-4 py-2.5 text-sm leading-6 text-foreground placeholder:text-muted-foreground outline-none transition-all",
-                  "focus:border-escudo-green/50 focus:ring-3 focus:ring-escudo-green/20 disabled:opacity-50"
+                  "min-h-12 max-h-32 flex-1 resize-y border border-border bg-background px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground outline-none transition-colors",
+                  "focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
                 )}
               />
               <Button
@@ -502,7 +518,7 @@ export default function OmniPage() {
                 disabled={!input.trim() || isBusy}
                 size="icon"
                 aria-label="Enviar mensaje a OMNI"
-                className="h-11 w-11 shrink-0"
+                className="h-12 w-12 shrink-0 rounded-none"
               >
                 <Send className="h-4 w-4" />
               </Button>
