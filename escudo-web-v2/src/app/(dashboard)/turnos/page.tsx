@@ -1,5 +1,5 @@
 import { getShifts, getCurrentStatus } from "@/app/actions/turnos";
-import { getBioSettings } from "@/app/actions/plan";
+import { getBioSettings, getPlanDiario } from "@/app/actions/plan";
 import { TurnosClient } from "./turnos-client";
 
 export const metadata = {
@@ -11,10 +11,11 @@ function valueOr<T>(r: PromiseSettledResult<T>, fallback: T): T {
 }
 
 export default async function TurnosPage() {
-  const [s, cs, b] = await Promise.allSettled([
+  const [s, cs, b, planResult] = await Promise.allSettled([
     getShifts(),
     getCurrentStatus(),
     getBioSettings(),
+    getPlanDiario(),
   ]);
   const criticalError = s.status === "rejected";
   const loadErrors = [
@@ -25,9 +26,10 @@ export default async function TurnosPage() {
   return (
     <TurnosClient
       shifts={valueOr(s, [])}
-      currentStatus={valueOr(cs, { status: "free", message_short: "Estado actual no disponible." })}
-      bioSettings={valueOr(b, { bio_settings: null }).bio_settings}
-      loadErrors={loadErrors}
+    currentStatus={valueOr(cs, { status: "free", message_short: "Estado actual no disponible." })}
+    bioSettings={valueOr(b, { bio_settings: null }).bio_settings}
+    plan={planResult.status === "fulfilled" ? planResult.value : null}
+    loadErrors={loadErrors}
       criticalError={criticalError}
     />
   );

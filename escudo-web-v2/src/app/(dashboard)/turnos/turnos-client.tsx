@@ -15,6 +15,9 @@ import {
   Square,
   Pencil,
   Route,
+  Moon,
+  AlarmClock,
+  CircleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createShift, updateShift, deleteShift } from "@/app/actions/turnos";
@@ -23,7 +26,7 @@ import { FormStatus } from "@/components/dashboard/FormStatus";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { ErrorState } from "@/components/dashboard/ErrorState";
-import type { Shift, CurrentStatusResponse } from "@/lib/api/types";
+import type { Shift, CurrentStatusResponse, PlanDiarioResponse } from "@/lib/api/types";
 
 const DAYS = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
 const DAY_ORDER: Record<string, number> = Object.fromEntries(DAYS.map((d, i) => [d, i]));
@@ -41,11 +44,12 @@ interface TurnosClientProps {
   shifts: Shift[];
   currentStatus: CurrentStatusResponse;
   bioSettings: Record<string, unknown> | null;
+  plan: PlanDiarioResponse | null;
   loadErrors: string[];
   criticalError: boolean;
 }
 
-export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, criticalError }: TurnosClientProps) {
+export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErrors, criticalError }: TurnosClientProps) {
   const router = useRouter();
   const [shiftList, setShiftList] = useState<Shift[]>(sortByDay(shifts));
   const [creating, setCreating] = useState(false);
@@ -126,6 +130,10 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, c
           message: "No tienes un turno próximo registrado. Usa este espacio para una misión, una rutina o recuperación.",
         };
 
+  const sleepWindows = plan?.sleep.windows ?? [];
+  const recommendedCycles = plan?.sleep.recommended_cycles ?? null;
+  const openBioSettings = () => document.getElementById("ajustes-biologicos")?.scrollIntoView({ behavior: "smooth", block: "start" });
+
   if (criticalError) {
     return <ErrorState title="No se pudieron cargar tus turnos" message="No mostraremos una agenda vacia como si fuera tu horario real. Reintenta para cargar Turnos." onRetry={() => router.refresh()} />;
   }
@@ -150,6 +158,61 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, c
           </p>
         </div>
       </section>
+
+      <Card className="border-accent/35">
+        <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
+          <div>
+            <span className="hud-label text-accent">Sleep Protocol</span>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Moon className="h-5 w-5 text-accent" /> Tus ciclos de sueño
+            </CardTitle>
+            <CardDescription>Hora de acostarte para despertar a tiempo y respetar tu traslado.</CardDescription>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={openBioSettings}>
+            Ajustar horario
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {sleepWindows.length > 0 ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {sleepWindows.map((window) => {
+                  const recommended = window.cycles === recommendedCycles;
+                  return (
+                    <div
+                      key={window.cycles}
+                      className={cn(
+                        "rounded-xl border px-4 py-3",
+                        recommended ? "border-escudo-gold/55 bg-escudo-gold/5" : "border-border/70 bg-background/35",
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-foreground">{window.cycles} ciclos</span>
+                        {recommended && <Badge className="bg-escudo-gold/15 text-escudo-gold">Sugerido</Badge>}
+                      </div>
+                      <p className="mt-2 text-xl font-bold text-foreground">{window.sleep_time}</p>
+                      <p className="text-xs text-muted-foreground">Acostarte para despertar a las {window.wake_time}</p>
+                      <p className="mt-1 text-xs text-accent">{window.hours.toFixed(1)} horas de descanso</p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><AlarmClock className="h-3.5 w-3.5 text-accent" /> Incluye 15 min para conciliar el sueño</span>
+                <span className="flex items-center gap-1.5"><Route className="h-3.5 w-3.5 text-accent" /> Traslado: {plan?.sleep.commute_minutes ?? commuteMin} min</span>
+              </div>
+              {plan?.sleep.fatigue_alert && (
+                <p className="flex items-start gap-2 rounded-lg border border-escudo-gold/25 bg-escudo-gold/5 p-3 text-xs leading-5 text-muted-foreground">
+                  <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-escudo-gold" />
+                  {plan.sleep.fatigue_alert}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Configura tu hora de despertar y traslado para calcular tus ciclos de sueño.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className={cn(inShift && "border-escudo-green/30")}>
         <CardHeader className="pb-3">
@@ -195,7 +258,15 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, c
               </span>
             </div>
           ) : (
-            <EmptyState title="Sin turnos registrados" message="No tienes turnos registrados. Agrega tu primer turno abajo." />
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/35 p-4">
+              <div>
+                <p className="font-medium text-foreground">Aún no has registrado turnos</p>
+                <p className="text-sm text-muted-foreground">Agrega tu horario para que el plan de sueño y tus bloques libres se adapten a tu vida real.</p>
+              </div>
+              <Button type="button" size="sm" onClick={() => setCreating(true)}>
+                <Plus className="mr-1.5 h-4 w-4" /> Agregar turno
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -366,7 +437,7 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, c
         </CardContent>
       </Card>
 
-      <Card className="border-[#2A2A3C] bg-[#17171A]">
+      <Card id="ajustes-biologicos" className="border-[#2A2A3C] bg-[#17171A]">
         <CardHeader>
           <CardTitle className="text-[#FFD700]">Ajustes biologicos</CardTitle>
           <CardDescription>Configura tu ritmo circadiano y traslado</CardDescription>
