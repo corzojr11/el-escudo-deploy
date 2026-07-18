@@ -120,6 +120,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
   );
 
   const [editingLog, setEditingLog] = useState<WeightLog | null>(null);
+  const [activePanel, setActivePanel] = useState<"weight" | "training" | "sleep" | null>(null);
 
   async function handleSubmit(formData: FormData) {
     setStatus({});
@@ -194,7 +195,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {loadErrors.length > 0 && (
         <ErrorState
           title="Algunos datos de Salud no se pudieron cargar"
@@ -202,14 +203,17 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
           onRetry={() => router.refresh()}
         />
       )}
-      <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
-        <div className="relative flex flex-col gap-3">
-          <span className="hud-label text-escudo-red">Vital Monitor</span>
-          <h2 className="font-heading text-3xl font-black tracking-[0.1em] text-glow text-foreground md:text-4xl">
-            SALUD
-          </h2>
-          <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-            Registra peso, visualiza tendencia y sigue tu estado de enfoque en una sola cabina.
+      <section className="border border-border bg-card p-5 md:p-6">
+        <span className="hud-label text-escudo-gold">Protocolo de bienestar</span>
+        <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="font-heading text-3xl font-black tracking-[0.08em] text-foreground md:text-4xl">SALUD</h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+              Mira lo importante, registra lo que pasó y deja que tu plan se adapte a tu día.
+            </p>
+          </div>
+          <p className="max-w-sm border-l-2 border-escudo-gold pl-3 text-xs text-muted-foreground">
+            Empieza con una sola acción: peso, descanso o entrenamiento. No necesitas completar todo ahora.
           </p>
         </div>
       </section>
@@ -351,8 +355,48 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      <section className="border border-border bg-card p-4 md:p-5">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <span className="hud-label text-escudo-cyan">Registro rápido</span>
+            <h3 className="mt-1 text-lg font-semibold text-foreground">¿Qué quieres revisar hoy?</h3>
+          </div>
+          <p className="text-xs text-muted-foreground">Abre solo el panel que necesitas.</p>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => setActivePanel(activePanel === "weight" ? null : "weight")}
+            className={`border p-4 text-left transition-colors ${activePanel === "weight" ? "border-escudo-cyan bg-escudo-cyan/5" : "border-border hover:border-escudo-cyan/60"}`}
+          >
+            <Heart className="h-5 w-5 text-escudo-cyan" />
+            <p className="mt-3 text-sm font-semibold text-foreground">Registrar peso</p>
+            <p className="mt-1 text-xs text-muted-foreground">{latestLog ? `Último: ${latestLog.weight} kg` : "Crea tu primer punto de referencia."}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePanel(activePanel === "sleep" ? null : "sleep")}
+            className={`border p-4 text-left transition-colors ${activePanel === "sleep" ? "border-escudo-gold bg-escudo-gold/5" : "border-border hover:border-escudo-gold/60"}`}
+          >
+            <Sunrise className="h-5 w-5 text-escudo-gold" />
+            <p className="mt-3 text-sm font-semibold text-foreground">Registrar descanso</p>
+            <p className="mt-1 text-xs text-muted-foreground">{latestSleep ? `${latestSleep.cycles} ciclos en tu último registro.` : "Anota cómo dormiste para ajustar tu ritmo."}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePanel(activePanel === "training" ? null : "training")}
+            className={`border p-4 text-left transition-colors ${activePanel === "training" ? "border-escudo-green bg-escudo-green/5" : "border-border hover:border-escudo-green/60"}`}
+          >
+            <Activity className="h-5 w-5 text-escudo-green" />
+            <p className="mt-3 text-sm font-semibold text-foreground">Registrar entrenamiento</p>
+            <p className="mt-1 text-xs text-muted-foreground">{latestExercise ? `Último: ${latestExercise.exercise_name}` : "Guarda tus series y revisa tus marcas."}</p>
+          </button>
+        </div>
+      </section>
+
+      {activePanel === "weight" && (
+        <div className="grid gap-4 xl:grid-cols-5">
+        <Card className="xl:col-span-2">
           <CardHeader>
             <span className="hud-label text-accent">Weight Input</span>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -402,13 +446,13 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className="xl:col-span-3">
           <CardHeader>
             <span className="hud-label text-accent">Weight History</span>
             <CardTitle className="flex items-center gap-2 text-base">
               <TrendingUp className="h-5 w-5 text-escudo-cyan" /> Historial de peso
             </CardTitle>
-            <CardDescription>Ultimos registros de peso</CardDescription>
+            <CardDescription>Últimos registros de peso</CardDescription>
           </CardHeader>
           <CardContent>
             {sortedLogs.length === 0 ? (
@@ -447,7 +491,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
                       <div className="flex items-center gap-3">
                         <span className="font-medium text-escudo-cyan">{log.weight} kg</span>
                         <div className="flex gap-1">
-                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingLog(log)}>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingLog(log); setActivePanel("weight"); }}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-escudo-red" onClick={() => handleDelete(log.id)}>
@@ -462,39 +506,14 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
             )}
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
 
-      <Card>
-        <CardHeader>
-          <span className="hud-label text-escudo-green">Focus State</span>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Activity className="h-5 w-5 text-escudo-green" /> Bienestar
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-xl border border-escudo-green/20 bg-escudo-green/8 p-4">
-            <p className="text-sm text-escudo-green">
-              Racha actual: {focusStatus?.focus_streak ?? 0} días
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {(focusStatus?.focus_streak ?? 0) > 0
-                ? "Sigue manteniendo tu constancia."
-                : "Cada día cuenta. Empieza con un pequeño hábito."}
-            </p>
-          </div>
-          {(focusStatus?.focus_best ?? 0) > 0 && (
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Mejor racha</span>
-              <p className="text-sm font-medium text-foreground">{focusStatus?.focus_best} días</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-[#2A2A3C] bg-[#17171A]">
+      {activePanel === "training" && (
+        <Card className="border-[#2A2A3C] bg-[#17171A]">
         <CardHeader>
           <CardTitle className="text-[#FFD700]">Entrenamiento</CardTitle>
-          <CardDescription>Registra tus ejercicios y segui tus records</CardDescription>
+          <CardDescription>Registra tus ejercicios y sigue tus récords.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {exStatus.success && <FormStatus success={exStatus.success} />}
@@ -655,9 +674,11 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      )}
 
-      <Card className="border-[#2A2A3C] bg-[#17171A]">
+      {activePanel === "sleep" && (
+        <Card className="border-[#2A2A3C] bg-[#17171A]">
         <CardHeader>
           <CardTitle className="text-[#FFD700]">Registro de sueño</CardTitle>
           <CardDescription>Registra tus horas de descanso</CardDescription>
@@ -775,9 +796,11 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
           </Button>
           <p className="text-xs text-muted-foreground">Usa tu hora objetivo de dormir y calidad neutral. Luego puedes corregir el registro si fue distinto.</p>
         </CardContent>
-      </Card>
+        </Card>
+      )}
 
-      <Card className="border-[#2A2A3C] bg-[#17171A]">
+      <section className="grid gap-4 xl:grid-cols-3">
+        <Card className="border-[#2A2A3C] bg-[#17171A] xl:col-span-2">
         <CardHeader>
           <CardTitle className="text-[#FFD700]">Resumen de sueño (7 días)</CardTitle>
         </CardHeader>
@@ -802,7 +825,34 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
             <p className="py-4 text-center text-sm text-gray-400">Sin registros de sueño. Usa el formulario para empezar.</p>
           )}
         </CardContent>
-      </Card>
+        </Card>
+        <Card className="border-[#2A2A3C] bg-[#17171A]">
+        <CardHeader>
+          <span className="hud-label text-escudo-green">Tu constancia</span>
+          <CardTitle className="text-base text-foreground">Enfoque y rutina</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div className="border-l-2 border-escudo-green pl-3">
+            <p className="font-semibold text-foreground">{focusStatus?.focus_streak ?? 0} días de racha</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {(focusStatus?.focus_streak ?? 0) > 0 ? "Ya tienes una base: protégela con una acción simple." : "La constancia empieza cuando eliges una acción posible para hoy."}
+            </p>
+          </div>
+          {routines.length > 0 ? (
+            <div className="border-l-2 border-escudo-gold pl-3">
+              <p className="font-semibold text-foreground">Rutina del día</p>
+              <p className="mt-1 text-xs text-muted-foreground">{routineDone ? "Ya la marcaste como completada." : "Tu rutina está lista para cuando tengas espacio."}</p>
+              <a href="/rutinas" className="mt-2 inline-block text-xs text-escudo-gold hover:underline">Ver planificación semanal</a>
+            </div>
+          ) : (
+            <div className="border-l-2 border-muted pl-3">
+              <p className="font-semibold text-foreground">Sin rutina planificada</p>
+              <a href="/rutinas" className="mt-2 inline-block text-xs text-escudo-gold hover:underline">Crear mi rutina semanal</a>
+            </div>
+          )}
+        </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }
