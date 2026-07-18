@@ -63,7 +63,15 @@ async def create_proposal(
 
     for sub_cmd in sub_commands:
         try:
-            parsed = await _interpret_command(sub_cmd, user, trm, lite_profile, tasks, equipment)
+            parsed = await _interpret_command(
+                sub_cmd,
+                user,
+                trm,
+                lite_profile,
+                tasks,
+                equipment,
+                session_id=session_id,
+            )
             actions.append(parsed)
             total_cost += float(parsed.get("interaction_cost_cop", 0) or 0)
         except Exception as exc:
@@ -414,5 +422,4 @@ async def cancel_proposal(user, proposal_id: str) -> dict:
     except Exception as exc:
         logger.warning(f"Error cancelando propuesta {proposal_id}: {exc}")
         raise
-
 

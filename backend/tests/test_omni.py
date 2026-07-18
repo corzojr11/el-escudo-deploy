@@ -149,15 +149,16 @@ class TestMultiIntentSplitting:
         assert isinstance(result, list)
         assert len(result) == 2
         assert result[0] == "Registra peso"
-        assert result[1] == "luego agrega un gasto"
+        assert result[1] == "agrega un gasto"
 
-    def test_split_three_intents_with_comma_and_y(self):
-        result = omni_service_module.split_multi_intent("Compra leche, pan y huevos")
+    def test_keeps_personal_message_as_one_context(self):
+        result = omni_service_module.split_multi_intent(
+            "Siento que a los 27 ya deberia haber hecho mas, mi trabajo me quita mucho tiempo y me siento mal"
+        )
         assert isinstance(result, list)
-        assert len(result) == 3
-        assert result[0] == "Compra leche"
-        assert result[1] == "pan"
-        assert result[2] == "huevos"
+        assert result == [
+            "Siento que a los 27 ya deberia haber hecho mas, mi trabajo me quita mucho tiempo y me siento mal"
+        ]
 
 
 # ─── Caso 2: Rate Limiting ────────────────────────────────────────────────

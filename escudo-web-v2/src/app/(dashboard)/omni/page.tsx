@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send, Loader2, AlertTriangle, Zap, Sparkles, CheckCircle2, XCircle } from "lucide-react";
+import { Send, Loader2, AlertTriangle, Zap, Sparkles, CheckCircle2, XCircle, MessageCircle, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -85,6 +85,13 @@ const intentLabels: Record<string, string> = {
   COMPLETE_ROUTINE: "Rutina completada",
   LOG_METRIC: "Metrica registrada",
 };
+
+const QUICK_PROMPTS = [
+  "Ayudame a ordenar mi dia",
+  "Estoy saturado por el trabajo",
+  "Que deberia priorizar con mi dinero?",
+  "Quiero retomar un habito importante",
+];
 
 function formatActionList(actions: OmniCommandResult[]): string {
   return actions
@@ -300,8 +307,18 @@ export default function OmniPage() {
         </Card>
       )}
 
-      <Card className="flex h-[calc(100vh-14rem)] flex-col overflow-hidden">
+      <Card className="flex h-[calc(100dvh-17rem)] min-h-[34rem] flex-col overflow-hidden">
         <CardContent className="flex flex-1 flex-col gap-0 p-0">
+          <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4 text-accent" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">Conversacion actual</p>
+                <p className="text-xs text-muted-foreground">Escribe como hablas. OMNI respondera a la situacion completa.</p>
+              </div>
+            </div>
+            <span className="hud-label text-escudo-green">Activo</span>
+          </div>
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -319,7 +336,7 @@ export default function OmniPage() {
                   OMNI esta listo. Escribe un comando para empezar.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 pt-2">
-                  {["Como voy con mis metas?", "Registra mi peso", "Crea una tarea para hoy"].map((hint) => (
+                  {QUICK_PROMPTS.map((hint) => (
                     <button
                       key={hint}
                       type="button"
@@ -341,14 +358,24 @@ export default function OmniPage() {
                   <div key={msg.id} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
                     <div
                       className={cn(
-                        "max-w-[82%] rounded-2xl border px-4 py-3 text-sm",
+                        "max-w-[min(100%,46rem)] rounded-2xl border px-4 py-3 text-sm",
                         msg.role === "user"
-                          ? "border-primary/40 bg-primary/16 text-foreground"
+                          ? "max-w-[min(100%,38rem)] border-primary/40 bg-primary/16 text-foreground"
                           : msg.isError
                             ? "border-escudo-red/20 bg-escudo-red/10 text-escudo-red"
                             : "border-accent/15 bg-background/45 text-foreground"
                       )}
                     >
+                      {msg.role === "assistant" && (
+                        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-accent">
+                          <Zap className="h-3.5 w-3.5" /> NAVIR
+                        </div>
+                      )}
+                      {msg.role === "user" && (
+                        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                          <UserRound className="h-3.5 w-3.5" /> TU MENSAJE
+                        </div>
+                      )}
                       <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
 
                       {msg.intent && (
@@ -448,26 +475,41 @@ export default function OmniPage() {
 
           <div className="border-t border-border/60 bg-background/50 px-4 py-3">
             <div className="flex items-center gap-2">
-              <input
+              <textarea
                 id="omni-command"
-                type="text"
+                rows={1}
                 value={input}
                 onChange={(e) => {
                   inputRef.current = e.target.value;
                   setInput(e.target.value);
                 }}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                placeholder="Escribe un comando para OMNI..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                aria-label="Mensaje para OMNI"
+                placeholder="Cuentame que esta pasando o pide una accion concreta..."
                 disabled={isBusy}
                 className={cn(
-                  "h-11 flex-1 rounded-xl border border-border/80 bg-input/80 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all",
+                  "min-h-11 max-h-32 flex-1 resize-y rounded-xl border border-border/80 bg-input/80 px-4 py-2.5 text-sm leading-6 text-foreground placeholder:text-muted-foreground outline-none transition-all",
                   "focus:border-escudo-green/50 focus:ring-3 focus:ring-escudo-green/20 disabled:opacity-50"
                 )}
               />
-              <Button onClick={handleSend} disabled={!input.trim() || isBusy} size="icon" className="h-11 w-11 shrink-0">
+              <Button
+                onClick={handleSend}
+                disabled={!input.trim() || isBusy}
+                size="icon"
+                aria-label="Enviar mensaje a OMNI"
+                className="h-11 w-11 shrink-0"
+              >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Ctrl/Cmd + Enter para enviar. Enter crea una nueva linea.
+            </p>
           </div>
         </CardContent>
       </Card>

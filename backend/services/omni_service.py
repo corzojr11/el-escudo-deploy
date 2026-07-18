@@ -128,6 +128,14 @@ _omni_system_instruction = (
         "Si no hay acción de base de datos, usa intent='NONE' y deja extracted_data={}. "
         "Nunca dejes 'respuesta_usuario' vacío."
 )
+
+_omni_system_instruction += (
+    " Para conversaciones personales, laborales o de animo, interpreta el mensaje completo como una sola situacion. "
+    "Reconoce primero dos detalles concretos que la persona haya expresado y responde una sola vez, sin fragmentar ni repetir preguntas genericas. "
+    "Ofrece una accion pequena y realista para hoy o una unica pregunta de seguimiento si hace falta informacion. "
+    "No diagnostiques ni prometas soluciones; si hay riesgo inmediato para la persona, recomienda buscar ayuda urgente local. "
+    "Para consultas sin registro, mantente por debajo de 120 palabras."
+)
 if _omni_client:
     logger.info("Cliente OMNI (DeepSeek) inicializado correctamente.")
 
@@ -161,10 +169,15 @@ _MUTATION_INTENTS = {
     "REMOVE_ROUTINE_EXERCISE",
     "COMPLETE_ROUTINE",
 }
-_MULTI_SEPARATORS = re.compile(r'\s+y\s+|,\s*|\s+luego\s+|\s+despu[ée]s\s+|;\s*')
+_MULTI_SEPARATORS = re.compile(r"\s+(?:y\s+luego|luego|despu(?:es|\u00e9s))\s+|;\s*", re.IGNORECASE)
 
 
 def split_multi_intent(command_text: str) -> list[str]:
+    """Solo divide instrucciones encadenadas de forma explicita.
+
+    Comas y conjunciones tambien aparecen en mensajes personales; dividirlas
+    multiplica llamadas al modelo y destruye el contexto de la persona.
+    """
     parts = _MULTI_SEPARATORS.split(command_text)
     return [p.strip() for p in parts if p.strip()]
 
@@ -174,7 +187,7 @@ def split_multi_intent(command_text: str) -> list[str]:
 async def _get_user_context(user) -> str:
     try:
         prof_r = await asyncio.to_thread(
-            lambda: supabase.table("profiles").select("level, xp, player_id").eq("user_id", user.id).maybe_single().execute()
+            lambda: supabase.table("profiles").select("level, xp, player_id, name, health_goal").eq("user_id", user.id).maybe_single().execute()
         )
     except Exception:
         prof_r = type('obj', (object,), {'data': None})()
@@ -184,6 +197,10 @@ async def _get_user_context(user) -> str:
     pid = prof_r.data.get("player_id", "") if prof_r.data else ""
 
     lines = [f"Nivel: {level} | XP: {xp}"]
+    if prof_r.data and prof_r.data.get("name"):
+        lines.append(f"Nombre: {prof_r.data['name']}")
+    if prof_r.data and prof_r.data.get("health_goal"):
+        lines.append(f"Objetivo de bienestar: {prof_r.data['health_goal']}")
 
     try:
         pat_r = await asyncio.to_thread(
@@ -242,14 +259,55 @@ async def _get_user_context(user) -> str:
     return "\n".join(lines)
 
 
-async def _interpret_command(command_text: str, user, trm: float, lite_profile: dict, tasks: list, equipment: list | None = None) -> dict:
+async def _get_conversation_context(user_id: str, session_id: str | None) -> str:
+    """Recupera un contexto corto de la conversacion actual sin crecer el prompt."""
+    if not session_id:
+        return ""
+
+    try:
+        result = await asyncio.to_thread(
+            lambda: supabase.table("omni_messages")
+                .select("role, content")
+                .eq("user_id", user_id)
+                .eq("session_id", session_id)
+                .order("created_at", desc=True)
+                .limit(4)
+                .execute()
+        )
+        rows = result.data if isinstance(result.data, list) else []
+        if not rows:
+            return ""
+        transcript = []
+        for row in reversed(rows):
+            role = "Usuario" if row.get("role") == "user" else "OMNI"
+            content = str(row.get("content") or "").strip().replace("\n", " ")[:320]
+            if content:
+                transcript.append(f"{role}: {content}")
+        return "\n".join(transcript)
+    except Exception as exc:
+        logger.warning("No se pudo leer el contexto conversacional de OMNI: %s", exc)
+        return ""
+
+
+async def _interpret_command(
+    command_text: str,
+    user,
+    trm: float,
+    lite_profile: dict,
+    tasks: list,
+    equipment: list | None = None,
+    session_id: str | None = None,
+) -> dict:
     """Llama al modelo generativo y devuelve la interpretación SIN ejecutar mutaciones."""
     _check_omni_daily_limit(user.id)
     user_ctx = await _get_user_context(user)
+    conversation_ctx = await _get_conversation_context(user.id, session_id)
     equipment_ctx = ", ".join([str(item).strip() for item in (equipment or []) if str(item).strip()]) or "No especificado"
     prompt_context = (
         f"[CONTEXTO DEL USUARIO]\n{user_ctx}\n\n"
-        f"User: {lite_profile}. Goals: {tasks}. Equipment: {equipment_ctx}. Cmd: {command_text}"
+        f"Perfil: {lite_profile}. Metas: {tasks}. Equipo: {equipment_ctx}.\n"
+        f"[CONVERSACION RECIENTE]\n{conversation_ctx or 'Sin mensajes previos en esta sesion.'}\n\n"
+        f"[MENSAJE ACTUAL]\n{command_text}"
     )
     response = await complete_chat(
         [
@@ -258,7 +316,7 @@ async def _interpret_command(command_text: str, user, trm: float, lite_profile: 
         ],
         json_output=True,
         temperature=0.2,
-        max_tokens=900,
+        max_tokens=420,
     )
 
     input_tokens = response["prompt_tokens"] or len(prompt_context) // 4
