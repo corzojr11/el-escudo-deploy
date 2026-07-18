@@ -135,6 +135,7 @@ export async function logExercise(data: {
 }): Promise<{ status: string; log: ExerciseLog }> {
   const result = await postToBackend<{ status: string; log: ExerciseLog }>("/api/v1/log-exercise", data);
   revalidatePath("/salud");
+  revalidatePath("/rutinas");
   revalidatePath("/");
   return result;
 }
