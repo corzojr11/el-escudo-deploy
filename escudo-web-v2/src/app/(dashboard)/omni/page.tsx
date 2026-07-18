@@ -374,7 +374,7 @@ export default function OmniPage() {
                 <p className="text-sm text-muted-foreground">{error}</p>
               </div>
             ) : messages.length === 0 && !pendingProposal ? (
-              <div className="mx-auto flex min-h-full w-full max-w-none flex-col justify-between gap-6 py-2 sm:py-4">
+              <div className="mx-auto flex min-h-full w-full max-w-none flex-col gap-5 py-2 sm:py-4">
                 <section className="border border-primary/35 bg-primary/5 p-4 sm:p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div className="max-w-xl">
@@ -390,7 +390,7 @@ export default function OmniPage() {
                         un paso claro antes de proponerte cualquier cambio.
                       </p>
                     </div>
-                    <div className="border border-border bg-card px-3 py-2 text-left sm:w-44">
+                    <div className="hidden border border-border bg-card px-3 py-2 text-left sm:block sm:w-44">
                       <p className="hud-label text-escudo-gold">Modo de hoy</p>
                       <p className="mt-1 text-sm font-medium text-foreground">Conversación primero</p>
                     </div>
@@ -403,32 +403,32 @@ export default function OmniPage() {
                       <p className="hud-label text-primary">Elige una ruta</p>
                       <h3 className="mt-1 font-heading text-lg font-semibold text-foreground">¿Por dónde empezamos?</h3>
                     </div>
-                    <span className="hidden text-xs text-muted-foreground sm:block">O escribe tu propia situación en el cuadro de mensaje.</span>
+                    <span className="hidden text-xs text-muted-foreground lg:block">O escribe tu propia situación en el cuadro de mensaje.</span>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                     {QUICK_PROMPTS.map(({ title, description, prompt, icon: Icon }) => (
                       <button
                         key={title}
                         type="button"
-                        className="group flex min-h-24 items-start gap-3 border border-border bg-background p-3 text-left transition-colors hover:border-primary/70 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        className="group flex min-h-20 items-start gap-2.5 border border-border bg-background p-3 text-left transition-colors hover:border-primary/70 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:min-h-24 sm:gap-3"
                         onClick={() => startPrompt(prompt)}
                       >
-                        <span className="grid h-10 w-10 shrink-0 place-items-center border border-primary/45 bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center border border-primary/45 bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground sm:h-10 sm:w-10">
                           <Icon className="h-4 w-4" />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="flex items-center justify-between gap-2 text-sm font-semibold text-foreground">
+                          <span className="flex items-center justify-between gap-1 text-xs font-semibold text-foreground sm:gap-2 sm:text-sm">
                             {title}
-                            <ArrowUpRight className="h-4 w-4 shrink-0 text-primary" />
+                            <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-primary sm:h-4 sm:w-4" />
                           </span>
-                          <span className="mt-1 block text-xs leading-5 text-muted-foreground">{description}</span>
+                          <span className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">{description}</span>
                         </span>
                       </button>
                     ))}
                   </div>
                 </section>
 
-                <section className="grid border border-border bg-card sm:grid-cols-3">
+                <section className="hidden border border-border bg-card xl:grid xl:grid-cols-3">
                   {[
                     ["01", "Habla sin ordenar", "No necesitas saber qué menú usar ni llenar un formulario."],
                     ["02", "Aterrizamos lo urgente", "OMNI separa lo importante de lo que puede esperar."],
