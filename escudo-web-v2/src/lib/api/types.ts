@@ -498,3 +498,24 @@ export interface PlanDiarioResponse {
   missing_config: string[];
   disclaimer: string;
 }
+
+export interface NutritionFavorite {
+  id: string;
+  name: string;
+  recipe: NutritionRecipe;
+  created_at?: string;
+}
+
+export interface NutritionMealPlanDay {
+  day: string;
+  breakfast: string;
+  lunch: string;
+  dinner: string;
+  snack: string;
+}
+
+export interface NutritionWeeklyPlan {
+  id: string;
+  week_start: string;
+  days: NutritionMealPlanDay[];
+}

@@ -1,11 +1,14 @@
 import asyncio
 import json
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from auth import get_current_user
 from database import supabase
+from exceptions import ApiException, NotFoundException
 from services.deepseek import complete_chat, is_configured
 
 router = APIRouter()
@@ -15,6 +18,37 @@ class RecipeRequest(BaseModel):
     meal: str = Field(default="comida", min_length=3, max_length=30)
     ingredients: str = Field(default="", max_length=500)
     minutes: int = Field(default=25, ge=10, le=90)
+
+
+class RecipeContent(BaseModel):
+    name: str = Field(..., min_length=3, max_length=120)
+    calories: int = Field(..., ge=100, le=2500)
+    protein_g: int = Field(..., ge=0, le=250)
+    prep_minutes: int = Field(..., ge=1, le=180)
+    ingredients: list[str] = Field(..., min_length=1, max_length=30)
+    steps: list[str] = Field(..., min_length=1, max_length=12)
+    why: str = Field(..., min_length=3, max_length=500)
+
+
+class FavoriteRecipePayload(BaseModel):
+    recipe: RecipeContent
+
+
+class MealPlanDay(BaseModel):
+    day: str = Field(..., min_length=3, max_length=20)
+    breakfast: str = Field(default="", max_length=120)
+    lunch: str = Field(default="", max_length=120)
+    dinner: str = Field(default="", max_length=120)
+    snack: str = Field(default="", max_length=120)
+
+
+class WeeklyMealPlanPayload(BaseModel):
+    days: list[MealPlanDay] = Field(..., min_length=7, max_length=7)
+
+
+def _current_week_start() -> date:
+    today = datetime.now(ZoneInfo("America/Bogota")).date()
+    return today - timedelta(days=today.weekday())
 
 
 @router.post("/api/v1/nutrition/recipe")
@@ -43,6 +77,7 @@ async def generate_recipe(payload: RecipeRequest, user=Depends(get_current_user)
             },
             "fallback": True,
         }
+
 
     prompt = (
         "Genera UNA receta casera colombiana o latinoamericana, segura y realista. "
@@ -73,3 +108,61 @@ async def generate_recipe(payload: RecipeRequest, user=Depends(get_current_user)
             },
             "fallback": True,
         }
+
+
+@router.get("/api/v1/nutrition/favorites")
+async def list_favorite_recipes(user=Depends(get_current_user)):
+    result = await asyncio.to_thread(
+        lambda: supabase.table("nutrition_favorites").select("*").eq("user_id", user.id).order("created_at", desc=True).execute()
+    )
+    return {"favorites": result.data or []}
+
+
+@router.post("/api/v1/nutrition/favorites")
+async def save_favorite_recipe(payload: FavoriteRecipePayload, user=Depends(get_current_user)):
+    record = {
+        "user_id": user.id,
+        "name": payload.recipe.name,
+        "recipe": payload.recipe.model_dump(),
+    }
+    result = await asyncio.to_thread(lambda: supabase.table("nutrition_favorites").insert(record).execute())
+    if not result.data:
+        raise ApiException(status_code=500, detail="No se pudo guardar la receta.")
+    return {"favorite": result.data[0]}
+
+
+@router.delete("/api/v1/nutrition/favorites/{favorite_id}")
+async def delete_favorite_recipe(favorite_id: str, user=Depends(get_current_user)):
+    exists = await asyncio.to_thread(
+        lambda: supabase.table("nutrition_favorites").select("id").eq("id", favorite_id).eq("user_id", user.id).limit(1).execute()
+    )
+    if not exists.data:
+        raise NotFoundException("Receta guardada")
+    await asyncio.to_thread(
+        lambda: supabase.table("nutrition_favorites").delete().eq("id", favorite_id).eq("user_id", user.id).execute()
+    )
+    return {"detail": "Receta eliminada."}
+
+
+@router.get("/api/v1/nutrition/weekly-plan")
+async def get_weekly_meal_plan(
+    week_start: date | None = Query(default=None),
+    user=Depends(get_current_user),
+):
+    start = week_start or _current_week_start()
+    result = await asyncio.to_thread(
+        lambda: supabase.table("nutrition_weekly_plans").select("*").eq("user_id", user.id).eq("week_start", start.isoformat()).maybe_single().execute()
+    )
+    return {"plan": result.data, "week_start": start.isoformat()}
+
+
+@router.put("/api/v1/nutrition/weekly-plan")
+async def save_weekly_meal_plan(payload: WeeklyMealPlanPayload, user=Depends(get_current_user)):
+    start = _current_week_start()
+    record = {"user_id": user.id, "week_start": start.isoformat(), "days": [day.model_dump() for day in payload.days]}
+    result = await asyncio.to_thread(
+        lambda: supabase.table("nutrition_weekly_plans").upsert(record, on_conflict="user_id,week_start").execute()
+    )
+    if not result.data:
+        raise ApiException(status_code=500, detail="No se pudo guardar el plan semanal.")
+    return {"plan": result.data[0]}
