@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   BookOpen,
   Check,
@@ -20,6 +21,12 @@ import { Label } from "@/components/ui/label";
 import type { PersonalEntry, PersonalEntryKind } from "@/lib/api/types";
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
+
+function tomorrow() {
+  const date = new Date(`${today()}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
 
 function entryValue(entry: PersonalEntry, key: string): string {
   const raw = entry.data?.[key];
@@ -288,7 +295,17 @@ export function BitacoraClient({
               <div className="mt-3 grid gap-3 md:grid-cols-3 text-muted-foreground">
                 <p><span className="font-medium text-foreground">Salió bien:</span> {entryValue(todayReview, "win") || "Sin nota."}</p>
                 <p><span className="font-medium text-foreground">Suelto:</span> {entryValue(todayReview, "release") || "Sin nota."}</p>
-                <p><span className="font-medium text-foreground">Mañana:</span> {entryValue(todayReview, "tomorrow_step") || "Sin paso definido."}</p>
+                <div>
+                  <p><span className="font-medium text-foreground">Mañana:</span> {entryValue(todayReview, "tomorrow_step") || "Sin paso definido."}</p>
+                  {entryValue(todayReview, "tomorrow_step") && (
+                    <Link
+                      href={`/misiones?accion=${encodeURIComponent(entryValue(todayReview, "tomorrow_step"))}&fecha=${tomorrow()}`}
+                      className="mt-2 inline-block text-xs font-medium text-accent underline-offset-4 hover:underline"
+                    >
+                      Preparar como misión de mañana
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           ) : (

@@ -10,7 +10,7 @@ export const metadata = {
 export default async function MisionesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ meta?: string }>;
+  searchParams: Promise<{ meta?: string; accion?: string; fecha?: string }>;
 }) {
   const params = await searchParams;
   const [missionsResult, goalsResult, planResult] = await Promise.allSettled([getMissions(), getGoals(), getPlanDiario()]);
@@ -23,5 +23,12 @@ export default async function MisionesPage({
       ? "Tu descanso está comprometido. Mantén una sola misión importante y evita llenar el día."
       : null;
 
-  return <MisionesClient missions={missions} goals={goals} initialGoalId={params.meta} capacityNotice={capacityNotice} />;
+  return <MisionesClient
+    missions={missions}
+    goals={goals}
+    initialGoalId={params.meta}
+    initialMissionName={params.accion}
+    initialMissionDate={params.fecha}
+    capacityNotice={capacityNotice}
+  />;
 }

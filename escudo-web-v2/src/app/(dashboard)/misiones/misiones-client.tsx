@@ -31,17 +31,21 @@ export function MisionesClient({
   missions,
   goals,
   initialGoalId,
+  initialMissionName,
+  initialMissionDate,
   capacityNotice,
 }: {
   missions: Mission[];
   goals: Goal[];
   initialGoalId?: string;
+  initialMissionName?: string;
+  initialMissionDate?: string;
   capacityNotice?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [filter, setFilter] = useState("all");
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(Boolean(initialMissionName));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -49,10 +53,10 @@ export function MisionesClient({
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
   const [showAllDuringLowCapacity, setShowAllDuringLowCapacity] = useState(false);
 
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialMissionName ?? "");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
-  const [scheduledAt, setScheduledAt] = useState("");
+  const [scheduledAt, setScheduledAt] = useState(initialMissionDate ?? "");
   const [goalId, setGoalId] = useState(initialGoalId || "");
   const [progressIncrement, setProgressIncrement] = useState("");
 
