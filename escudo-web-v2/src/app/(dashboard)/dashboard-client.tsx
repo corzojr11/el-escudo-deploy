@@ -11,12 +11,13 @@ import {
   Shield,
   Sparkles,
   Target,
+  TrendingDown,
   Wallet,
   Zap,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { ErrorState } from "@/components/dashboard/ErrorState";
-import type { TodayResponse, PlanDiarioResponse, WellnessSummary } from "@/lib/api/types";
+import type { Debt, FixedExpense, TodayResponse, PlanDiarioResponse, WellnessSummary } from "@/lib/api/types";
 
 function Metric({ label, value, detail, tone = "text-foreground" }: {
   label: string;
@@ -37,9 +38,21 @@ interface DashboardClientProps {
   data: TodayResponse;
   plan: PlanDiarioResponse | null;
   wellness: WellnessSummary | null;
+  stability: DashboardStabilityData;
 }
 
-export function DashboardClient({ data, plan, wellness }: DashboardClientProps) {
+export interface DashboardStabilityData {
+  budget: number | null;
+  monthExpense: number | null;
+  fixedExpenses: FixedExpense[];
+  debts: Debt[];
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
+}
+
+export function DashboardClient({ data, plan, wellness, stability }: DashboardClientProps) {
   const router = useRouter();
   const profile = data.profile;
   const today = data.today;
@@ -60,6 +73,19 @@ export function DashboardClient({ data, plan, wellness }: DashboardClientProps) 
   const currentWeight = weightLog?.weight;
   const balance = today.balance ?? 0;
   const routeItems = goals.slice(0, 3);
+  const pendingFixed = stability.fixedExpenses.filter((expense) => !expense.is_paid);
+  const totalPendingFixed = pendingFixed.reduce((total, expense) => total + Number(expense.amount || 0), 0);
+  const activeDebts = stability.debts.filter((debt) => (debt.remaining ?? 0) > 0);
+  const totalDebt = activeDebts.reduce((total, debt) => total + Number(debt.remaining || 0), 0);
+  const debtCommitment = activeDebts.reduce((total, debt) => total + Number(debt.monthly_payment || 0), 0);
+  const availableBudget = stability.budget && stability.monthExpense != null ? stability.budget - stability.monthExpense : null;
+  const immediateAction = plan?.shift_status?.status === "in_shift"
+    ? { label: "Estás en turno: protege tu energía y deja una sola misión ligera para después.", href: "/turnos", cta: "Ver turno" }
+    : plan?.sleep.fatigue_alert
+      ? { label: "Tu descanso está comprometido por el próximo turno. Prioriza recuperar sueño hoy.", href: "/salud", cta: "Registrar sueño" }
+      : missions.some((mission) => mission.status !== "completed")
+        ? { label: "Elige una sola misión pendiente y ciérrala antes de abrir otra tarea.", href: "/misiones", cta: "Ver misiones" }
+        : { label: "Tu día está despejado. Define el siguiente paso que más protege tu futuro.", href: "/metas", cta: "Definir meta" };
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-8">
@@ -294,6 +320,45 @@ export function DashboardClient({ data, plan, wellness }: DashboardClientProps) 
       </section> : (
         <ErrorState title="No se pudo cargar el plan del dia" message="El resto del tablero sigue disponible. Reintenta para ver tu horario de sueno, turno y entrenamiento." onRetry={() => router.refresh()} />
       )}
+
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
+        <div className="border border-border bg-card p-5">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <p className="hud-label">Siguiente paso</p>
+              <h3 className="mt-1 font-heading text-lg font-bold">Una acción, no diez pendientes</h3>
+            </div>
+            <Zap className="h-5 w-5 text-[#ffd700]" />
+          </div>
+          <p className="mt-5 max-w-xl text-sm leading-6 text-gray-300">{immediateAction.label}</p>
+          <a href={immediateAction.href} className="mt-5 inline-block border border-[#7C5DFF] px-3 py-2 font-mono text-[11px] uppercase text-[#bcaeff] hover:bg-[#7C5DFF] hover:text-black">
+            {immediateAction.cta} →
+          </a>
+        </div>
+
+        <div className="border border-border bg-card p-5">
+          <div className="flex items-center gap-2">
+            <TrendingDown className="h-4 w-4 text-[#bcaeff]" />
+            <p className="hud-label">Estabilidad financiera</p>
+          </div>
+          {stability.budget && stability.monthExpense != null ? (
+            <>
+              <p className="mt-4 text-xs text-muted-foreground">Disponible del presupuesto este mes</p>
+              <p className={`font-heading text-2xl font-bold ${availableBudget != null && availableBudget < 0 ? "text-red-400" : "text-[#ffd700]"}`}>
+                {formatCurrency(availableBudget ?? 0)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-4 text-sm text-gray-300">Configura un presupuesto para ver cuánto margen real tienes este mes.</p>
+          )}
+          <div className="mt-4 space-y-2 border-t border-border pt-3 text-xs text-muted-foreground">
+            <p>Gastos fijos pendientes: <span className="font-mono text-gray-200">{formatCurrency(totalPendingFixed)}</span></p>
+            <p>Abonos mensuales de deuda: <span className="font-mono text-gray-200">{formatCurrency(debtCommitment)}</span></p>
+            <p>Saldo total de deudas: <span className="font-mono text-gray-200">{formatCurrency(totalDebt)}</span></p>
+          </div>
+          <a href="/finanzas" className="mt-4 inline-block text-xs text-[#7C5DFF] hover:underline">Ordenar finanzas →</a>
+        </div>
+      </section>
 
       <section className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
         <div className="border border-border bg-card p-5">

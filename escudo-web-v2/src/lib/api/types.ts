@@ -437,6 +437,12 @@ export interface TodayResponse {
     habits_today: Habit[];
     focus_streak: number;
     hydration_ml: number | null;
+    financial_stability: {
+      monthly_budget: number | null;
+      month_expense: number | null;
+      fixed_expenses: FixedExpense[];
+      debts: Debt[];
+    };
   };
 }
 

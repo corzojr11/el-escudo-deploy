@@ -217,6 +217,11 @@ class TestTodayEndpoint:
         assert len(data["today"]["missions_today"]) == 1
         assert data["today"]["latest_weight"]["weight"] == 78.4
         assert data["today"]["focus_streak"] == 5
+        stability = data["today"]["financial_stability"]
+        assert "monthly_budget" in stability
+        assert "month_expense" in stability
+        assert "fixed_expenses" in stability
+        assert "debts" in stability
 
 
 # ─── Finances idempotency + filters ─────────────────────────────────────────

@@ -229,7 +229,7 @@ async def today_summary(user=Depends(get_current_user)):
             try:
                 res = await asyncio.to_thread(
                     lambda: supabase.table("profiles")
-                    .select("user_id,email,name,level,xp,xp_to_next_level,title,streak,birth_date,height_cm,health_goal,onboarding_completed_at")
+                    .select("user_id,email,name,level,xp,xp_to_next_level,title,streak,birth_date,height_cm,health_goal,onboarding_completed_at,monthly_budget")
                     .eq("user_id", user.id).execute()
                 )
                 return res.data[0] if (res.data and len(res.data) > 0) else {}
@@ -321,10 +321,41 @@ async def today_summary(user=Depends(get_current_user)):
                 logger.warning(f"Focus fetch error: {exc}")
                 return 0
 
+        async def _fetch_financial_stability():
+            try:
+                month_start = today_str[:8] + "01"
+                month_finances, fixed_expenses, debts = await asyncio.gather(
+                    asyncio.to_thread(
+                        lambda: supabase.table("finances").select("amount,type").eq("user_id", user.id)
+                        .gte("date", month_start).lte("date", today_str).execute()
+                    ),
+                    asyncio.to_thread(
+                        lambda: supabase.table("fixed_expenses").select("id,name,amount,due_date,is_paid")
+                        .eq("user_id", user.id).eq("is_paid", False).execute()
+                    ),
+                    asyncio.to_thread(
+                        lambda: supabase.table("debts").select("id,name,total,remaining,monthly_payment,due_date")
+                        .eq("user_id", user.id).execute()
+                    ),
+                )
+                month_expense = sum(
+                    float(row.get("amount") or 0)
+                    for row in month_finances.data or []
+                    if str(row.get("type") or "").upper() != "INGRESO"
+                )
+                return {
+                    "month_expense": month_expense,
+                    "fixed_expenses": fixed_expenses.data or [],
+                    "debts": debts.data or [],
+                }
+            except Exception as exc:
+                logger.warning(f"Financial stability fetch error: {exc}")
+                return {"month_expense": None, "fixed_expenses": [], "debts": []}
+
         # ── Ejecución paralela: 8 consultas independientes ──
-        profile_data, finances_today, shift_status, goals, missions_today, latest_weight, habits_data, focus_streak = await asyncio.gather(
+        profile_data, finances_today, shift_status, goals, missions_today, latest_weight, habits_data, focus_streak, financial_stability = await asyncio.gather(
             _fetch_profile(), _fetch_finances(), _fetch_shifts(), _fetch_goals(),
-            _fetch_missions(), _fetch_latest_weight(), _fetch_habits(), _fetch_focus(),
+            _fetch_missions(), _fetch_latest_weight(), _fetch_habits(), _fetch_focus(), _fetch_financial_stability(),
         )
 
         # ── Cálculos derivados (ligeros, secuenciales sobre memoria) ──
@@ -386,6 +417,10 @@ async def today_summary(user=Depends(get_current_user)):
                 "habits_today": habits_today,
                 "focus_streak": focus_streak,
                 "hydration_ml": hydration_ml,
+                "financial_stability": {
+                    "monthly_budget": profile_data.get("monthly_budget") if profile_data else None,
+                    **financial_stability,
+                },
             },
         }
 
