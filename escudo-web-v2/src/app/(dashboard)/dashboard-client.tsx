@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -16,9 +17,11 @@ import {
   Wallet,
   Zap,
 } from "lucide-react";
+import { updateMission } from "@/app/actions/missions";
+import { completeRoutineDay, uncompleteRoutineDay } from "@/app/actions/wellness";
 import { Progress } from "@/components/ui/progress";
 import { ErrorState } from "@/components/dashboard/ErrorState";
-import type { Debt, FixedExpense, TodayResponse, PlanDiarioResponse, WellnessSummary } from "@/lib/api/types";
+import type { Debt, FixedExpense, NutritionMealPlanDay, Routine, TodayResponse, PlanDiarioResponse, WellnessSummary } from "@/lib/api/types";
 
 function Metric({ label, value, detail, tone = "text-foreground" }: {
   label: string;
@@ -40,6 +43,9 @@ interface DashboardClientProps {
   plan: PlanDiarioResponse | null;
   wellness: WellnessSummary | null;
   stability: DashboardStabilityData;
+  todayRoutine: Routine | null;
+  routineCompleted: boolean;
+  todayMeals: NutritionMealPlanDay | null;
 }
 
 export interface DashboardStabilityData {
@@ -53,8 +59,10 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
 }
 
-export function DashboardClient({ data, plan, wellness, stability }: DashboardClientProps) {
+export function DashboardClient({ data, plan, wellness, stability, todayRoutine, routineCompleted, todayMeals }: DashboardClientProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState("");
   const profile = data.profile;
   const today = data.today;
   const goals = today.active_goals ?? [];
@@ -72,6 +80,7 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
       ? "Tu descanso necesita prioridad. Reduce la carga y protege una accion posible."
       : null;
   const priorityHabit = habits.find((habit) => !habit.completed_today);
+  const nextMission = missions.find((mission) => mission.status !== "completed");
 
   const level = profile?.level ?? 0;
   const xp = profile?.xp ?? 0;
@@ -109,6 +118,36 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
         : goals.length === 0
         ? "Convierte una intención importante en una meta antes de abrir más tareas."
         : "Tu siguiente avance está en cerrar una misión que ya sostiene una meta activa.";
+
+  function completeNextMission() {
+    if (!nextMission) return;
+    setActionError("");
+    startTransition(async () => {
+      try {
+        await updateMission(nextMission.id, { status: "completed" });
+        router.refresh();
+      } catch {
+        setActionError("No se pudo completar la misión. Inténtalo de nuevo.");
+      }
+    });
+  }
+
+  function toggleTodayRoutine() {
+    if (!todayRoutine) return;
+    setActionError("");
+    startTransition(async () => {
+      try {
+        if (routineCompleted) {
+          await uncompleteRoutineDay(todayRoutine.day_index);
+        } else {
+          await completeRoutineDay(todayRoutine.day_index);
+        }
+        router.refresh();
+      } catch {
+        setActionError("No se pudo actualizar la rutina. Inténtalo de nuevo.");
+      }
+    });
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-8">
@@ -300,7 +339,7 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
           </div>
           <span className="font-mono text-[10px] text-muted-foreground">{plan.date}</span>
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-1">
             <p className="hud-label text-[#7C5DFF]">Turno</p>
             {plan.shift_status?.status === "in_shift" && plan.shift_status.shift ? (
@@ -349,7 +388,44 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
               <p className="text-sm text-gray-500">Recuperacion / descanso activo</p>
             )}
           </div>
+          <div className="space-y-1 border-t border-border pt-4 md:border-l md:border-t-0 md:pl-4 md:pt-0">
+            <p className="hud-label text-[#ffd700]">Comidas</p>
+            {todayMeals ? (
+              <>
+                <p className="text-sm text-white">{todayMeals.breakfast}</p>
+                <p className="line-clamp-2 text-[10px] text-gray-500">{todayMeals.lunch} · {todayMeals.dinner}</p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">Planifica tus comidas de hoy</p>
+            )}
+          </div>
         </div>
+        <div className="mt-5 grid gap-3 border-t border-border pt-4 lg:grid-cols-3">
+          <div className="border border-border p-3">
+            <p className="hud-label">Misión prioritaria</p>
+            <p className="mt-2 min-h-10 text-sm font-semibold text-foreground">{nextMission?.name || nextMission?.title || "No tienes una misión pendiente"}</p>
+            {nextMission ? (
+              <button type="button" onClick={completeNextMission} disabled={isPending} className="mt-3 border border-[#7C5DFF] px-3 py-2 font-mono text-[10px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black disabled:cursor-not-allowed disabled:opacity-50">
+                {isPending ? "Guardando..." : "Completar ahora"}
+              </button>
+            ) : <a href="/misiones" className="mt-3 inline-block text-xs text-[#bcaeff] hover:underline">Crear misión →</a>}
+          </div>
+          <div className="border border-border p-3">
+            <p className="hud-label">Rutina de hoy</p>
+            <p className="mt-2 min-h-10 text-sm font-semibold text-foreground">{todayRoutine?.objective || (todayRoutine ? `${todayRoutine.exercises.length} ejercicios programados` : "Sin rutina para hoy")}</p>
+            {todayRoutine ? (
+              <button type="button" onClick={toggleTodayRoutine} disabled={isPending} className={`mt-3 border px-3 py-2 font-mono text-[10px] uppercase disabled:cursor-not-allowed disabled:opacity-50 ${routineCompleted ? "border-[#ffd700] text-[#ffd700] hover:bg-[#ffd700] hover:text-black" : "border-[#7C5DFF] text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black"}`}>
+                {isPending ? "Guardando..." : routineCompleted ? "Desmarcar rutina" : "Completar rutina"}
+              </button>
+            ) : <a href="/rutinas" className="mt-3 inline-block text-xs text-[#bcaeff] hover:underline">Planificar rutina →</a>}
+          </div>
+          <div className="border border-border p-3">
+            <p className="hud-label">Alimentación</p>
+            <p className="mt-2 min-h-10 text-sm font-semibold text-foreground">{todayMeals ? "Tus cuatro comidas ya tienen una guía" : "Arma un menú que sí puedas preparar"}</p>
+            <a href="/alimentacion" className="mt-3 inline-block border border-[#ffd700] px-3 py-2 font-mono text-[10px] uppercase text-[#ffe476] hover:bg-[#ffd700] hover:text-black">{todayMeals ? "Ver comidas de hoy" : "Abrir alimentación"}</a>
+          </div>
+        </div>
+        {actionError && <p className="mt-3 text-xs text-red-400">{actionError}</p>}
         {plan.missing_config.length > 0 && (
           <div className="mt-4 border-t border-border pt-3">
             <p className="text-xs text-gray-400">
