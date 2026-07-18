@@ -8,10 +8,9 @@ import unicodedata
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
-from google import genai
-
 from database import supabase
 from trm import get_trm
+from services.deepseek import complete_chat, is_configured as is_deepseek_configured
 from services.omni_handlers import (
     handle_task_intent,
     handle_goal_intent,
@@ -105,9 +104,8 @@ def _record_omni_daily_cost(user_id: str, cost_cop: float):
 
 # ─── Modelo Generativo OMNI ────────────────────────────────────────────────
 
-try:
-    _omni_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-    _omni_system_instruction = (
+_omni_client = is_deepseek_configured()
+_omni_system_instruction = (
         "Eres NAVIR, asistente conversacional integrado en un sistema operativo personal. "
         "Responde SIEMPRE en formato JSON válido (sin markdown). "
         "Debes incluir: 'intent', 'extracted_data', 'respuesta_usuario', 'xp_ganada'. "
@@ -129,12 +127,9 @@ try:
         "Si el usuario pide consejo/plan/explicación, entrega contenido accionable en 'respuesta_usuario'. "
         "Si no hay acción de base de datos, usa intent='NONE' y deja extracted_data={}. "
         "Nunca dejes 'respuesta_usuario' vacío."
-    )
-    logger.info("Cliente OMNI (google-genai) inicializado correctamente.")
-except Exception as e:
-    _omni_client = None
-    _omni_system_instruction = ""
-    logger.warning(f"Error al inicializar el cliente GenAI OMNI: {e}")
+)
+if _omni_client:
+    logger.info("Cliente OMNI (DeepSeek) inicializado correctamente.")
 
 
 
@@ -256,28 +251,29 @@ async def _interpret_command(command_text: str, user, trm: float, lite_profile: 
         f"[CONTEXTO DEL USUARIO]\n{user_ctx}\n\n"
         f"User: {lite_profile}. Goals: {tasks}. Equipment: {equipment_ctx}. Cmd: {command_text}"
     )
-    response = await asyncio.to_thread(
-        lambda: _omni_client.models.generate_content(
-            model='models/gemini-2.5-flash-lite',
-            contents=prompt_context,
-            config=genai.types.GenerateContentConfig(
-                system_instruction=_omni_system_instruction
-            )
-        )
+    response = await complete_chat(
+        [
+            {"role": "system", "content": _omni_system_instruction},
+            {"role": "user", "content": prompt_context},
+        ],
+        json_output=True,
+        temperature=0.2,
+        max_tokens=900,
     )
 
-    usage = response.usage_metadata
-    cost_usd = (usage.prompt_token_count * 0.000000075) + (usage.candidates_token_count * 0.0000003)
+    input_tokens = response["prompt_tokens"] or len(prompt_context) // 4
+    output_tokens = response["completion_tokens"] or len(response["text"]) // 4
+    cost_usd = (input_tokens * 0.00000014) + (output_tokens * 0.00000028)
     cost_cop = cost_usd * trm
 
     _record_omni_daily_cost(user.id, cost_cop)
 
-    res_json = json.loads(response.text.strip().replace("```json", "").replace("```", ""))
+    res_json = json.loads(response["text"].strip().replace("```json", "").replace("```", ""))
     res_json["interaction_cost_cop"] = cost_cop
     res_json["current_trm"] = trm
 
     if os.getenv("OMNI_DEBUG_RAW_RESPONSE", "false").lower() == "true":
-        logger.debug("RAW GEMINI RESPONSE: %s", json.dumps(res_json, indent=2, ensure_ascii=False))
+        logger.debug("RAW DEEPSEEK RESPONSE: %s", json.dumps(res_json, indent=2, ensure_ascii=False))
 
     if not res_json.get("mensaje_sistema"):
         res_json["mensaje_sistema"] = res_json.get("respuesta_usuario", "").strip()

@@ -1,14 +1,10 @@
 import asyncio
-import base64
-import json
 import logging
-import os
 from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel
-from google import genai
 
 try:
     from zoneinfo import ZoneInfo
@@ -28,8 +24,6 @@ from services.observability import track_event
 
 logger = logging.getLogger("escudo")
 router = APIRouter()
-_gemini_api_key = os.getenv("GEMINI_API_KEY")
-_ai_client = genai.Client(api_key=_gemini_api_key) if _gemini_api_key else None
 
 # ─── Sleep Optimizer constants ──────────────────────────────────────────────
 
@@ -342,6 +336,13 @@ async def upload_shift_image(
     user_name: str = Form("Usuario"),
     user = Depends(get_current_user),
 ):
+    await track_event("schedule", "upload_shift_image", "unavailable", user.id, {"reason": "deepseek_text_only"})
+    raise ApiException(
+        status_code=503,
+        detail="DeepSeek no procesa imágenes. Agrega los turnos manualmente.",
+    )
+
+    # Legacy Gemini OCR path retained below only until it is removed in the next cleanup.
     if _ai_client is None:
         raise ApiException(status_code=503, detail="OCR no disponible. Configura GEMINI_API_KEY para escaneo de horario.")
 

@@ -7,7 +7,6 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
-from google import genai
 
 try:
     from zoneinfo import ZoneInfo
@@ -23,11 +22,10 @@ from auth import get_current_user
 from database import supabase
 from exceptions import ApiException, BadRequestException, NotFoundException
 from services.observability import track_event
+from services.deepseek import complete_chat
 
 logger = logging.getLogger("escudo")
 router = APIRouter()
-_gemini_api_key = os.getenv("GEMINI_API_KEY")
-_ai_client = genai.Client(api_key=_gemini_api_key) if _gemini_api_key else None
 
 
 def _bogota_now() -> datetime:
@@ -297,11 +295,13 @@ async def quick_entry(payload: FinanceQuickEntryPayload, user = Depends(get_curr
 
     parsed = {}
     try:
-        response = await _ai_client.aio.models.generate_content(
-            model="models/gemini-2.5-flash-lite",
-            contents=f"{prompt}\n\nTexto: {payload.text.strip()}",
+        response = await complete_chat(
+            [{"role": "user", "content": f"{prompt}\n\nTexto: {payload.text.strip()}"}],
+            json_output=True,
+            temperature=0.1,
+            max_tokens=300,
         )
-        raw = (response.text or "").strip()
+        raw = response["text"]
         start = raw.find("{")
         end = raw.rfind("}")
         parsed = json.loads(raw[start:end + 1]) if start != -1 and end != -1 else {}
@@ -412,6 +412,13 @@ async def parse_receipt(payload: ReceiptParsePayload, user=Depends(get_current_u
     if (payload.mime_type or "image/jpeg").lower() not in allowed_mimes:
         await track_event("finances", "parse_receipt", "validation_error", user.id, {"reason": "invalid_mime", "mime": payload.mime_type})
         raise BadRequestException("Formato de imagen no soportado.")
+    await track_event("finances", "parse_receipt", "unavailable", user.id, {"reason": "deepseek_text_only"})
+    raise ApiException(
+        status_code=503,
+        detail="DeepSeek no procesa imágenes. Registra el comprobante manualmente.",
+    )
+
+    # Legacy Gemini OCR path retained below only until it is removed in the next cleanup.
     if _ai_client is None:
         await track_event("finances", "parse_receipt", "validation_error", user.id, {"reason": "missing_gemini_key"})
         raise BadRequestException("OCR no disponible por ahora. Completa el comprobante manualmente.")

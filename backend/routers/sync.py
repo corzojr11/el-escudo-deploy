@@ -1,32 +1,24 @@
 import asyncio
 import json
 import logging
-import os
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from google import genai
 
 from auth import get_current_user
 from database import supabase
 from routers.finances import _execute_finance_query_ordered
 from routers.schedule import compute_current_status
 from services.observability import track_event
+from services.deepseek import complete_chat, is_configured as is_deepseek_configured
 from trm import get_trm
 
 logger = logging.getLogger("escudo")
 router = APIRouter()
 
 _quote_cache: dict = {}
-_ai_client = None
-_gemini_key = os.getenv("GEMINI_API_KEY")
-if _gemini_key:
-    try:
-        _ai_client = genai.Client(api_key=_gemini_key)
-    except Exception as exc:
-        logger.warning(f"No se pudo inicializar Gemini para sync: {exc}")
 
 
 async def _fetch_table(user_id: str, table_name: str, limit: Optional[int] = None):
@@ -133,7 +125,7 @@ async def sync_data(user=Depends(get_current_user)):
             quote, usage_stats = _quote_cache[cache_key]
             usage_stats["trm"] = trm_actual
             usage_stats["cost_cop"] = usage_stats["cost_usd"] * trm_actual
-        elif _ai_client:
+        elif is_deepseek_configured():
             try:
                 user_name = profile_data.get("name", "usuario")
                 ms_seed = datetime.now().microsecond
@@ -142,19 +134,19 @@ async def sync_data(user=Depends(get_current_user)):
                     f"Dile a {user_name} una verdad breve y útil de 10 palabras sobre disciplina. "
                     f"REGLA: Solo texto plano. Sin JSON. Sin comillas."
                 )
-                response = await _ai_client.aio.models.generate_content(
-                    model="models/gemini-2.5-flash-lite",
-                    contents=prompt,
-                    config=genai.types.GenerateContentConfig(temperature=1.0, top_p=0.95),
+                response = await complete_chat(
+                    [{"role": "user", "content": prompt}],
+                    temperature=1.0,
+                    max_tokens=60,
                 )
-                quote = response.text.strip()
-                in_t = getattr(response.usage_metadata, "prompt_token_count", 0)
-                out_t = getattr(response.usage_metadata, "candidates_token_count", 0)
+                quote = response["text"]
+                in_t = response["prompt_tokens"]
+                out_t = response["completion_tokens"]
                 if in_t == 0:
                     in_t = len(prompt) // 4
                 if out_t == 0:
                     out_t = len(quote) // 4
-                cost_u = (in_t * 0.000000075) + (out_t * 0.0000003)
+                cost_u = (in_t * 0.00000014) + (out_t * 0.00000028)
                 usage_stats = {
                     "input_tokens": in_t,
                     "output_tokens": out_t,
@@ -227,7 +219,7 @@ def _calculate_hydration_ml(latest_weight: dict | None) -> int | None:
 
 @router.get("/api/v1/today")
 async def today_summary(user=Depends(get_current_user)):
-    """Resumen diario liviano para el dashboard. No usa Gemini ni TRM."""
+    """Resumen diario liviano para el dashboard. No depende de IA ni TRM."""
     try:
         from routers.schedule import _bogota_now
         now = _bogota_now()

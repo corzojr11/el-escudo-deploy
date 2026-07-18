@@ -253,20 +253,19 @@ class TestRecipesCrud:
 
 # ─── Caso 5: Mock de API de Gemini ────────────────────────────────────────
 
-class TestMockGeminiAPI:
-    def test_endpoint_processes_mocked_gemini_and_uses_asyncio_to_thread(self, monkeypatch):
-        # Mock respuesta de Gemini
-        mock_response = MagicMock()
-        mock_response.text = (
-            '{"intent": "NONE", "extracted_data": {}, '
-            '"respuesta_usuario": "Entendido", "xp_ganada": 5}'
-        )
-        mock_response.usage_metadata.prompt_token_count = 100
-        mock_response.usage_metadata.candidates_token_count = 50
+class TestMockDeepSeekAPI:
+    def test_endpoint_processes_mocked_deepseek(self, monkeypatch):
+        async def mock_complete_chat(messages, **kwargs):
+            assert messages[0]["role"] == "system"
+            assert kwargs["json_output"] is True
+            return {
+                "text": '{"intent": "NONE", "extracted_data": {}, "respuesta_usuario": "Entendido", "xp_ganada": 5}',
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+            }
 
-        mock_client = MagicMock()
-        mock_client.models.generate_content.return_value = mock_response
-        monkeypatch.setattr(omni_service_module, "_omni_client", mock_client)
+        monkeypatch.setattr(omni_service_module, "_omni_client", True)
+        monkeypatch.setattr(omni_service_module, "complete_chat", mock_complete_chat)
 
         # Mock get_trm
         async def mock_get_trm():
@@ -294,29 +293,19 @@ class TestMockGeminiAPI:
 
         monkeypatch.setattr(omni_module, "track_event", mock_track_event)
 
-        with patch("services.omni_service.asyncio.to_thread", side_effect=asyncio.to_thread) as mock_to_thread:
-            client = TestClient(app)
-            resp = client.post("/api/v1/process-command", json={"command": "test command"})
+        client = TestClient(app)
+        resp = client.post("/api/v1/process-command", json={"command": "test command"})
 
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["kind"] == "response"
-            assert data["response"] == "Entendido"
-            assert data["actions"][0]["intent"] == "NONE"
-            assert data["actions"][0]["xp_ganada"] == 5
-            assert "cost_cop" in data
-            assert data["current_trm"] == 4000.0
-
-            # Verificar que Gemini fue llamado
-            mock_client.models.generate_content.assert_called_once()
-            call_kwargs = mock_client.models.generate_content.call_args[1]
-            assert call_kwargs["model"] == "models/gemini-2.5-flash-lite"
-            assert "contents" in call_kwargs
-
-            # Verificar que asyncio.to_thread fue usado (no bloquea el event loop)
-            assert mock_to_thread.call_count >= 1
-            assert [e["event"] for e in tracked_events] == [
-                "process_command_received",
-                "process_command_completed",
-            ]
-            assert all(e["module"] == "omni" for e in tracked_events)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["kind"] == "response"
+        assert data["response"] == "Entendido"
+        assert data["actions"][0]["intent"] == "NONE"
+        assert data["actions"][0]["xp_ganada"] == 5
+        assert "cost_cop" in data
+        assert data["current_trm"] == 4000.0
+        assert [e["event"] for e in tracked_events] == [
+            "process_command_received",
+            "process_command_completed",
+        ]
+        assert all(e["module"] == "omni" for e in tracked_events)

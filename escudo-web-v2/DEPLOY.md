@@ -11,7 +11,7 @@ Esta guía cubre el despliegue completo del frontend Next.js 16 (`escudo-web-v2`
 - Cuenta en [Vercel](https://vercel.com) (free tier funciona)
 - Cuenta en [Supabase](https://supabase.com) con proyecto creado
 - Backend FastAPI desplegado y accesible (ver sección 5)
-- Google Gemini API key (para OMNI)
+- DeepSeek API key (para OMNI y capturas de texto)
 - Git instalado
 
 ---
@@ -39,7 +39,8 @@ El backend necesita estas variables en su entorno de despliegue:
 | `SUPABASE_URL` | URL del proyecto Supabase |
 | `SUPABASE_KEY` | Service role key de Supabase |
 | `SUPABASE_JWT_SECRET` | JWT secret de Supabase |
-| `GEMINI_API_KEY` | API key de Google Gemini |
+| `DEEPSEEK_API_KEY` | API key de DeepSeek |
+| `DEEPSEEK_MODEL` | Opcional. Por defecto: `deepseek-v4-flash` |
 | `FRONTEND_URL` | URL del frontend desplegado (para CORS) |
 | `FRONTEND_URLS` | URLs adicionales separadas por coma (Vercel previews) |
 
@@ -110,7 +111,7 @@ Una vez desplegado, verifica:
 |---|---|---|
 | Redirige en bucle login ↔ dashboard | Site URL no configurado en Supabase | Configurar Site URL en Supabase Auth |
 | Dashboard muestra error | `NEXT_PUBLIC_API_BASE_URL` incorrecta | Verificar URL del backend |
-| OMNI no responde | Backend no accesible o Gemini API key no configurada | Verificar backend `/health` |
+| OMNI no responde | Backend no accesible o DeepSeek API key no configurada | Verificar backend `/health` |
 | Error 401 en módulos | Token de sesión no válido | Verificar `SUPABASE_JWT_SECRET` en backend |
 | CORS error en consola | `FRONTEND_URL` no configurado en backend | Agregar URL de Vercel al backend |
 

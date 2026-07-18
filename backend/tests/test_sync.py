@@ -1,13 +1,10 @@
 """Tests para el endpoint consolidado de sincronizacion."""
 
-import os
 import asyncio
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
-
-os.environ.setdefault("GEMINI_API_KEY", "test-key")
 
 from auth import get_current_user
 from main import app
@@ -30,7 +27,7 @@ class MockResult:
 
 @pytest.fixture(autouse=True)
 def _reset_sync_state(monkeypatch):
-    monkeypatch.setattr(sync_module, "_ai_client", None)
+    monkeypatch.setattr(sync_module, "is_deepseek_configured", lambda: False)
     monkeypatch.setattr(sync_module, "get_trm", lambda: asyncio.sleep(0, result=4200.0))
     sync_module._quote_cache.clear()
     yield

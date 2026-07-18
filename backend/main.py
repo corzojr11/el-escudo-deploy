@@ -2,7 +2,7 @@
 
 Punto de entrada del backend. Expone endpoints para sincronización,
 gestión de finanzas, peso, sueño, objetivos, turnos laborales,
-notificaciones, integraciones externas y el asistente OMNI (Gemini).
+notificaciones, integraciones externas y el asistente OMNI (DeepSeek).
 
 Incluye un planificador (APScheduler) que ejecuta tareas periódicas
 como el envío de notificaciones contextuales.

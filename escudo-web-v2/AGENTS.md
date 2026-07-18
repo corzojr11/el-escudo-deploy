@@ -100,7 +100,7 @@ src/
 
 1. **Sin editar/eliminar** en Finanzas, Metas, Salud, Hábitos. Solo Turnos soporta delete.
 2. **OMNI sin streaming**: Respuestas completas, no token por token.
-3. **OMNI sin memoria conversacional real**: Single-turn (backend no envía historial a Gemini).
+3. **OMNI sin memoria conversacional real**: Single-turn (backend no envía historial al proveedor de IA).
 4. **OMNI confirma mutaciones antes de ejecutar**: Interpreta -> preview -> confirmar -> ejecutar una sola vez. Consultas puras responden directamente.
 5. **Hábitos: race condition en toggle**: Envía array completo `completed_dates`. Dos pestañas simultáneas pueden perder datos.
 6. **Dashboard client-rendered**: Único módulo que fetchea en cliente (`useEffect`). Los demás son server-rendered.

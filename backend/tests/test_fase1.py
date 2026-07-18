@@ -328,21 +328,22 @@ def _build_atomic_mock_supabase(proposal_id: str, initial_status: str = "pending
 class TestOmniSecureFlow:
     """C. OMNI seguro e idempotente."""
 
-    def _setup_gemini_mock(self, monkeypatch, intent):
-        mock_response = MagicMock()
-        mock_response.text = (
-            f'{{"intent": "{intent}", "extracted_data": {{"amount": 100000}}, '
-            f'"respuesta_usuario": "Listo", "xp_ganada": 20}}'
-        )
-        mock_response.usage_metadata.prompt_token_count = 100
-        mock_response.usage_metadata.candidates_token_count = 50
+    def _setup_deepseek_mock(self, monkeypatch, intent):
+        async def mock_complete_chat(messages, **kwargs):
+            return {
+                "text": (
+                    f'{{"intent": "{intent}", "extracted_data": {{"amount": 100000}}, '
+                    f'"respuesta_usuario": "Listo", "xp_ganada": 20}}'
+                ),
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+            }
 
-        mock_client = MagicMock()
-        mock_client.models.generate_content.return_value = mock_response
-        monkeypatch.setattr(omni_service_module, "_omni_client", mock_client)
+        monkeypatch.setattr(omni_service_module, "_omni_client", True)
+        monkeypatch.setattr(omni_service_module, "complete_chat", mock_complete_chat)
 
     def test_mutation_returns_proposal_not_execution(self, monkeypatch):
-        self._setup_gemini_mock(monkeypatch, "REGISTER_INCOME")
+        self._setup_deepseek_mock(monkeypatch, "REGISTER_INCOME")
 
         async def mock_get_trm():
             return 4000.0
