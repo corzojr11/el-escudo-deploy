@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, Circle, Plus, Pencil, Trash2, Loader2, X, ShieldAlert } from "lucide-react";
+import { BookOpen, CalendarClock, Check, Circle, Dumbbell, Loader2, Pencil, Plus, ShieldAlert, Trash2, WalletCards, X } from "lucide-react";
 import { createMission, updateMission, deleteMission } from "@/app/actions/missions";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { FormStatus } from "@/components/dashboard/FormStatus";
@@ -103,6 +103,18 @@ export function MisionesClient({
     setProgressIncrement("");
     setEditingId(null);
     setCreating(false);
+  }
+
+  function startStarterMission(starterName: string, starterPriority = "medium") {
+    setName(starterName);
+    setDescription("");
+    setPriority(starterPriority);
+    setScheduledAt(bogotaToday());
+    setGoalId(initialGoalId || "");
+    setProgressIncrement("");
+    setEditingId(null);
+    setStatus({});
+    setCreating(true);
   }
 
   async function handleCreate() {
@@ -203,7 +215,7 @@ export function MisionesClient({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 pb-8">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 pb-8">
       <Card className="border-[#2A2A3C] bg-[#17171A]">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -370,7 +382,45 @@ export function MisionesClient({
           <div className="border-t border-[#2A2A3C]" />
 
           {visibleMissions.length === 0 ? (
-            <EmptyState message="Sin misiones. Crea tu primera mision para empezar." />
+            missions.length === 0 && !creating ? (
+              <div className="border border-[#2A2A3C] bg-[#0C0C0E] p-5 sm:p-6">
+                <span className="hud-label text-[#7C5DFF]">PRIMERA MISIÓN</span>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Haz que hoy cuente con una acción concreta</h3>
+                    <p className="mt-1 max-w-2xl text-sm text-gray-400">Elige una base, ajusta el nombre si quieres y guárdala. No necesitas planear toda la semana ahora.</p>
+                  </div>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-gray-500">Se programa para hoy</span>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Button type="button" variant="outline" onClick={() => startStarterMission("Ordenar mi día durante 10 minutos")} className="h-auto min-h-28 justify-start gap-3 border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
+                    <CalendarClock className="h-5 w-5 shrink-0 text-[#7C5DFF]" />
+                    <span><span className="block font-semibold text-white">Ordenar mi día</span><span className="mt-1 block text-xs font-normal leading-5 text-gray-400">Revisar turnos, pendientes y una prioridad.</span></span>
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => startStarterMission("Entrenar 30 minutos", "high")} className="h-auto min-h-28 justify-start gap-3 border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
+                    <Dumbbell className="h-5 w-5 shrink-0 text-[#00FF9D]" />
+                    <span><span className="block font-semibold text-white">Mover mi cuerpo</span><span className="mt-1 block text-xs font-normal leading-5 text-gray-400">Una sesión realista, no una rutina perfecta.</span></span>
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => startStarterMission("Registrar mis gastos de hoy")} className="h-auto min-h-28 justify-start gap-3 border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
+                    <WalletCards className="h-5 w-5 shrink-0 text-[#FFD700]" />
+                    <span><span className="block font-semibold text-white">Cuidar mi dinero</span><span className="mt-1 block text-xs font-normal leading-5 text-gray-400">Registrar primero para decidir mejor después.</span></span>
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => startStarterMission("Leer 10 minutos antes de dormir")} className="h-auto min-h-28 justify-start gap-3 border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
+                    <BookOpen className="h-5 w-5 shrink-0 text-[#B7A5FF]" />
+                    <span><span className="block font-semibold text-white">Retomar la lectura</span><span className="mt-1 block text-xs font-normal leading-5 text-gray-400">Un bloque breve que sí cabe en el día.</span></span>
+                  </Button>
+                </div>
+
+                <div className="mt-5 grid gap-3 border-t border-[#2A2A3C] pt-4 text-sm sm:grid-cols-3">
+                  <p className="text-gray-400"><span className="font-mono text-xs text-[#7C5DFF]">01</span><br /><span className="font-semibold text-white">Elige una misión</span><br />Una sola acción con final claro.</p>
+                  <p className="text-gray-400"><span className="font-mono text-xs text-[#7C5DFF]">02</span><br /><span className="font-semibold text-white">Ajústala a tu realidad</span><br />Cambia nombre, fecha o prioridad si hace falta.</p>
+                  <p className="text-gray-400"><span className="font-mono text-xs text-[#7C5DFF]">03</span><br /><span className="font-semibold text-white">Ciérrala cuando termines</span><br />Tu avance se vuelve visible, no solo pensado.</p>
+                </div>
+              </div>
+            ) : (
+              <EmptyState message="No hay misiones para este filtro. Prueba otra vista o crea una nueva." />
+            )
           ) : (
             <div className="space-y-0">
               {visibleMissions.map((mission) => {
