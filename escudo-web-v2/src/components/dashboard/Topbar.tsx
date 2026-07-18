@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, User, LogOut, Loader2, Sparkles, Wallet } from "lucide-react";
+import { ArrowLeft, Bell, User, LogOut, Loader2, Sparkles, Wallet } from "lucide-react";
 import { MobileNav } from "./MobileNav";
 import { NAV_MODULES } from "@/lib/constants/navigation";
 import { createClient } from "@/lib/auth/client";
@@ -65,11 +65,22 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background px-4 md:px-6">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <MobileNav />
-        <div>
+        {pathname !== "/" && (
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-secondary text-muted-foreground transition-colors hover:border-[#7C5DFF] hover:text-foreground"
+            aria-label="Volver a la pantalla anterior"
+            title="Volver"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        )}
+        <div className="min-w-0">
           <p className="hud-label mb-1 hidden md:block">EL ESCUDO</p>
-          <h1 className="font-heading text-sm font-bold uppercase tracking-[0.08em] text-foreground md:text-base">
+          <h1 className="truncate font-heading text-sm font-bold uppercase tracking-[0.08em] text-foreground md:text-base">
             {activeModule?.id === "dashboard" ? "Bitácora de viaje" : activeModule?.label ?? "El Escudo"}
           </h1>
         </div>

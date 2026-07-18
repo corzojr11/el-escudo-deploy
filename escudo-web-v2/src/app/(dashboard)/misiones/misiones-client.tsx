@@ -393,22 +393,22 @@ export function MisionesClient({
                   <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-gray-500">Se programa para hoy</span>
                 </div>
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Button type="button" variant="outline" onClick={() => startStarterMission("Ordenar mi día durante 10 minutos")} className="h-auto min-h-28 justify-start gap-3 border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <Button type="button" variant="outline" onClick={() => startStarterMission("Ordenar mi día durante 10 minutos")} className="h-auto min-h-28 min-w-0 justify-start gap-3 whitespace-normal border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
                     <CalendarClock className="h-5 w-5 shrink-0 text-[#7C5DFF]" />
-                    <span><span className="block font-semibold text-white">Ordenar mi día</span><span className="mt-1 block text-xs font-normal leading-5 text-gray-400">Revisar turnos, pendientes y una prioridad.</span></span>
+                    <span className="min-w-0"><span className="block font-semibold text-white">Ordenar mi día</span><span className="mt-1 block break-words text-xs font-normal leading-5 text-gray-400">Revisar turnos, pendientes y una prioridad.</span></span>
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => startStarterMission("Entrenar 30 minutos", "high")} className="h-auto min-h-28 justify-start gap-3 border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
+                  <Button type="button" variant="outline" onClick={() => startStarterMission("Entrenar 30 minutos", "high")} className="h-auto min-h-28 min-w-0 justify-start gap-3 whitespace-normal border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
                     <Dumbbell className="h-5 w-5 shrink-0 text-[#00FF9D]" />
-                    <span><span className="block font-semibold text-white">Mover mi cuerpo</span><span className="mt-1 block text-xs font-normal leading-5 text-gray-400">Una sesión realista, no una rutina perfecta.</span></span>
+                    <span className="min-w-0"><span className="block font-semibold text-white">Mover mi cuerpo</span><span className="mt-1 block break-words text-xs font-normal leading-5 text-gray-400">Una sesión realista, no una rutina perfecta.</span></span>
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => startStarterMission("Registrar mis gastos de hoy")} className="h-auto min-h-28 justify-start gap-3 border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
+                  <Button type="button" variant="outline" onClick={() => startStarterMission("Registrar mis gastos de hoy")} className="h-auto min-h-28 min-w-0 justify-start gap-3 whitespace-normal border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
                     <WalletCards className="h-5 w-5 shrink-0 text-[#FFD700]" />
-                    <span><span className="block font-semibold text-white">Cuidar mi dinero</span><span className="mt-1 block text-xs font-normal leading-5 text-gray-400">Registrar primero para decidir mejor después.</span></span>
+                    <span className="min-w-0"><span className="block font-semibold text-white">Cuidar mi dinero</span><span className="mt-1 block break-words text-xs font-normal leading-5 text-gray-400">Registrar primero para decidir mejor después.</span></span>
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => startStarterMission("Leer 10 minutos antes de dormir")} className="h-auto min-h-28 justify-start gap-3 border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
+                  <Button type="button" variant="outline" onClick={() => startStarterMission("Leer 10 minutos antes de dormir")} className="h-auto min-h-28 min-w-0 justify-start gap-3 whitespace-normal border-[#2A2A3C] px-4 py-4 text-left hover:border-[#7C5DFF]/70">
                     <BookOpen className="h-5 w-5 shrink-0 text-[#B7A5FF]" />
-                    <span><span className="block font-semibold text-white">Retomar la lectura</span><span className="mt-1 block text-xs font-normal leading-5 text-gray-400">Un bloque breve que sí cabe en el día.</span></span>
+                    <span className="min-w-0"><span className="block font-semibold text-white">Retomar la lectura</span><span className="mt-1 block break-words text-xs font-normal leading-5 text-gray-400">Un bloque breve que sí cabe en el día.</span></span>
                   </Button>
                 </div>
 
