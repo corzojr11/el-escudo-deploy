@@ -28,6 +28,7 @@ import {
   ChevronDown,
   Receipt,
   Wand2,
+  CircleAlert,
 } from "lucide-react";
 import {
   createFinance,
@@ -691,6 +692,36 @@ const [savingDraft, setSavingDraft] = useState(false);
   const budgetUsedPct = budgetConfigured ? Math.min((monthlyExpense / budget) * 100, 100) : 0;
   const budgetSaldo = budget - monthlyExpense;
   const budgetOver = monthlyExpense > budget && budgetConfigured;
+  const debtMonthlyCommitment = debts.reduce((acc, debt) => acc + (debt.monthly_payment ?? 0), 0);
+  const financialFocus = !budgetConfigured
+    ? {
+        title: "Define tu margen del mes",
+        message: "Configura un presupuesto mensual antes de asumir gastos que no sean esenciales.",
+        tone: "text-escudo-gold",
+      }
+    : budgetOver
+      ? {
+          title: "Recupera tu margen",
+          message: `Vas ${formatCurrency(monthlyExpense - budget)} por encima del presupuesto. Pausa gastos flexibles hasta revisar el flujo.`,
+          tone: "text-escudo-red",
+        }
+      : upcomingFixed[0]
+        ? {
+            title: "Siguiente compromiso",
+            message: `${upcomingFixed[0].name} vence ${formatShortDate(upcomingFixed[0].due_date!)} por ${formatCurrency(upcomingFixed[0].amount)}. Sepáralo antes de usar el saldo disponible.`,
+            tone: "text-accent",
+          }
+        : debtMonthlyCommitment > 0
+          ? {
+              title: "Avance de salida",
+              message: `Tu compromiso mensual de deudas es ${formatCurrency(debtMonthlyCommitment)}. Separa ese monto antes de distribuir el resto.`,
+              tone: "text-escudo-gold",
+            }
+          : {
+              title: "Conserva visibilidad",
+              message: "Registra los movimientos de esta semana para decidir con datos reales y cuidar tu margen.",
+              tone: "text-accent",
+            };
 
   if (criticalError) {
     return <ErrorState title="No se pudieron cargar tus movimientos" message="No mostraremos valores incompletos como si fueran reales. Reintenta para cargar Finanzas." onRetry={() => router.refresh()} />;
@@ -833,6 +864,18 @@ const [savingDraft, setSavingDraft] = useState(false);
             </Button>
           </div>
           <FormStatus {...budgetStatus} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <span className="hud-label text-accent">Monthly Direction</span>
+          <CardTitle className={cn("flex items-center gap-2 text-base", financialFocus.tone)}>
+            <CircleAlert className="h-5 w-5" /> {financialFocus.title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{financialFocus.message}</p>
         </CardContent>
       </Card>
 

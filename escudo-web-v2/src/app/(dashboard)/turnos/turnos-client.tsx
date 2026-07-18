@@ -14,6 +14,7 @@ import {
   Play,
   Square,
   Pencil,
+  Route,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createShift, updateShift, deleteShift } from "@/app/actions/turnos";
@@ -102,6 +103,28 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, c
   const inShift = currentStatus.status === "in_shift";
   const currentShift = currentStatus.shift ?? null;
   const nextShift = currentStatus.next_shift ?? null;
+  const prepMinutes = Math.max(0, Number(commuteMin) || 0) + 45;
+  const minutesUntilPreparation = nextShift ? Math.round(nextShift.starts_in_hours * 60 - prepMinutes) : null;
+
+  const preparationGuidance = inShift
+    ? {
+        title: "Protege tu energia durante el turno",
+        message: "Evita comprometer tareas exigentes antes de terminar. Al salir, decide entre descanso o una sola mision ligera.",
+      }
+    : nextShift && minutesUntilPreparation !== null
+      ? minutesUntilPreparation <= 0
+        ? {
+            title: "Es hora de prepararte",
+            message: `Tu turno empieza ${nextShift.day} a las ${nextShift.start}. Reserva ${prepMinutes} min para preparacion y traslado.`,
+          }
+        : {
+            title: "Tu siguiente bloque util",
+            message: `Tienes ${formatRemaining(minutesUntilPreparation / 60)} antes de prepararte para el turno. Elige una sola tarea importante.`,
+          }
+      : {
+          title: "Espacio disponible para tu plan",
+          message: "No tienes un turno proximo registrado. Usa este espacio para una mision, una rutina o recuperacion.",
+        };
 
   if (criticalError) {
     return <ErrorState title="No se pudieron cargar tus turnos" message="No mostraremos una agenda vacia como si fuera tu horario real. Reintenta para cargar Turnos." onRetry={() => router.refresh()} />;
@@ -174,6 +197,18 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, c
           ) : (
             <EmptyState title="Sin turnos registrados" message="No tienes turnos registrados. Agrega tu primer turno abajo." />
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <span className="hud-label text-accent">Preparation Window</span>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Route className="h-5 w-5 text-accent" /> {preparationGuidance.title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{preparationGuidance.message}</p>
         </CardContent>
       </Card>
 
