@@ -251,7 +251,7 @@ export function MetasClient({ goals }: MetasClientProps) {
         </div>
       </section>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_23rem]">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_23rem]">
         <section className="space-y-5">
           <div className="flex items-center justify-between gap-3">
             <div>
