@@ -9,9 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Target, Calendar, Trophy, Plus, TrendingUp, Archive, RotateCcw } from "lucide-react";
+import { Target, Calendar, Trophy, Plus, TrendingUp, Archive, RotateCcw, CheckCircle2, ChevronDown } from "lucide-react";
 import { createGoal, addMetric, archiveGoal, reopenGoal } from "@/app/actions/goals";
-import { EmptyState } from "@/components/dashboard/EmptyState";
 import { SubmitButton } from "@/components/dashboard/SubmitButton";
 import { FormStatus } from "@/components/dashboard/FormStatus";
 import { formatDate } from "@/lib/api/helpers";
@@ -145,6 +144,8 @@ export function MetasClient({ goals }: MetasClientProps) {
   const [createStatus, setCreateStatus] = useState<{ success?: string; error?: string }>({});
   const [metricStatus, setMetricStatus] = useState<{ success?: string; error?: string }>({});
   const [archiving, setArchiving] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(goals.length === 0);
+  const [showProgress, setShowProgress] = useState(false);
   const [, startCreateTransition] = useTransition();
   const [, startMetricTransition] = useTransition();
   const [, startArchiveTransition] = useTransition();
@@ -210,27 +211,94 @@ export function MetasClient({ goals }: MetasClientProps) {
   const archivedGoals = goals.filter((g) => g.status === "archived");
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
-        <div className="relative flex flex-col gap-3">
-          <span className="hud-label text-accent">Mission Board</span>
-          <h2 className="font-heading text-3xl font-black tracking-[0.1em] text-glow text-foreground md:text-4xl">
-            METAS
-          </h2>
-          <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-            Define objetivos, registra progreso y visualiza estados en un tablero de misiones.
-          </p>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+      <section className="panel-neon rounded-[28px] p-5 md:p-6">
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="space-y-2">
+            <span className="hud-label text-accent">Tu ruta de avance</span>
+            <h2 className="font-heading text-3xl font-black tracking-[0.06em] text-foreground md:text-4xl">METAS</h2>
+            <p className="max-w-xl text-sm text-muted-foreground">
+              Define un resultado concreto y registra solo los avances que importan.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="border border-border/80 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Activas: </span><strong>{activeGoals.length}</strong>
+            </div>
+            <div className="border border-border/80 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Completadas: </span><strong className="text-escudo-green">{completedGoals.length}</strong>
+            </div>
+            <Button type="button" onClick={() => setShowCreate((current) => !current)}>
+              <Plus className="h-4 w-4" /> {showCreate ? "Cerrar" : "Nueva meta"}
+            </Button>
+          </div>
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="flex flex-col gap-6 lg:col-span-1">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_23rem]">
+        <section className="space-y-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span className="hud-label text-accent">Tablero principal</span>
+              <h3 className="mt-1 text-lg font-semibold">En qué estás trabajando</h3>
+            </div>
+            {activeGoals.length > 0 && (
+              <Button type="button" variant="outline" size="sm" onClick={() => setShowProgress((current) => !current)}>
+                <TrendingUp className="h-4 w-4" /> Registrar avance
+              </Button>
+            )}
+          </div>
+
+          {goals.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex min-h-56 flex-col items-center justify-center gap-3 p-8 text-center">
+                <Target className="h-8 w-8 text-escudo-gold" />
+                <div>
+                  <h4 className="font-semibold">Empieza con una meta simple</h4>
+                  <p className="mt-1 max-w-md text-sm text-muted-foreground">Por ejemplo: subir 3 kg, leer 2 libros o ahorrar para una deuda. Después podrás registrar cada avance.</p>
+                </div>
+                {!showCreate && <Button type="button" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Crear mi primera meta</Button>}
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {activeGoals.length > 0 && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {activeGoals.map((goal) => <GoalCard key={goal.id} goal={goal} onArchive={handleArchive} archiving={archiving} />)}
+                </div>
+              )}
+              {completedGoals.length > 0 && (
+                <details className="group border border-border/80 bg-card">
+                  <summary className="flex cursor-pointer list-none items-center justify-between p-4 font-medium">
+                    <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-escudo-green" /> Metas completadas ({completedGoals.length})</span>
+                    <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="grid gap-4 border-t border-border/80 p-4 md:grid-cols-2">
+                    {completedGoals.map((goal) => <GoalCard key={goal.id} goal={goal} onArchive={handleArchive} archiving={archiving} />)}
+                  </div>
+                </details>
+              )}
+              {archivedGoals.length > 0 && (
+                <details className="group border border-border/80 bg-card">
+                  <summary className="flex cursor-pointer list-none items-center justify-between p-4 font-medium text-muted-foreground">
+                    <span>Archivadas ({archivedGoals.length})</span><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="grid gap-4 border-t border-border/80 p-4 md:grid-cols-2">
+                    {archivedGoals.map((goal) => <GoalCard key={goal.id} goal={goal} onReopen={handleReopen} archiving={archiving} />)}
+                  </div>
+                </details>
+              )}
+            </>
+          )}
+        </section>
+
+        <aside className="space-y-4 lg:sticky lg:top-5">
+          {showCreate && (
           <Card>
-            <CardHeader>
-              <span className="hud-label text-accent">New Goal</span>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Plus className="h-5 w-5 text-escudo-gold" /> Nueva meta
-              </CardTitle>
+            <CardHeader className="pb-3">
+              <span className="hud-label text-accent">Paso 1</span>
+              <CardTitle className="flex items-center gap-2 text-base"><Plus className="h-5 w-5 text-escudo-gold" /> Define tu meta</CardTitle>
+              <CardDescription>Qué quieres conseguir y cómo lo vas a medir.</CardDescription>
             </CardHeader>
             <CardContent>
               <form ref={createFormRef} action={handleCreateGoal} className="flex flex-col gap-4">
@@ -239,7 +307,7 @@ export function MetasClient({ goals }: MetasClientProps) {
                   <Input id="name" name="name" placeholder="Ej. Leer 12 libros" required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Descripcion</Label>
+                  <Label htmlFor="description">Por qué te importa</Label>
                   <Input id="description" name="description" placeholder="Opcional" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -253,7 +321,7 @@ export function MetasClient({ goals }: MetasClientProps) {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="deadline">Fecha limite</Label>
+                  <Label htmlFor="deadline">Fecha límite</Label>
                   <Input id="deadline" name="deadline" type="date" />
                 </div>
                 <FormStatus {...createStatus} />
@@ -261,13 +329,14 @@ export function MetasClient({ goals }: MetasClientProps) {
               </form>
             </CardContent>
           </Card>
+          )}
 
+          {showProgress && activeGoals.length > 0 && (
           <Card>
-            <CardHeader>
-              <span className="hud-label text-accent">Update Progress</span>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-5 w-5 text-escudo-cyan" /> Registrar progreso
-              </CardTitle>
+            <CardHeader className="pb-3">
+              <span className="hud-label text-accent">Paso 2</span>
+              <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-escudo-cyan" /> Registra un avance</CardTitle>
+              <CardDescription>Solo necesitas la meta y el nuevo valor.</CardDescription>
             </CardHeader>
             <CardContent>
               <form ref={metricFormRef} action={handleAddMetric} className="flex flex-col gap-4">
@@ -296,8 +365,8 @@ export function MetasClient({ goals }: MetasClientProps) {
                   <Input id="metric_date" name="date" type="date" defaultValue={todayInputValue()} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="unit">Unidad</Label>
-                  <Input id="unit" name="unit" placeholder="Opcional" />
+                  <Label htmlFor="metric_unit">Unidad</Label>
+                  <Input id="metric_unit" name="unit" placeholder="Opcional" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notas</Label>
@@ -308,45 +377,8 @@ export function MetasClient({ goals }: MetasClientProps) {
               </form>
             </CardContent>
           </Card>
-        </div>
-
-        <div className="flex flex-col gap-6 lg:col-span-2">
-          {goals.length === 0 ? (
-            <EmptyState title="No tienes metas aun" message="Crea tu primera meta para comenzar a medir tu progreso." />
-          ) : (
-            <>
-              {activeGoals.length > 0 && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {activeGoals.map((goal) => (
-                    <GoalCard key={goal.id} goal={goal} onArchive={handleArchive} archiving={archiving} />
-                  ))}
-                </div>
-              )}
-
-              {completedGoals.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="hud-label text-escudo-gold">Completadas</h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {completedGoals.map((goal) => (
-                      <GoalCard key={goal.id} goal={goal} onArchive={handleArchive} archiving={archiving} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {archivedGoals.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="hud-label text-muted-foreground">Archivadas</h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {archivedGoals.map((goal) => (
-                      <GoalCard key={goal.id} goal={goal} onReopen={handleReopen} archiving={archiving} />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
           )}
-        </div>
+        </aside>
       </div>
     </div>
   );
