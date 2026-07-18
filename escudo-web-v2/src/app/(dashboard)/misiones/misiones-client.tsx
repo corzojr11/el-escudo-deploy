@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, Circle, Plus, Pencil, Trash2, Loader2, X } from "lucide-react";
+import { Check, Circle, Plus, Pencil, Trash2, Loader2, X, ShieldAlert } from "lucide-react";
 import { createMission, updateMission, deleteMission } from "@/app/actions/missions";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { FormStatus } from "@/components/dashboard/FormStatus";
@@ -31,10 +31,12 @@ export function MisionesClient({
   missions,
   goals,
   initialGoalId,
+  capacityNotice,
 }: {
   missions: Mission[];
   goals: Goal[];
   initialGoalId?: string;
+  capacityNotice?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -45,6 +47,7 @@ export function MisionesClient({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [status, setStatus] = useState<{ success?: string; error?: string }>({});
+  const [showAllDuringLowCapacity, setShowAllDuringLowCapacity] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -82,6 +85,11 @@ export function MisionesClient({
 
   const completedCount = missions.filter((m) => m.status === "completed").length;
   const activeCount = missions.filter((m) => m.status !== "completed").length;
+  const lowCapacity = Boolean(capacityNotice);
+  const shouldPrioritizeMissions = lowCapacity && !showAllDuringLowCapacity && filter !== "completed";
+  const visibleMissions = shouldPrioritizeMissions
+    ? filtered.filter((mission) => mission.status !== "completed").slice(0, 1)
+    : filtered;
 
   function resetForm() {
     setName("");
@@ -217,8 +225,28 @@ export function MisionesClient({
           {status.success && <FormStatus success={status.success} />}
           {status.error && <FormStatus error={status.error} />}
 
+          {lowCapacity && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border border-[#7C5DFF]/45 bg-[#7C5DFF]/10 p-3 text-sm text-[#d5ccff]">
+              <span className="flex items-start gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />{capacityNotice}</span>
+              {activeCount > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllDuringLowCapacity((value) => !value)}
+                  className="font-mono text-[11px] uppercase text-white underline underline-offset-4"
+                >
+                  {showAllDuringLowCapacity ? "Ver prioridad" : `Ver las ${activeCount} pendientes`}
+                </button>
+              )}
+            </div>
+          )}
+
           {creating && (
             <div className="border border-[#2A2A3C] bg-[#0C0C0E] p-4 space-y-3">
+              {lowCapacity && (
+                <p className="border-l-2 border-[#FFD700] pl-3 text-xs leading-5 text-[#ffe476]">
+                  Antes de crearla, revisa si realmente cabe hoy. Una misión concreta vale más que una lista imposible.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-gray-300">Nombre</Label>
@@ -338,11 +366,11 @@ export function MisionesClient({
 
           <div className="border-t border-[#2A2A3C]" />
 
-          {filtered.length === 0 ? (
+          {visibleMissions.length === 0 ? (
             <EmptyState message="Sin misiones. Crea tu primera mision para empezar." />
           ) : (
             <div className="space-y-0">
-              {filtered.map((mission) => {
+              {visibleMissions.map((mission) => {
                 const isCompleted = mission.status === "completed";
                 const missionName = mission.name || mission.title || "Sin nombre";
                 return (

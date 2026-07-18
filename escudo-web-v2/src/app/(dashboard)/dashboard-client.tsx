@@ -91,7 +91,9 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
     ? { label: "Estás en turno: protege tu energía y deja una sola misión ligera para después.", href: "/turnos", cta: "Ver turno" }
     : plan?.sleep.fatigue_alert
       ? { label: "Tu descanso está comprometido por el próximo turno. Prioriza recuperar sueño hoy.", href: "/salud", cta: "Registrar sueño" }
-      : missions.some((mission) => mission.status !== "completed")
+      : availableBudget != null && availableBudget < totalPendingFixed + debtCommitment
+        ? { label: "Tu margen del mes no cubre los compromisos pendientes. Revisa gastos fijos y abonos antes de hacer compras nuevas.", href: "/finanzas", cta: "Revisar finanzas" }
+        : missions.some((mission) => mission.status !== "completed")
         ? { label: "Elige una sola misión pendiente y ciérrala antes de abrir otra tarea.", href: "/misiones", cta: "Ver misiones" }
         : { label: "Tu día está despejado. Define el siguiente paso que más protege tu futuro.", href: "/metas", cta: "Definir meta" };
 
@@ -102,7 +104,9 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
     ? "Reduce el alcance: una misión ligera y un hábito base son suficiente para hoy."
     : missions.filter((mission) => mission.status !== "completed").length > 3
       ? "Tienes varias misiones abiertas. Elige solo una antes de sumar otra."
-      : goals.length === 0
+      : availableBudget != null && availableBudget < totalPendingFixed + debtCommitment
+        ? "Tu dinero ya tiene compromisos asignados. Protege el margen antes de convertirlo en otro gasto."
+        : goals.length === 0
         ? "Convierte una intención importante en una meta antes de abrir más tareas."
         : "Tu siguiente avance está en cerrar una misión que ya sostiene una meta activa.";
 

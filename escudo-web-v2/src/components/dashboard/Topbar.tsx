@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, User, LogOut, Loader2, Sparkles, Wallet } from "lucide-react";
@@ -17,7 +17,8 @@ export function Topbar() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
-  const [quickExpense, setQuickExpense] = useState("");
+  const [quickCommand, setQuickCommand] = useState("");
+  const quickCommandRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -35,14 +36,31 @@ export function Topbar() {
     });
   }, []);
 
+  useEffect(() => {
+    function handleQuickCommand(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        quickCommandRef.current?.focus();
+      }
+    }
+
+    window.addEventListener("keydown", handleQuickCommand);
+    return () => window.removeEventListener("keydown", handleQuickCommand);
+  }, []);
+
   const displayName = userName || userEmail;
 
-  function openQuickExpense(event: FormEvent<HTMLFormElement>) {
+  function openQuickCommand(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const capture = quickExpense.trim();
-    if (!capture) return;
-    router.push(`/finanzas?captura=${encodeURIComponent(capture)}`);
-    setQuickExpense("");
+    const command = quickCommand.trim();
+    if (!command) return;
+
+    // Expense-like input uses the existing confirmation flow; everything else stays conversational.
+    const looksLikeExpense = /(?:gast[ée]|pagu[ée]|compr[ée]|cobr[ée]|ingres[ée]|recib[íi]|dinero|\$|\b\d+\s*k\b)/i.test(command);
+    router.push(looksLikeExpense
+      ? `/finanzas?captura=${encodeURIComponent(command)}`
+      : `/omni?consulta=${encodeURIComponent(command)}`);
+    setQuickCommand("");
   }
 
   return (
@@ -67,13 +85,14 @@ export function Topbar() {
           <Sparkles className="h-4 w-4" />
           <span className="hidden xl:inline">OMNI</span>
         </Link>
-        <form onSubmit={openQuickExpense} className="hidden items-center gap-2 lg:flex">
-          <Wallet className="h-4 w-4 text-[#FFD700]" aria-hidden="true" />
+        <form onSubmit={openQuickCommand} className="hidden items-center gap-2 lg:flex">
+          <Sparkles className="h-4 w-4 text-[#7C5DFF]" aria-hidden="true" />
           <input
-            value={quickExpense}
-            onChange={(event) => setQuickExpense(event.target.value)}
-            placeholder="Gasto rápido: almuerzo 18.000"
-            aria-label="Capturar gasto rápido"
+            ref={quickCommandRef}
+            value={quickCommand}
+            onChange={(event) => setQuickCommand(event.target.value)}
+            placeholder="Comando rápido: gasto, tarea o idea"
+            aria-label="Escribir un comando rápido"
             className="h-9 w-56 border border-border bg-secondary px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-[#7C5DFF] xl:w-72"
           />
         </form>

@@ -34,6 +34,7 @@ import {
 } from "@/lib/api/omni-helpers";
 import type { OmniCommandResult, OmniMessage, OmniPatternsResponse } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { useSearchParams } from "next/navigation";
 
 function generateSessionId() {
   return `web-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -138,8 +139,10 @@ function formatActionList(actions: OmniCommandResult[]): string {
 }
 
 export default function OmniPage() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("consulta")?.trim() ?? "";
   const [messages, setMessages] = useState<LocalMessage[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialQuery);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -149,7 +152,7 @@ export default function OmniPage() {
   const [patterns, setPatterns] = useState<OmniPatternsResponse | null>(null);
   const sessionIdRef = useRef(generateSessionId());
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef("");
+  const inputRef = useRef(initialQuery);
 
   useEffect(() => {
     Promise.allSettled([
@@ -166,6 +169,13 @@ export default function OmniPage() {
       }
     }).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const query = searchParams.get("consulta")?.trim();
+    if (!query) return;
+
+    requestAnimationFrame(() => document.getElementById("omni-command")?.focus());
+  }, [searchParams]);
 
   useEffect(() => {
     if (scrollRef.current) {

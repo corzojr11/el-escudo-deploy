@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Heart, TrendingDown, TrendingUp, Activity, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Heart, TrendingDown, TrendingUp, Activity, Plus, Pencil, Trash2, Loader2, Sunrise } from "lucide-react";
 import { addWeight, updateWeight, deleteWeightLog, logExercise } from "@/app/actions/health";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { ErrorState } from "@/components/dashboard/ErrorState";
@@ -20,7 +20,19 @@ import { RestTimer } from "@/components/dashboard/RestTimer";
 import type { FocusStatus, WeightLog, ExerciseLog, PersonalRecord, SleepLog, Routine } from "@/lib/api/types";
 
 function todayInputValue() {
-  return new Date().toISOString().split("T")[0];
+  const values = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Bogota", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) => values.find((value) => value.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function bogotaTimeValue() {
+  const values = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) => values.find((value) => value.type === type)?.value ?? "";
+  return `${part("hour")}:${part("minute")}`;
 }
 
 function sleepSummary(bedTime: string, wakeTime: string) {
@@ -62,6 +74,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
   const [sleepNotes, setSleepNotes] = useState("");
   const [sleepStatus, setSleepStatus] = useState<{ success?: string; error?: string }>({});
   const [sleeping, setSleeping] = useState(false);
+  const [wakeRecorded, setWakeRecorded] = useState(false);
 
   const [exName, setExName] = useState("");
   const [exWeight, setExWeight] = useState("");
@@ -148,6 +161,35 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
         setStatus({ error: result.error ?? "Error al eliminar" });
       }
     });
+  }
+
+  async function handleWakeNow() {
+    const date = todayInputValue();
+    const wakeTime = bogotaTimeValue();
+    const bedTime = String(bioSettings?.t_sleep_target || sleepBedTime || "22:30");
+    const summary = sleepSummary(bedTime, wakeTime);
+
+    setSleeping(true);
+    setSleepStatus({});
+    try {
+      await logSleep({
+        date,
+        bed_time: bedTime,
+        wake_time: wakeTime,
+        cycles: summary.cycles,
+        quality_score: 3,
+        notes: "Registro rápido al despertar.",
+      });
+      setSleepDate(date);
+      setSleepWakeTime(wakeTime);
+      setWakeRecorded(true);
+      setSleepStatus({ success: `Despertar registrado a las ${wakeTime}. Puedes ajustar la calidad o las notas si lo necesitas.` });
+      router.refresh();
+    } catch (error: unknown) {
+      setSleepStatus({ error: error instanceof Error ? error.message : "No se pudo registrar el despertar" });
+    } finally {
+      setSleeping(false);
+    }
   }
 
   return (
@@ -702,6 +744,18 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
             {sleeping && <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />}
             Registrar sueño
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleWakeNow}
+            disabled={sleeping || wakeRecorded}
+            className="ml-2 border-[#FFD700]/60 text-[#ffe476] hover:bg-[#FFD700]/10 hover:text-[#ffe476]"
+          >
+            {sleeping && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {!sleeping && <Sunrise className="mr-2 h-4 w-4" />}
+            {wakeRecorded ? "Despertar registrado" : "Acabo de despertar"}
+          </Button>
+          <p className="text-xs text-muted-foreground">Usa tu hora objetivo de dormir y calidad neutral. Luego puedes corregir el registro si fue distinto.</p>
         </CardContent>
       </Card>
 
