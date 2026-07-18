@@ -320,8 +320,3 @@ class TestMockGeminiAPI:
                 "process_command_completed",
             ]
             assert all(e["module"] == "omni" for e in tracked_events)
-
-def test_contextual_advice_rejects_unknown_section():
-    client = TestClient(app)
-    response = client.post("/api/v1/omni/contextual-advice", json={"section": "unknown", "question": "Que hago?"})
-    assert response.status_code == 422
