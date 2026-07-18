@@ -49,8 +49,9 @@ async def generate_recipe(payload: RecipeRequest, user=Depends(get_current_user)
         f"Objetivo: {goal}; ultimo peso: {weight or 'no registrado'} kg; tipo de comida: {payload.meal}; "
         f"ingredientes disponibles: {payload.ingredients or 'comunes y economicos'}; maximo {payload.minutes} minutos. "
         "Para ganar musculo/peso prioriza proteina y energia sin prometer resultados. "
+        "Cada ingrediente DEBE incluir cantidad en gramos o mililitros, incluso huevos (ej. 2 huevos, 100 g). "
         "Responde JSON con name, calories (numero aproximado), protein_g (numero aproximado), prep_minutes, "
-        "ingredients (lista de strings), steps (lista de 3 a 5 strings) y why (una frase)."
+        "ingredients (lista de strings con gramos), steps (lista de 3 a 5 strings) y why (una frase)."
     )
     try:
         response = await complete_chat([{"role": "system", "content": "Eres un asistente de cocina practica. No das consejo medico."}, {"role": "user", "content": prompt}], json_output=True, temperature=0.5, max_tokens=450)
