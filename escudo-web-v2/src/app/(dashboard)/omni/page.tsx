@@ -78,7 +78,7 @@ const intentLabels: Record<string, string> = {
   CREATE_SHIFT: "Turno creado",
   UPDATE_SHIFT: "Turno actualizado",
   DELETE_SHIFT: "Turno eliminado",
-  REGISTER_FOCUS_DAY: "Dia limpio registrado",
+  REGISTER_FOCUS_DAY: "Día limpio registrado",
   REGISTER_RELAPSE: "Recaida registrada",
   RESET_FOCUS: "Racha reiniciada",
   CREATE_ROUTINE: "Rutina creada",
@@ -87,7 +87,7 @@ const intentLabels: Record<string, string> = {
 };
 
 const QUICK_PROMPTS = [
-  "Ayudame a ordenar mi dia",
+  "Ayúdame a ordenar mi día",
   "Estoy saturado por el trabajo",
   "Que deberia priorizar con mi dinero?",
   "Quiero retomar un habito importante",
@@ -506,7 +506,7 @@ export default function OmniPage() {
                   }
                 }}
                 aria-label="Mensaje para OMNI"
-                placeholder="Cuentame que esta pasando o pide una accion concreta..."
+                placeholder="Cuéntame qué está pasando o pide una acción concreta..."
                 disabled={isBusy}
                 className={cn(
                   "min-h-12 max-h-32 flex-1 resize-y border border-border bg-background px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground outline-none transition-colors",

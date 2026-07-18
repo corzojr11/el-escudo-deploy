@@ -94,7 +94,7 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
         <div>
           <p className="hud-label text-primary">Commander log // 024</p>
           <h2 className="mt-3 max-w-xl font-heading text-4xl font-extrabold uppercase leading-[0.94] tracking-[-0.05em] text-foreground sm:text-6xl">
-            Bitacora de<br />viaje
+            Bitácora de<br />viaje
           </h2>
           <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
             <span className="border border-[#5a5122] bg-[#292515] px-2 py-1 font-mono text-[11px] uppercase text-[#ffe476]">
@@ -136,7 +136,7 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
-          <Metric label="Racha actual" value={focusStreak} detail="dias consecutivos" tone="text-[#ffd700]" />
+          <Metric label="Racha actual" value={focusStreak} detail="días consecutivos" tone="text-[#ffd700]" />
           <Metric label="Misiones listas" value={missions.length} detail="pendientes y completadas" tone="text-[#bcaeff]" />
         </div>
       </section>
@@ -254,7 +254,7 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
       {plan ? <section className="border border-border bg-card p-5">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div>
-            <p className="hud-label">Plan del dia</p>
+            <p className="hud-label">Plan del día</p>
             <h3 className="mt-1 font-heading text-lg font-bold">Tu cronograma</h3>
           </div>
           <span className="font-mono text-[10px] text-muted-foreground">{plan.date}</span>
@@ -278,7 +278,7 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
             )}
           </div>
           <div className="space-y-1">
-            <p className="hud-label text-[#FFD700]">Sueno</p>
+            <p className="hud-label text-[#FFD700]">Sueño</p>
             {plan.sleep.windows.length > 0 ? (
               <>
                 <p className="text-sm text-white">
@@ -322,7 +322,7 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
         )}
         <p className="mt-3 text-[10px] text-gray-600">{plan.disclaimer}</p>
       </section> : (
-        <ErrorState title="No se pudo cargar el plan del dia" message="El resto del tablero sigue disponible. Reintenta para ver tu horario de sueno, turno y entrenamiento." onRetry={() => router.refresh()} />
+        <ErrorState title="No se pudo cargar el plan del día" message="El resto del tablero sigue disponible. Reintenta para ver tu horario de sueño, turno y entrenamiento." onRetry={() => router.refresh()} />
       )}
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
@@ -386,18 +386,18 @@ export function DashboardClient({ data, plan, wellness, stability }: DashboardCl
                   <span className="font-mono text-[10px] text-[#ffd700]">+ {mission.xp_reward || 0} XP</span>
                 </div>
               );
-            }) : <p className="py-8 text-center text-sm text-muted-foreground">Tu tablero esta listo para la primera mision. <a href="/misiones" className="text-[#7C5DFF] underline">Crea una</a>.</p>}
+            }) : <p className="py-8 text-center text-sm text-muted-foreground">Tu tablero está listo para la primera misión. <a href="/misiones" className="text-[#7C5DFF] underline">Crea una</a>.</p>}
           </div>
         </div>
         <div className="border border-border bg-card p-5">
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-[#7c5dff]" /><p className="hud-label">OMNI insights</p></div>
-          <p className="mt-5 font-heading text-lg font-semibold leading-snug text-foreground">Tu progreso se construye con una accion clara cada dia.</p>
+          <p className="mt-5 font-heading text-lg font-semibold leading-snug text-foreground">Tu progreso se construye con una acción clara cada día.</p>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">OMNI puede ayudarte a convertir una meta en el siguiente paso concreto.</p>
           <div className="mt-6 flex items-center gap-2 border-t border-border pt-4 text-xs text-[#ffd700]"><Zap className="h-4 w-4" /> Sistema listo para continuar</div>
         </div>
       </section>
 
-      <footer className="flex items-center gap-2 border-t border-border pt-4 font-mono text-[10px] uppercase tracking-wide text-muted-foreground"><Shield className="h-3.5 w-3.5 text-primary" /> El Escudo // bitacora sincronizada</footer>
+      <footer className="flex items-center gap-2 border-t border-border pt-4 font-mono text-[10px] uppercase tracking-wide text-muted-foreground"><Shield className="h-3.5 w-3.5 text-primary" /> El Escudo // bitácora sincronizada</footer>
     </div>
   );
 }

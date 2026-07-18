@@ -108,22 +108,22 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, c
 
   const preparationGuidance = inShift
     ? {
-        title: "Protege tu energia durante el turno",
-        message: "Evita comprometer tareas exigentes antes de terminar. Al salir, decide entre descanso o una sola mision ligera.",
+        title: "Protege tu energía durante el turno",
+        message: "Evita comprometer tareas exigentes antes de terminar. Al salir, decide entre descanso o una sola misión ligera.",
       }
     : nextShift && minutesUntilPreparation !== null
       ? minutesUntilPreparation <= 0
         ? {
             title: "Es hora de prepararte",
-            message: `Tu turno empieza ${nextShift.day} a las ${nextShift.start}. Reserva ${prepMinutes} min para preparacion y traslado.`,
+            message: `Tu turno empieza ${nextShift.day} a las ${nextShift.start}. Reserva ${prepMinutes} min para preparación y traslado.`,
           }
         : {
-            title: "Tu siguiente bloque util",
+          title: "Tu siguiente bloque útil",
             message: `Tienes ${formatRemaining(minutesUntilPreparation / 60)} antes de prepararte para el turno. Elige una sola tarea importante.`,
           }
       : {
           title: "Espacio disponible para tu plan",
-          message: "No tienes un turno proximo registrado. Usa este espacio para una mision, una rutina o recuperacion.",
+          message: "No tienes un turno próximo registrado. Usa este espacio para una misión, una rutina o recuperación.",
         };
 
   if (criticalError) {
@@ -170,7 +170,7 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, c
                 En turno
               </Badge>
               <span className="text-sm text-foreground">
-                <span className="text-muted-foreground">Dia:</span> {currentShift.day}
+                <span className="text-muted-foreground">Día:</span> {currentShift.day}
               </span>
               <span className="text-sm text-foreground">
                 <span className="text-muted-foreground">Horario:</span> {currentShift.start} - {currentShift.end}
@@ -238,7 +238,7 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, loadErrors, c
             <div className="mb-4 rounded-2xl border border-border/70 bg-background/35 p-4">
               <form key={formKey} action={handleCreate} className="flex flex-wrap items-end gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Dia</label>
+                  <label className="text-xs font-medium text-muted-foreground">Día</label>
                   <select
                     name="day"
                     required

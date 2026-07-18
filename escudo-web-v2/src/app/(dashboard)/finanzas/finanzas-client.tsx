@@ -960,7 +960,7 @@ export function FinanzasClient({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Categoria</Label>
-                <Input id="category" name="category" placeholder="Ej. Alimentacion" defaultValue="General" required />
+                <Input id="category" name="category" placeholder="Ej. Alimentación" defaultValue="General" required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="type">Tipo</Label>

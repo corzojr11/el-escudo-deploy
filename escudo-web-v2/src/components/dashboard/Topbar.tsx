@@ -42,7 +42,7 @@ export function Topbar() {
         <div>
           <p className="hud-label mb-1 hidden md:block">EL ESCUDO</p>
           <h1 className="font-heading text-sm font-bold uppercase tracking-[0.08em] text-foreground md:text-base">
-            {activeModule?.id === "dashboard" ? "Bitacora de viaje" : activeModule?.label ?? "El Escudo"}
+            {activeModule?.id === "dashboard" ? "Bitácora de viaje" : activeModule?.label ?? "El Escudo"}
           </h1>
         </div>
       </div>

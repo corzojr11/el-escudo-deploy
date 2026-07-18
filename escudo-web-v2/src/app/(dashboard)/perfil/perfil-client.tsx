@@ -18,7 +18,7 @@ interface Props {
 const GOAL_LABELS: Record<string, string> = {
   ganar_musculo: "Ganar musculo",
   perder_grasa: "Perder grasa",
-  energia_bienestar: "Energia y bienestar",
+  energia_bienestar: "Energía y bienestar",
 };
 
 export function PerfilClient({ profile }: Props) {

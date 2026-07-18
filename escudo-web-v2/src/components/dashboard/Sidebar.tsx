@@ -165,7 +165,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {!collapsed ? (
           <div className="border border-border bg-secondary px-3 py-2 text-xs text-muted-foreground">
             <p className="font-mono text-sm font-bold text-primary">v2.0.0</p>
-            <p>Bitacora personal</p>
+            <p>Bitácora personal</p>
           </div>
         ) : (
           <span className="text-[10px] text-muted-foreground">v2</span>

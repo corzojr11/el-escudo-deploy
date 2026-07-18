@@ -49,7 +49,7 @@ export const NAV_MODULES: NavModule[] = [
   },
   {
     id: "habitos",
-    label: "Habitos",
+    label: "Hábitos",
     href: "/habitos",
     icon: CheckSquare,
     group: "productividad",
@@ -91,7 +91,7 @@ export const NAV_MODULES: NavModule[] = [
   },
   {
     id: "alimentacion",
-    label: "Alimentacion",
+    label: "Alimentación",
     href: "/alimentacion",
     icon: ChefHat,
     group: "bienestar",
@@ -112,7 +112,7 @@ export const NAV_MODULES: NavModule[] = [
   },
   {
     id: "bitacora",
-    label: "Bitacora",
+    label: "Bitácora",
     href: "/bitacora",
     icon: BookOpen,
     group: "bienestar",

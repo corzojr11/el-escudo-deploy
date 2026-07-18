@@ -275,7 +275,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
             </CardDescription>
             <CardTitle className="text-3xl text-foreground">
               {focusStatus?.focus_streak ?? 0}{" "}
-              <span className="text-base font-normal text-muted-foreground">dias</span>
+              <span className="text-base font-normal text-muted-foreground">días</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -421,18 +421,18 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
         <CardContent className="space-y-4">
           <div className="rounded-xl border border-escudo-green/20 bg-escudo-green/8 p-4">
             <p className="text-sm text-escudo-green">
-              Racha actual: {focusStatus?.focus_streak ?? 0} dias
+              Racha actual: {focusStatus?.focus_streak ?? 0} días
             </p>
             <p className="text-xs text-muted-foreground">
               {(focusStatus?.focus_streak ?? 0) > 0
                 ? "Sigue manteniendo tu constancia."
-                : "Cada dia cuenta. Empieza con un pequeno habito."}
+                : "Cada día cuenta. Empieza con un pequeño hábito."}
             </p>
           </div>
           {(focusStatus?.focus_best ?? 0) > 0 && (
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground">Mejor racha</span>
-              <p className="text-sm font-medium text-foreground">{focusStatus?.focus_best} dias</p>
+              <p className="text-sm font-medium text-foreground">{focusStatus?.focus_best} días</p>
             </div>
           )}
         </CardContent>
@@ -588,7 +588,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
 
       <Card className="border-[#2A2A3C] bg-[#17171A]">
         <CardHeader>
-          <CardTitle className="text-[#FFD700]">Registro de sueno</CardTitle>
+          <CardTitle className="text-[#FFD700]">Registro de sueño</CardTitle>
           <CardDescription>Registra tus horas de descanso</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -667,7 +667,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
                   quality_score: parseInt(sleepQuality) || 3,
                   notes: sleepNotes,
                 });
-                setSleepStatus({ success: "Sueno registrado" });
+                setSleepStatus({ success: "Sueño registrado" });
                 router.refresh();
               } catch (e: unknown) {
                 setSleepStatus({ error: e instanceof Error ? e.message : "Error al registrar" });
@@ -679,14 +679,14 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
             className="bg-[#7C5DFF] hover:bg-[#7C5DFF]/90 text-white"
           >
             {sleeping && <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />}
-            Registrar sueno
+            Registrar sueño
           </Button>
         </CardContent>
       </Card>
 
       <Card className="border-[#2A2A3C] bg-[#17171A]">
         <CardHeader>
-          <CardTitle className="text-[#FFD700]">Resumen de sueno (7 dias)</CardTitle>
+          <CardTitle className="text-[#FFD700]">Resumen de sueño (7 días)</CardTitle>
         </CardHeader>
         <CardContent>
           {sleepAnalysis && sleepAnalysis.logs?.length > 0 ? (
@@ -706,7 +706,7 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-400 py-4 text-center">Sin registros de sueno. Usa el formulario para empezar.</p>
+            <p className="py-4 text-center text-sm text-gray-400">Sin registros de sueño. Usa el formulario para empezar.</p>
           )}
         </CardContent>
       </Card>

@@ -211,7 +211,7 @@ export function RutinasClient({ routines, userEquipment }: { routines: Routine[]
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-gray-300">Objetivo del dia</Label>
+              <Label className="text-gray-300">Objetivo del día</Label>
               <Input
                 value={objective}
                 onChange={(e) => setObjective(e.target.value)}

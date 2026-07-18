@@ -16,7 +16,7 @@ import type { Mission } from "@/lib/api/types";
 const FILTERS = [
   { key: "all", label: "Todas" },
   { key: "hoy", label: "Hoy" },
-  { key: "proximas", label: "Proximas" },
+  { key: "proximas", label: "Próximas" },
   { key: "active", label: "Pendientes" },
   { key: "completed", label: "Completadas" },
 ];
@@ -93,7 +93,7 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
           priority,
           scheduled_at: scheduledAt || undefined,
         });
-        setStatus({ success: "Mision creada" });
+        setStatus({ success: "Misión creada" });
         resetForm();
         router.refresh();
       } catch (e: unknown) {
@@ -113,7 +113,7 @@ export function MisionesClient({ missions }: { missions: Mission[] }) {
           priority,
           scheduled_at: scheduledAt || undefined,
         });
-        setStatus({ success: "Mision actualizada" });
+        setStatus({ success: "Misión actualizada" });
         resetForm();
         router.refresh();
       } catch (e: unknown) {

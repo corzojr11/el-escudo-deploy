@@ -4,7 +4,7 @@ import { getWellnessSummary } from "@/app/actions/wellness";
 import { DashboardClient, type DashboardStabilityData } from "./dashboard-client";
 
 export const metadata = {
-  title: "Bitacora de viaje - El Escudo",
+  title: "Bitácora de viaje - El Escudo",
 };
 
 export default async function DashboardPage() {

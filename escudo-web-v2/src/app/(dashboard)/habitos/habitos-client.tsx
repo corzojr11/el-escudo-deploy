@@ -84,7 +84,7 @@ function HabitCard({
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Ultimos 7 dias</span>
+            <span>Últimos 7 días</span>
             <span>
               {completedThisWeek} / {last7Days.length}
             </span>
@@ -119,7 +119,7 @@ function HabitCard({
 
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs text-muted-foreground">
-            Completado {completedDates.size} {completedDates.size === 1 ? "dia" : "dias"} en total
+            Completado {completedDates.size} {completedDates.size === 1 ? "día" : "días"} en total
           </span>
           <Button
             type="button"
@@ -263,7 +263,7 @@ export function HabitosClient({ habits }: HabitosClientProps) {
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-2 text-escudo-cyan">
-                  <CalendarDays className="h-4 w-4" /> Habitos
+                  <CalendarDays className="h-4 w-4" /> Hábitos
                 </CardDescription>
                 <CardTitle className="text-2xl text-foreground">{habits.length}</CardTitle>
               </CardHeader>
@@ -275,8 +275,8 @@ export function HabitosClient({ habits }: HabitosClientProps) {
               <Card>
                 <CardHeader className="pb-3">
                   <span className="hud-label text-accent">Ritmo mensual</span>
-                  <CardTitle className="flex items-center gap-2 text-base"><CalendarDays className="h-4 w-4 text-primary" /> Ultimos 30 dias</CardTitle>
-                  <CardDescription>Tu constancia real por dia. Cada bloque muestra habitos completados.</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-base"><CalendarDays className="h-4 w-4 text-primary" /> Últimos 30 días</CardTitle>
+                  <CardDescription>Tu constancia real por día. Cada bloque muestra hábitos completados.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-[repeat(10,minmax(0,1fr))] gap-2 sm:grid-cols-[repeat(15,minmax(0,1fr))]">
@@ -285,7 +285,7 @@ export function HabitosClient({ habits }: HabitosClientProps) {
                       const completed = habits.filter((habit) => (habit.completed_dates ?? []).includes(iso)).length;
                       const level = completed === 0 ? "border-border bg-secondary/60 text-muted-foreground" : completed === habits.length ? "border-escudo-green/50 bg-escudo-green/25 text-escudo-green" : "border-primary/50 bg-primary/20 text-primary";
                       return (
-                        <div key={iso} title={`${iso}: ${completed}/${habits.length} habitos`} className={cn("flex aspect-square items-center justify-center rounded-sm border text-[10px] font-medium", level)}>
+                        <div key={iso} title={`${iso}: ${completed}/${habits.length} hábitos`} className={cn("flex aspect-square items-center justify-center rounded-sm border text-[10px] font-medium", level)}>
                           {dayLabel(day, { day: "numeric" })}
                         </div>
                       );
@@ -306,9 +306,9 @@ export function HabitosClient({ habits }: HabitosClientProps) {
                   </div>
                   <p className="leading-6 text-muted-foreground">
                     {completedThisWeek > completedPreviousWeek
-                      ? "Vas mejor que la semana pasada. Protege una accion pequena manana."
+                      ? "Vas mejor que la semana pasada. Protege una acción pequeña mañana."
                       : completedThisWeek === completedPreviousWeek
-                        ? "Mantienes el ritmo. Una accion concreta hoy puede inclinar la semana a tu favor."
+                        ? "Mantienes el ritmo. Una acción concreta hoy puede inclinar la semana a tu favor."
                         : "Esta semana ha sido mas pesada. Retoma solo un habito, no intentes arreglarlo todo hoy."}
                   </p>
                   {focusHabit && (
@@ -324,7 +324,7 @@ export function HabitosClient({ habits }: HabitosClientProps) {
 
           {habits.length === 0 ? (
             <EmptyState
-              title="No tienes habitos aun"
+              title="Aún no tienes hábitos"
               message="Crea tu primer habito para empezar a registrar tu constancia."
             />
           ) : (
