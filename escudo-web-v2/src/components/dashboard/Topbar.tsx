@@ -68,15 +68,14 @@ export function Topbar() {
       <div className="flex min-w-0 items-center gap-3">
         <MobileNav />
         {pathname !== "/" && (
-          <button
-            type="button"
-            onClick={() => router.back()}
+          <Link
+            href="/"
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-secondary text-muted-foreground transition-colors hover:border-[#7C5DFF] hover:text-foreground"
-            aria-label="Volver a la pantalla anterior"
-            title="Volver"
+            aria-label="Volver al dashboard"
+            title="Volver al dashboard"
           >
             <ArrowLeft className="h-4 w-4" />
-          </button>
+          </Link>
         )}
         <div className="min-w-0">
           <p className="hud-label mb-1 hidden md:block">EL ESCUDO</p>
