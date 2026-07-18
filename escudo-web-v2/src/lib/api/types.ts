@@ -179,6 +179,20 @@ export interface Achievement {
   unlocked_at?: string;
 }
 
+export type PersonalEntryKind = "idea" | "prayer" | "reading" | "discipline";
+
+export interface PersonalEntry {
+  id: string;
+  user_id: string;
+  kind: PersonalEntryKind;
+  title: string;
+  content: string;
+  entry_date: string;
+  data: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface WellnessFactor {
   name: string;
   label: string;

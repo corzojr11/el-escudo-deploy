@@ -9,6 +9,7 @@ import {
   Flag,
   Dumbbell,
   Award,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -92,6 +93,13 @@ export const NAV_MODULES: NavModule[] = [
     href: "/logros",
     icon: Award,
     group: "productividad",
+  },
+  {
+    id: "bitacora",
+    label: "Bitacora",
+    href: "/bitacora",
+    icon: BookOpen,
+    group: "bienestar",
   },
 ];
 
