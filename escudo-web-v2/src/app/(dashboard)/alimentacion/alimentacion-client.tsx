@@ -3,10 +3,11 @@
 import { useState, useTransition } from "react";
 import { Beef, BookmarkPlus, CalendarDays, ChefHat, Clock3, Flame, Loader2, Scale, Sparkles, Trash2 } from "lucide-react";
 import { deleteNutritionFavorite, generateRecipe, saveNutritionFavorite, saveNutritionWeeklyPlan } from "@/app/actions/nutrition";
+import { createPersonalEntry, updatePersonalEntry } from "@/app/actions/personal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { NutritionFavorite, NutritionMealPlanDay, NutritionRecipe, NutritionWeeklyPlan } from "@/lib/api/types";
+import type { NutritionFavorite, NutritionMealPlanDay, NutritionRecipe, NutritionWeeklyPlan, PersonalEntry, PlanDiarioResponse } from "@/lib/api/types";
 
 type BaseRecipe = NutritionRecipe & {
   meal: "Desayuno" | "Almuerzo" | "Cena" | "Snack";
@@ -147,6 +148,35 @@ function defaultPlan(): NutritionMealPlanDay[] {
   }));
 }
 
+const BOGOTA_TIME_ZONE = "America/Bogota";
+
+function bogotaToday() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: BOGOTA_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function bogotaWeekdayIndex() {
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: BOGOTA_TIME_ZONE, weekday: "short" }).format(new Date());
+  return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekday);
+}
+
+function shiftTime(time: string, minutes: number) {
+  const match = /^(\d{1,2}):(\d{2})/.exec(time);
+  if (!match) return time;
+  const total = ((Number(match[1]) * 60 + Number(match[2]) + minutes) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function getMealChecks(entry: PersonalEntry | undefined) {
+  const meals = entry?.data?.meals;
+  if (!meals || typeof meals !== "object" || Array.isArray(meals)) return {} as Record<string, boolean>;
+  return Object.fromEntries(Object.entries(meals).filter(([, value]) => typeof value === "boolean")) as Record<string, boolean>;
+}
+
 function RecipePanel({ recipe }: { recipe: NutritionRecipe }) {
   const guide = "equipment" in recipe ? recipe as BaseRecipe : null;
 
@@ -156,9 +186,11 @@ function RecipePanel({ recipe }: { recipe: NutritionRecipe }) {
 interface AlimentacionClientProps {
   initialFavorites: NutritionFavorite[];
   initialWeeklyPlan: NutritionWeeklyPlan | null;
+  dailyPlan: PlanDiarioResponse | null;
+  initialEntries: PersonalEntry[];
 }
 
-export function AlimentacionClient({ initialFavorites, initialWeeklyPlan }: AlimentacionClientProps) {
+export function AlimentacionClient({ initialFavorites, initialWeeklyPlan, dailyPlan, initialEntries }: AlimentacionClientProps) {
   const [meal, setMeal] = useState("Almuerzo");
   const [ingredients, setIngredients] = useState("");
   const [minutes, setMinutes] = useState("25");
@@ -171,6 +203,43 @@ export function AlimentacionClient({ initialFavorites, initialWeeklyPlan }: Alim
   const [saving, startSaving] = useTransition();
   const visible = BASE_RECIPES.filter((recipe) => meal === "Todo" || recipe.meal === meal);
   const recipeNames = [...BASE_RECIPES.map((recipe) => recipe.name), ...favorites.map((favorite) => favorite.recipe.name)];
+  const allRecipes = [...BASE_RECIPES, ...favorites.map((favorite) => favorite.recipe)];
+  const today = bogotaToday();
+  const todayPlan = weeklyPlan[bogotaWeekdayIndex()] ?? weeklyPlan[0];
+  const initialCheckin = initialEntries.find((entry) => entry.kind === "discipline" && entry.entry_date === today && entry.data?.tracker_type === "nutrition_daily_checkin");
+  const [checkinId, setCheckinId] = useState<string | null>(initialCheckin?.id ?? null);
+  const [mealChecks, setMealChecks] = useState<Record<string, boolean>>(() => getMealChecks(initialCheckin));
+  const wakeTime = dailyPlan?.sleep.wake_target || "07:00";
+  const sleepTime = dailyPlan?.sleep.sleep_target || "22:30";
+  const dailyMeals = [
+    { key: "breakfast", label: "Desayuno", time: shiftTime(wakeTime, 45), recipeName: todayPlan?.breakfast || "" },
+    { key: "lunch", label: "Almuerzo", time: "13:00", recipeName: todayPlan?.lunch || "" },
+    { key: "snack", label: "Snack", time: "16:30", recipeName: todayPlan?.snack || "" },
+    { key: "dinner", label: "Cena", time: shiftTime(sleepTime, -120), recipeName: todayPlan?.dinner || "" },
+  ];
+
+  function selectPlannedRecipe(name: string) {
+    const recipe = allRecipes.find((candidate) => candidate.name === name);
+    if (recipe) setSelected(recipe);
+  }
+
+  function toggleMealCheck(key: string) {
+    const nextChecks = { ...mealChecks, [key]: !mealChecks[key] };
+    setError("");
+    startSaving(async () => {
+      try {
+        const data = { tracker_type: "nutrition_daily_checkin", meals: nextChecks };
+        const content = `${Object.values(nextChecks).filter(Boolean).length}/4 comidas registradas.`;
+        const entry = checkinId
+          ? await updatePersonalEntry(checkinId, { title: "Comidas del día", content, data })
+          : await createPersonalEntry({ kind: "discipline", title: "Comidas del día", content, entry_date: today, data });
+        setCheckinId(entry.id);
+        setMealChecks(nextChecks);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "No se pudo registrar esta comida.");
+      }
+    });
+  }
 
   function generate() {
     setError("");
@@ -228,6 +297,7 @@ export function AlimentacionClient({ initialFavorites, initialWeeklyPlan }: Alim
 
   return <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 pb-8">
     <Card className="border-[#2A2A3C] bg-[#17171A]"><CardHeader><p className="hud-label text-[#bcaeff]">COMBUSTIBLE PARA GANAR MASA</p><CardTitle className="flex items-center gap-2 text-3xl text-white"><ChefHat className="h-7 w-7 text-[#FFD700]" /> Alimentación económica</CardTitle><CardDescription>Comidas con ingredientes de mercado colombiano y porciones en gramos para usar con gramera. Las calorías y la proteína son aproximadas; consulta a un profesional si tienes una condición médica.</CardDescription></CardHeader></Card>
+    <Card className="border-[#2A2A3C] bg-[#17171A]"><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="hud-label text-[#bcaeff]">PLAN DE HOY</p><CardTitle className="text-xl text-white">Come con intención, no por improvisación</CardTitle><CardDescription>{dailyPlan?.shift_status.status === "in_shift" ? "Estás en turno: deja listo lo que puedas llevar y no dependas de decidir con hambre." : "Tus horarios salen de tu descanso y de las comidas que elegiste para esta semana."}</CardDescription></div><span className="border border-[#2A2A3C] px-2 py-1 font-mono text-xs text-[#FFD700]">{Object.values(mealChecks).filter(Boolean).length}/4 LISTAS</span></div></CardHeader><CardContent><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{dailyMeals.map((mealItem) => <div key={mealItem.key} className="border border-[#2A2A3C] bg-[#0C0C0E] p-3"><div className="flex items-center justify-between gap-2"><span className="hud-label text-[#bcaeff]">{mealItem.label}</span><span className="font-mono text-xs text-[#FFD700]">{mealItem.time}</span></div><button type="button" onClick={() => selectPlannedRecipe(mealItem.recipeName)} className="mt-2 min-h-10 text-left text-sm font-semibold text-white hover:text-[#d8ccff]">{mealItem.recipeName || "Elige una receta en tu plan semanal"}</button><Button size="sm" variant="outline" disabled={saving} onClick={() => toggleMealCheck(mealItem.key)} className={`mt-3 w-full border-[#2A2A3C] ${mealChecks[mealItem.key] ? "border-[#7C5DFF] bg-[#7C5DFF]/10 text-white" : "text-muted-foreground"}`}>{mealChecks[mealItem.key] ? "Registrada" : "Marcar lista"}</Button></div>)}</div><p className="mt-4 text-xs text-muted-foreground">Puedes abrir una comida para ver ingredientes y preparación; el registro solo marca tu avance de hoy y no reemplaza orientación profesional.</p></CardContent></Card>
     <Card className="border-[#2A2A3C] bg-[#17171A]"><CardContent className="space-y-4 p-5"><div className="flex flex-wrap gap-2">{["Todo", "Desayuno", "Almuerzo", "Cena", "Snack"].map((option) => <Button key={option} size="sm" variant={meal === option ? "default" : "outline"} onClick={() => setMeal(option)} className={meal === option ? "bg-[#7C5DFF]" : ""}>{option}</Button>)}</div><div className="grid gap-3 md:grid-cols-[2fr_100px_auto]"><Input value={ingredients} onChange={(event) => setIngredients(event.target.value)} placeholder="¿Qué tienes? Ej.: arroz, pollo, huevos, lentejas" className="border-[#2A2A3C] bg-[#0C0C0E] text-white" /><Input type="number" min="10" max="90" value={minutes} onChange={(event) => setMinutes(event.target.value)} className="border-[#2A2A3C] bg-[#0C0C0E] text-white" /><Button disabled={pending} onClick={generate} className="bg-[#7C5DFF]">{pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Sparkles className="mr-2 h-4 w-4" /> Adaptar receta</>}</Button></div><p className="text-xs text-muted-foreground">La IA crea una variación con ingredientes colombianos y porciones en gramos; las recetas base están disponibles de inmediato.</p></CardContent></Card>
     {error && <p className="border border-red-500/30 p-3 text-sm text-red-400">{error}</p>}
     {notice && <p className="border border-[#7C5DFF] bg-[#7C5DFF]/10 p-3 text-sm text-[#d8ccff]">{notice}</p>}

@@ -27,6 +27,15 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: "border-gray-500/30 bg-gray-500/10 text-gray-400",
 };
 
+function bogotaToday() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 export function MisionesClient({
   missions,
   goals,
@@ -61,22 +70,12 @@ export function MisionesClient({
   const [progressIncrement, setProgressIncrement] = useState("");
 
   function isMissionToday(m: Mission): boolean {
-    if (!m.scheduled_at) return false;
-    const d = new Date(m.scheduled_at);
-    const today = new Date();
-    return (
-      d.getFullYear() === today.getFullYear() &&
-      d.getMonth() === today.getMonth() &&
-      d.getDate() === today.getDate()
-    );
+    return Boolean(m.scheduled_at && m.scheduled_at.slice(0, 10) === bogotaToday());
   }
 
   function isMissionUpcoming(m: Mission): boolean {
     if (!m.scheduled_at || m.status === "completed") return false;
-    const d = new Date(m.scheduled_at);
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    return d > today;
+    return m.scheduled_at.slice(0, 10) > bogotaToday();
   }
 
   const filtered = missions.filter((m) => {

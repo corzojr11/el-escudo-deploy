@@ -8,6 +8,7 @@ function revalidatePersonalViews() {
   revalidatePath("/bitacora");
   revalidatePath("/plan-semanal");
   revalidatePath("/finanzas");
+  revalidatePath("/alimentacion");
 }
 
 export async function getPersonalEntries(): Promise<PersonalEntry[]> {
