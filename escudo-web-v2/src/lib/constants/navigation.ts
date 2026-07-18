@@ -10,6 +10,7 @@ import {
   Dumbbell,
   Award,
   BookOpen,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 
@@ -57,6 +58,13 @@ export const NAV_MODULES: NavModule[] = [
     label: "Misiones",
     href: "/misiones",
     icon: Flag,
+    group: "productividad",
+  },
+  {
+    id: "plan-semanal",
+    label: "Plan semanal",
+    href: "/plan-semanal",
+    icon: CalendarDays,
     group: "productividad",
   },
   {

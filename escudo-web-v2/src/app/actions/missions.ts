@@ -25,6 +25,7 @@ export async function createMission(data: {
 }): Promise<{ mission: Mission }> {
   const result = await postToBackend<{ mission: Mission }>("/api/v1/missions", data);
   revalidatePath("/misiones");
+  revalidatePath("/plan-semanal");
   revalidatePath("/");
   return result;
 }
