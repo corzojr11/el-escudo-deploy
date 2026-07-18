@@ -139,7 +139,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from routers import habits, finances, schedule, goals, health, omni, missions, moods, leaderboard, challenges, clans, reminders, password_reset, bio as bio_router, observability, sync as sync_router, routines, profile, wellness, personal, nutrition
+from routers import habits, finances, schedule, goals, health, omni, missions, moods, leaderboard, challenges, clans, reminders, password_reset, bio as bio_router, observability, sync as sync_router, routines, profile, wellness, personal, nutrition, reports
 app.include_router(habits.router)
 app.include_router(finances.router)
 app.include_router(schedule.router)
@@ -161,6 +161,7 @@ app.include_router(profile.router)
 app.include_router(wellness.router)
 app.include_router(personal.router)
 app.include_router(nutrition.router)
+app.include_router(reports.router)
 
 
 @app.exception_handler(ApiException)

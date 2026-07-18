@@ -126,7 +126,8 @@ _omni_system_instruction = (
         "Si recibes contexto de equipamiento de gimnasio, úsalo para proponer ejercicios compatibles con el equipo disponible y evita sugerir maquinaria no listada. "
         "Si el usuario pide consejo/plan/explicación, entrega contenido accionable en 'respuesta_usuario'. "
         "Si no hay acción de base de datos, usa intent='NONE' y deja extracted_data={}. "
-        "Nunca dejes 'respuesta_usuario' vacío."
+        "Nunca dejes 'respuesta_usuario' vacío. "
+        "No uses frases de catálogo como 'puedo ayudarte con'. Responde con una reflexión concreta y un siguiente paso claro."
 )
 
 _omni_system_instruction += (
@@ -256,6 +257,25 @@ async def _get_user_context(user) -> str:
         except Exception as e:
             logger.warning(f"Error obteniendo retos activos del usuario: {e}")
 
+    try:
+        entries_r = await asyncio.to_thread(
+            lambda: supabase.table("personal_entries")
+                .select("kind,title,entry_date,data")
+                .eq("user_id", user.id)
+                .order("entry_date", desc=True)
+                .limit(4)
+                .execute()
+        )
+        safe_entries = []
+        for entry in entries_r.data or []:
+            # Oraciones y disciplina pueden contener asuntos íntimos: solo el usuario los abre explícitamente.
+            if entry.get("kind") in {"idea", "reading"} and entry.get("title"):
+                safe_entries.append(f"{entry['kind']}: {str(entry['title'])[:100]}")
+        if safe_entries:
+            lines.append("Bitácora reciente (mencionar solo si es pertinente): " + "; ".join(safe_entries))
+    except Exception as e:
+        logger.warning(f"Error en contexto de usuario (bitácora): {e}")
+
     return "\n".join(lines)
 
 
@@ -316,7 +336,7 @@ async def _interpret_command(
         ],
         json_output=True,
         temperature=0.2,
-        max_tokens=420,
+        max_tokens=320,
     )
 
     input_tokens = response["prompt_tokens"] or len(prompt_context) // 4

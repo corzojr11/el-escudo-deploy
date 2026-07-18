@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   CalendarClock,
+  BookOpen,
   Check,
   Circle,
   Droplets,
   Flame,
   Heart,
+  PenLine,
+  FileDown,
   Shield,
   Sparkles,
   Target,
@@ -19,9 +22,10 @@ import {
 } from "lucide-react";
 import { updateMission } from "@/app/actions/missions";
 import { completeRoutineDay, uncompleteRoutineDay } from "@/app/actions/wellness";
+import { getProgressReport } from "@/app/actions/reports";
 import { Progress } from "@/components/ui/progress";
 import { ErrorState } from "@/components/dashboard/ErrorState";
-import type { Debt, FixedExpense, NutritionMealPlanDay, Routine, TodayResponse, PlanDiarioResponse, WellnessSummary } from "@/lib/api/types";
+import type { Debt, FixedExpense, NutritionMealPlanDay, PersonalEntry, ProgressReport, Routine, TodayResponse, PlanDiarioResponse, WellnessSummary } from "@/lib/api/types";
 
 function Metric({ label, value, detail, tone = "text-foreground" }: {
   label: string;
@@ -46,6 +50,7 @@ interface DashboardClientProps {
   todayRoutine: Routine | null;
   routineCompleted: boolean;
   todayMeals: NutritionMealPlanDay | null;
+  personalEntries: PersonalEntry[];
 }
 
 export interface DashboardStabilityData {
@@ -59,10 +64,34 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
 }
 
-export function DashboardClient({ data, plan, wellness, stability, todayRoutine, routineCompleted, todayMeals }: DashboardClientProps) {
+function reportRows(report: ProgressReport) {
+  const kindSummary = Object.entries(report.bitacora.by_kind).map(([kind, total]) => `${kind}: ${total}`).join(" | ") || "Sin entradas";
+  return [
+    ["EL ESCUDO", report.period === "week" ? "Resumen semanal" : "Resumen mensual"],
+    ["Periodo", `${report.start_date} a ${report.end_date}`],
+    [],
+    ["FINANZAS"],
+    ["Ingresos", report.finances.income],
+    ["Gastos", report.finances.expense],
+    ["Balance", report.finances.balance],
+    ["Movimientos", report.finances.transaction_count],
+    ["Categorias principales", report.finances.top_categories.map((category) => `${category.name}: ${category.amount}`).join(" | ") || "Sin gastos registrados"],
+    [],
+    ["RITMO"],
+    ["Misiones completadas", `${report.missions.completed}/${report.missions.total}`],
+    ["Habitos completados", `${report.habits.completions}/${report.habits.total}`],
+    ["Peso mas reciente", report.health.latest_weight != null ? `${report.health.latest_weight} kg` : "Sin registro"],
+    ["Registros de peso", report.health.weight_logs],
+    ["Bitacora", kindSummary],
+  ];
+}
+
+export function DashboardClient({ data, plan, wellness, stability, todayRoutine, routineCompleted, todayMeals, personalEntries }: DashboardClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState("");
+  const [reportingPeriod, setReportingPeriod] = useState<"week" | "month" | null>(null);
+  const [reportError, setReportError] = useState("");
   const profile = data.profile;
   const today = data.today;
   const goals = today.active_goals ?? [];
@@ -81,6 +110,9 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
       : null;
   const priorityHabit = habits.find((habit) => !habit.completed_today);
   const nextMission = missions.find((mission) => mission.status !== "completed");
+  const latestIdea = personalEntries.find((entry) => entry.kind === "idea");
+  const latestReading = personalEntries.find((entry) => entry.kind === "reading");
+  const latestDiscipline = personalEntries.find((entry) => entry.kind === "discipline");
 
   const level = profile?.level ?? 0;
   const xp = profile?.xp ?? 0;
@@ -145,6 +177,30 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
         router.refresh();
       } catch {
         setActionError("No se pudo actualizar la rutina. Inténtalo de nuevo.");
+      }
+    });
+  }
+
+  function downloadReport(period: "week" | "month") {
+    setReportingPeriod(period);
+    setReportError("");
+    startTransition(async () => {
+      try {
+        const report = await getProgressReport(period);
+        const csv = reportRows(report)
+          .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","))
+          .join("\n");
+        const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `el-escudo-${period === "week" ? "semanal" : "mensual"}-${report.end_date}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        setReportError("No se pudo preparar el resumen. Intentalo de nuevo.");
+      } finally {
+        setReportingPeriod(null);
       }
     });
   }
@@ -441,6 +497,48 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
       </section> : (
         <ErrorState title="No se pudo cargar el plan del día" message="El resto del tablero sigue disponible. Reintenta para ver tu horario de sueño, turno y entrenamiento." onRetry={() => router.refresh()} />
       )}
+
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
+        <div className="border border-border bg-card p-5">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <p className="hud-label">Bitacora activa</p>
+              <h3 className="mt-1 font-heading text-lg font-bold">Lo que quieres sostener</h3>
+            </div>
+            <PenLine className="h-5 w-5 text-[#bcaeff]" />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="border border-border p-3">
+              <p className="hud-label">Idea</p>
+              <p className="mt-2 min-h-10 text-sm font-semibold">{latestIdea?.title || "No hay una idea pendiente"}</p>
+              <a href="/bitacora" className="mt-3 inline-block text-xs text-[#bcaeff] hover:underline">Abrir ideas {"->"}</a>
+            </div>
+            <div className="border border-border p-3">
+              <p className="hud-label">Lectura</p>
+              <p className="mt-2 min-h-10 text-sm font-semibold">{latestReading?.title || "Elige una lectura para esta semana"}</p>
+              <a href="/bitacora" className="mt-3 inline-flex items-center gap-1 text-xs text-[#bcaeff] hover:underline"><BookOpen className="h-3.5 w-3.5" /> Ver lectura</a>
+            </div>
+            <div className="border border-border p-3">
+              <p className="hud-label">Disciplina</p>
+              <p className="mt-2 min-h-10 text-sm font-semibold">{latestDiscipline?.title || "Define un compromiso que puedas repetir"}</p>
+              <a href="/bitacora" className="mt-3 inline-block text-xs text-[#bcaeff] hover:underline">Revisar rituales {"->"}</a>
+            </div>
+          </div>
+        </div>
+        <div className="border border-border bg-card p-5">
+          <p className="hud-label">Cierre y reporte</p>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">Convierte tus movimientos, acciones y notas en un resumen que si puedas revisar al final de la semana.</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <button type="button" onClick={() => downloadReport("week")} disabled={Boolean(reportingPeriod)} className="inline-flex items-center justify-center gap-2 border border-[#7C5DFF] px-3 py-2 font-mono text-[10px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black disabled:opacity-50">
+              <FileDown className="h-3.5 w-3.5" /> {reportingPeriod === "week" ? "Preparando..." : "Descargar semana"}
+            </button>
+            <button type="button" onClick={() => downloadReport("month")} disabled={Boolean(reportingPeriod)} className="inline-flex items-center justify-center gap-2 border border-[#ffd700] px-3 py-2 font-mono text-[10px] uppercase text-[#ffe476] hover:bg-[#ffd700] hover:text-black disabled:opacity-50">
+              <FileDown className="h-3.5 w-3.5" /> {reportingPeriod === "month" ? "Preparando..." : "Descargar mes"}
+            </button>
+          </div>
+          {reportError && <p className="mt-3 text-xs text-red-400">{reportError}</p>}
+        </div>
+      </section>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
         <div className="border border-border bg-card p-5">

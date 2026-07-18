@@ -196,6 +196,23 @@ export interface PersonalEntry {
   updated_at?: string;
 }
 
+export interface ProgressReport {
+  period: "week" | "month";
+  start_date: string;
+  end_date: string;
+  finances: {
+    income: number;
+    expense: number;
+    balance: number;
+    transaction_count: number;
+    top_categories: Array<{ name: string; amount: number }>;
+  };
+  missions: { total: number; completed: number; pending: number };
+  habits: { total: number; completions: number };
+  health: { latest_weight: number | null; weight_logs: number };
+  bitacora: { entries: number; by_kind: Record<string, number> };
+}
+
 export interface NutritionRecipe {
   name: string;
   calories: number;

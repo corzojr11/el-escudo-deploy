@@ -5,6 +5,7 @@ import type { PersonalEntry, PersonalEntryKind } from "@/lib/api/types";
 import { revalidatePath } from "next/cache";
 
 function revalidatePersonalViews() {
+  revalidatePath("/");
   revalidatePath("/bitacora");
   revalidatePath("/plan-semanal");
   revalidatePath("/finanzas");
