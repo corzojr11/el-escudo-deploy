@@ -1,6 +1,7 @@
 import { getFinances, getFinanceSummary, getBudget, getFixedExpenses, getDebts } from "@/app/actions/finances";
 import { getPersonalEntries } from "@/app/actions/personal";
 import { normalizeFinances } from "@/lib/api/helpers";
+import { parseFinanceTextLocally } from "@/lib/parse-finance-text";
 import { FinanzasClient } from "./finanzas-client";
 import type { FixedExpense, Debt, FinanceSummaryItem, FinanceRange, PersonalEntry } from "@/lib/api/types";
 
@@ -19,6 +20,7 @@ export default async function FinanzasPage({
 }) {
   const params = await searchParams;
   const initialCaptureText = typeof params.captura === "string" ? params.captura.slice(0, 180) : "";
+  const initialParsedCapture = initialCaptureText ? parseFinanceTextLocally(initialCaptureText) : null;
   const [tx, sm, mo, bu, fe, db, entries] = await Promise.allSettled([
     getFinances("all"),
     getFinanceSummary("all"),
@@ -59,6 +61,7 @@ export default async function FinanzasPage({
       loadErrors={loadErrors}
       criticalError={criticalError}
       initialCaptureText={initialCaptureText}
+      initialParsedCapture={initialParsedCapture}
     />
   );
 }

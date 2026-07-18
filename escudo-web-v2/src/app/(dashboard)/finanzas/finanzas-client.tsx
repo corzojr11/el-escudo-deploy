@@ -65,6 +65,7 @@ import type {
   FixedExpense,
   Debt,
   DebtPayment,
+  ParsedTransaction,
 } from "@/lib/api/types";
 
 interface FinanzasClientProps {
@@ -81,6 +82,7 @@ interface FinanzasClientProps {
   loadErrors: string[];
   criticalError: boolean;
   initialCaptureText: string;
+  initialParsedCapture: ParsedTransaction | null;
 }
 
 const RANGE_LABELS: Record<FinanceRange, string> = {
@@ -98,6 +100,17 @@ interface DraftTX {
   date: string;
   source: "manual" | "texto" | "ocr";
   confidence?: number;
+}
+
+function draftFromParsed(parsed: ParsedTransaction): DraftTX {
+  return {
+    description: parsed.description,
+    amount: parsed.amount,
+    category: parsed.category,
+    type: parsed.type === "INGRESO" ? "INGRESO" : "GASTO",
+    date: todayStr(),
+    source: "texto",
+  };
 }
 
 function todayStr(): string {
@@ -167,6 +180,7 @@ export function FinanzasClient({
   loadErrors,
   criticalError,
   initialCaptureText,
+  initialParsedCapture,
 }: FinanzasClientProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -214,9 +228,16 @@ export function FinanzasClient({
   const [debtBusy, setDebtBusy] = useState<string | null>(null);
   const debtFormRef = useRef<HTMLFormElement>(null);
 
-  const [draft, setDraft] = useState<DraftTX | null>(null);
+  const [draft, setDraft] = useState<DraftTX | null>(() =>
+    initialParsedCapture ? draftFromParsed(initialParsedCapture) : null
+  );
   const [captureText, setCaptureText] = useState(initialCaptureText);
-  const [captureStatus, setCaptureStatus] = useState<{ success?: string; error?: string }>({});
+  const [captureStatus, setCaptureStatus] = useState<{ success?: string; error?: string }>(() => {
+    if (!initialParsedCapture) return {};
+    return initialParsedCapture.fallback_mode
+      ? { error: "No se detectó un monto. Completa el borrador manualmente." }
+      : { success: "Borrador preparado desde tu comando rápido. Revísalo y confirma." };
+  });
   const [parsing, setParsing] = useState(false);
   const [ocrStatus, setOcrStatus] = useState<{ success?: string; error?: string }>({});
   const [ocrBusy, setOcrBusy] = useState(false);
@@ -570,14 +591,7 @@ export function FinanzasClient({
           source: "texto",
         });
       } else {
-        setDraft({
-          description: parsed.description,
-          amount: parsed.amount,
-          category: parsed.category,
-          type: (parsed.type === "INGRESO" ? "INGRESO" : "GASTO"),
-          date: todayStr(),
-          source: "texto",
-        });
+        setDraft(draftFromParsed(parsed));
       }
     } catch (err) {
       setCaptureStatus({ error: err instanceof Error ? err.message : "Error al analizar el texto" });

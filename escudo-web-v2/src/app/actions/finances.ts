@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { fetchFromBackend, postToBackend, putToBackend, apiRequest } from "@/lib/api/server";
+import { parseFinanceTextLocally } from "@/lib/parse-finance-text";
 import type {
   FinanceEntry,
   FinanceSummaryResponse,
@@ -140,19 +141,7 @@ export async function quickFinanceEntry(text: string): Promise<ParsedTransaction
 }
 
 export async function parseFinanceText(text: string): Promise<ParsedTransaction> {
-  const lower = text.toLowerCase().trim();
-  let txType = "GASTO";
-  if (/\b(ingreso|sueldo|abono|pago recibido|transferencia|devolucion|salario)\b/.test(lower)) txType = "INGRESO";
-  const amountMatch = text.match(/(?:\$|COP\s*)?(\d[\d,.]*)/);
-  let amount = 0;
-  if (amountMatch) { const raw = amountMatch[1].replace(/,/g, ""); amount = parseFloat(raw) || 0; }
-  if (amount <= 0) return { fallback_mode: "manual_review_required", type: "GASTO", amount: 0, description: text.slice(0, 80) || "Gasto", category: "General" };
-  let description = text.replace(amountMatch?.[0] || "", "").replace(/\$|COP/gi, "").trim().slice(0, 80);
-  if (!description) description = txType === "INGRESO" ? "Ingreso" : "Gasto";
-  const categories: Record<string, string[]> = { Comida: ["comida","almuerzo","mercado","restaurante","supermercado","cena"], Transporte: ["transporte","gasolina","uber","taxi","bus","pasaje"], Servicios: ["luz","agua","gas","internet","telefono","servicio","factura","arriendo"], Entretenimiento: ["cine","netflix","spotify","juego","suscripcion"], Sueldo: ["sueldo","salario","nomina","pago"], Compras: ["ropa","zapatos","compra","amazon"] };
-  let category = "General";
-  for (const [cat, keywords] of Object.entries(categories)) { if (keywords.some(kw => lower.includes(kw))) { category = cat; break; } }
-  return { type: txType, amount, description, category };
+  return parseFinanceTextLocally(text);
 }
 
 export async function getFixedExpenses(): Promise<FixedExpense[]> {
