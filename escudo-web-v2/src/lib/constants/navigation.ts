@@ -4,6 +4,7 @@ import {
   Wallet,
   Target,
   Heart,
+  ChefHat,
   CalendarClock,
   CheckSquare,
   Flag,
@@ -86,6 +87,13 @@ export const NAV_MODULES: NavModule[] = [
     label: "Salud",
     href: "/salud",
     icon: Heart,
+    group: "bienestar",
+  },
+  {
+    id: "alimentacion",
+    label: "Alimentacion",
+    href: "/alimentacion",
+    icon: ChefHat,
     group: "bienestar",
   },
   {

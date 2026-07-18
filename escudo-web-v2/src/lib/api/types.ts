@@ -193,6 +193,16 @@ export interface PersonalEntry {
   updated_at?: string;
 }
 
+export interface NutritionRecipe {
+  name: string;
+  calories: number;
+  protein_g: number;
+  prep_minutes: number;
+  ingredients: string[];
+  steps: string[];
+  why: string;
+}
+
 export interface WellnessFactor {
   name: string;
   label: string;
