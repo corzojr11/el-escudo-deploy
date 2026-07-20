@@ -84,8 +84,8 @@ def check_shift_conflicts(shifts: list[dict], new_shift: dict | None = None) -> 
     if new_shift:
         all_shifts.append(new_shift)
         
-    # Filtrar solo activos si tienen el flag is_active
-    all_shifts = [s for s in all_shifts if s.get("is_active", True) is not False]
+    # Filtrar solo activos y de tipo trabajo ('work')
+    all_shifts = [s for s in all_shifts if s.get("is_active", True) is not False and s.get("type", "work") == "work"]
     
     # Mapeo de días de la semana
     dias_es = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]
