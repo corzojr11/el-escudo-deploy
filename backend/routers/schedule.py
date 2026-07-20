@@ -826,7 +826,7 @@ def _generate_companion_timeline(
     wake_target: str,
     sleep_target: str
 ) -> list[dict]:
-    # Resolver la hora de despertar de hoy
+    # 1. Determinar hora de despertar
     wake_time_str = wake_target
     if sleep_windows and len(sleep_windows) > 0:
         wake_time_str = sleep_windows[0].get("wake_time", wake_target)
@@ -841,47 +841,6 @@ def _generate_companion_timeline(
 
     timeline = []
 
-    # 1. Despertar
-    timeline.append({
-        "time": wake_time_str,
-        "title": "🌅 ¡Buenos días, Samid!",
-        "description": "Hora de levantarse de la cama. Toma un vaso grande de agua templada para activar tu metabolismo y haz estiramientos suaves por 5 minutos.",
-        "type": "wake"
-    })
-
-    # 2. Ducha y Cuidado
-    ducha_mins = (wake_mins + 15) % 1440
-    timeline.append({
-        "time": _minutes_to_time(ducha_mins),
-        "title": "🚿 Baño y energía",
-        "description": "Ducha fresca para terminar de despertar, asearte y preparar tu mentalidad para afrontar el día.",
-        "type": "prep"
-    })
-
-    # 3. Desayuno
-    desayuno_mins = (wake_mins + 40) % 1440
-    if is_travel_day:
-        desayuno_desc = "Desayuno de viaje: Prioriza alimentos prácticos y proteicos (huevos revueltos, yogur griego). Evita jugos dulces o fritos para no sentir fatiga en tus trayectos."
-    elif is_rest_day:
-        desayuno_desc = "Desayuno completo: Huevos revueltos, palta (aguacate) y café sin azúcar. Aporte alto de grasas saludables y proteína para tu recuperación activa."
-    else:
-        desayuno_desc = "Desayuno pre-jornada: Huevos, avena o pan integral y café. Energía sostenida para comenzar con claridad tu jornada."
-
-    timeline.append({
-        "time": _minutes_to_time(desayuno_mins),
-        "title": "🍳 Desayuno nutritivo",
-        "description": desayuno_desc,
-        "type": "breakfast"
-    })
-
-    # 4. Almuerzo (por defecto a la 1:00 PM / 13:00)
-    timeline.append({
-        "time": "13:00",
-        "title": "🍲 Almuerzo balanceado",
-        "description": "Tu comida principal. Elige pechuga de pollo, carne o pescado a la plancha, acompañado de vegetales frescos y una porción de carbohidratos limpios (arroz integral o papa cocida).",
-        "type": "lunch"
-    })
-
     # Determinar si hay un turno de trabajo activo hoy
     has_work_today = False
     shift_start_mins = None
@@ -891,7 +850,6 @@ def _generate_companion_timeline(
         shift = shift_status.get("shift")
         if not shift and shift_status.get("next_shift"):
             next_s = shift_status["next_shift"]
-            # Convert name to lowercase
             dias_es = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]
             hoy_es = dias_es[now.weekday()]
             if next_s.get("day", "").lower() == hoy_es.lower():
@@ -907,74 +865,126 @@ def _generate_companion_timeline(
                 shift_end_mins += 1440
 
     if has_work_today and shift_start_mins is not None and shift_end_mins is not None:
-        # 5. Salida al trabajo (Commute)
-        commute_mins_start = (shift_start_mins - commute - 10) % 1440
+        # --- CASO JORNADA LABORAL ---
+        
+        # 1. Despertar y Preparación (Bañarse se integra aquí)
         timeline.append({
-            "time": _minutes_to_time(commute_mins_start),
-            "title": "🚗 Camino al trabajo",
-            "description": f"Es hora de salir hacia el trabajo. Tu tiempo estimado de traslado es de {commute} minutos. Conduce con tranquilidad y escucha un podcast o música relajante.",
-            "type": "commute"
+            "time": wake_time_str,
+            "title": "🌅 Despertar y Preparación",
+            "description": "¡Buenos días! Toma un vaso de agua para hidratarte, haz una ducha rápida para activar tu cuerpo y disponte a iniciar el día.",
+            "type": "wake"
         })
 
-        # 6. Turno de trabajo
+        # 2. Alimento Pre-Jornada
+        comida_mins = (wake_mins + 30) % 1440
+        if wake_mins >= 10 * 60 + 30: # Despertar tarde (después de las 10:30 AM)
+            # Combinar en almuerzo/brunch directo
+            timeline.append({
+                "time": _minutes_to_time(comida_mins),
+                "title": "🍲 Almuerzo / Brunch",
+                "description": "Dado que despertaste tarde, combina tu desayuno y almuerzo. Prepara una comida completa con buena proteína y grasas saludables antes de ir a trabajar.",
+                "type": "lunch"
+            })
+        else:
+            # Desayuno normal
+            timeline.append({
+                "time": _minutes_to_time(comida_mins),
+                "title": "🍳 Desayuno Pre-Jornada",
+                "description": "Prepara huevos, avena o pan integral y café. Te dará energía sostenida para el inicio de tu turno.",
+                "type": "breakfast"
+            })
+
+        # 3. Turno Laboral (Camino al trabajo se integra aquí)
+        commute_mins_start = (shift_start_mins - commute - 10) % 1440
+        commute_time_str = _minutes_to_time(commute_mins_start)
         timeline.append({
             "time": _minutes_to_time(shift_start_mins % 1440),
-            "title": "💼 Inicio de turno laboral",
-            "description": "Comienza tu jornada. Enfoca tus primeras horas en las tareas de mayor concentración. Mantén agua en tu escritorio y haz pausas cada 2 horas para estirar las piernas.",
+            "title": "💼 Jornada Laboral",
+            "description": f"Inicio de labores. Traslado sugerido: salir a las {commute_time_str} ({commute} min de camino). Mantente enfocado, bebe agua y haz pausas activas.",
             "type": "work"
         })
 
-        # 7. Fin de turno
+        # 4. Ocio y Desconexión (Juegos y Lectura se integran aquí después del trabajo)
+        ocio_mins = (shift_end_mins + 30) % 1440
         timeline.append({
-            "time": _minutes_to_time(shift_end_mins % 1440),
-            "title": "🏡 Fin del turno laboral",
-            "description": "¡Buen trabajo! Deja los pendientes en la oficina, sal del modo laboral y comienza a transicionar hacia tu descanso.",
-            "type": "work_end"
+            "time": _minutes_to_time(ocio_mins),
+            "title": "🎮 Ocio y Desconexión",
+            "description": "¡Jornada terminada! Espacio libre para jugar, ver series o leer. Apaga las pantallas al menos 30 minutos antes de dormir.",
+            "type": "leisure"
         })
 
-    # 8. Entrenamiento (Workout)
-    if workout_block:
+        # 5. Sueño Reparador
         timeline.append({
-            "time": workout_block.get("start", "18:00"),
-            "title": f"💪 Entrenamiento: {workout_block.get('label', 'Rutina de Hoy')}",
-            "description": "¡Hora de ponerse en acción! Hidrátate bien antes de empezar, concéntrate en la técnica de cada ejercicio y da tu mejor esfuerzo.",
-            "type": "workout"
+            "time": sleep_target,
+            "title": "🌙 Sueño Reparador",
+            "description": "Habitación fresca, oscura y silenciosa. Hora de apagar luces para recuperar tu energía. ¡Buenas noches, Samid!",
+            "type": "sleep"
         })
 
-    # 9. Ocio y Relajación (Juegos, lectura libre, etc.)
-    ocio_mins = (sleep_mins - 180) % 1440
-    timeline.append({
-        "time": _minutes_to_time(ocio_mins),
-        "title": "🎮 Espacio libre y ocio",
-        "description": "Dedica este rato a jugar en la consola, ver tu serie favorita, o cualquier actividad recreativa que te guste. Es tu momento de esparcimiento personal.",
-        "type": "leisure"
-    })
+    else:
+        # --- CASO DÍA LIBRE / VIAJE / DESCANSO ---
+        
+        # 1. Despertar
+        timeline.append({
+            "time": wake_time_str,
+            "title": "🌅 Mañana y Despertar",
+            "description": "Despierta a tu propio ritmo. Rehidrátate, toma una ducha refrescante y estira tu cuerpo sin presiones.",
+            "type": "wake"
+        })
 
-    # 10. Cena
-    cena_mins = (sleep_mins - 120) % 1440
-    timeline.append({
-        "time": _minutes_to_time(cena_mins),
-        "title": "🥗 Cena suave",
-        "description": "Elige algo ligero y digestivo como pescado, pollo con vegetales o una ensalada suave. Esto evitará que tu digestión interfiera con la calidad de tu sueño circadiano.",
-        "type": "dinner"
-    })
+        # 2. Desayuno Saludable
+        desayuno_mins = (wake_mins + 45) % 1440
+        if is_travel_day:
+            desayuno_desc = "Desayuno de viaje: Huevos revueltos o yogur. Evita alimentos fritos o azúcares para no sentir fatiga en tus trayectos."
+        else:
+            desayuno_desc = "Desayuno completo: Prepárate huevos, palta y un buen café. Disfruta tu mañana tranquila."
+        timeline.append({
+            "time": _minutes_to_time(desayuno_mins),
+            "title": "🍳 Desayuno Completo",
+            "description": desayuno_desc,
+            "type": "breakfast"
+        })
 
-    # 11. Desconexión digital y Lectura
-    lectura_mins = (sleep_mins - 45) % 1440
-    timeline.append({
-        "time": _minutes_to_time(lectura_mins),
-        "title": "📚 Lectura y desconexión",
-        "description": "Apaga el ordenador, la consola y pon el móvil en modo silencio. Lee un libro físico o Kindle por unos minutos para calmar el sistema nervioso y preparar tu cerebro para dormir.",
-        "type": "read"
-    })
+        # 3. Almuerzo
+        timeline.append({
+            "time": "13:00",
+            "title": "🍲 Almuerzo Balanceado",
+            "description": "Tu comida principal. Disfruta con tranquilidad tu comida (proteína magra, vegetales y carbohidratos limpios) y descansa un momento después.",
+            "type": "lunch"
+        })
 
-    # 12. Dormir
-    timeline.append({
-        "time": sleep_target,
-        "title": "🌙 Descanso y sueño reparador",
-        "description": "Apaga todas las luces, mantén tu habitación fresca y silenciosa. Es hora de desconectar para que tu cuerpo se recupere al 100%. ¡Que tengas buenas noches, Samid!",
-        "type": "sleep"
-    })
+        # 4. Entrenamiento o Tiempo Recreativo
+        if workout_block:
+            timeline.append({
+                "time": workout_block.get("start", "16:00"),
+                "title": "💪 Hora de Entrenar",
+                "description": f"Tu rutina de hoy: {workout_block.get('label', 'Actividad física')}. ¡Dale con energía!",
+                "type": "workout"
+            })
+        else:
+            timeline.append({
+                "time": "17:00",
+                "title": "🎮 Tiempo Libre y Ocio",
+                "description": "Espacio libre para jugar tus videojuegos favoritos, leer un libro o disfrutar de tus pasatiempos favoritos.",
+                "type": "leisure"
+            })
+
+        # 5. Cena y Relajación
+        cena_mins = (sleep_mins - 120) % 1440
+        timeline.append({
+            "time": _minutes_to_time(cena_mins),
+            "title": "🥗 Cena y Relajación",
+            "description": "Cena suave para favorecer una digestión rápida. Desconecta de pantallas y lee un poco antes de acostarte.",
+            "type": "dinner"
+        })
+
+        # 6. Descanso Profundo
+        timeline.append({
+            "time": sleep_target,
+            "title": "🌙 Sueño Reparador",
+            "description": "Habitación fresca y a oscuras. Hora de apagar luces y descansar profundo.",
+            "type": "sleep"
+        })
 
     # Ordenar cronológicamente el timeline empezando desde la hora de despertar
     def minutes_from_wake(item):
