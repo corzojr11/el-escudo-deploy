@@ -10,6 +10,14 @@ import { createClient } from "@/lib/auth/client";
 import { logout } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
 
+function getTimeGreeting(): { greeting: string; subtitle: string } {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return { greeting: "Buenos días", subtitle: "¿Cuál es tu primera misión hoy?" };
+  if (h >= 12 && h < 18) return { greeting: "Buenas tardes", subtitle: "Mantén el ritmo — cierra una misión pendiente." };
+  if (h >= 18 && h < 21) return { greeting: "Buenas tardes", subtitle: "Cierre de jornada — revisa lo que avanzaste." };
+  return { greeting: "Buenas noches", subtitle: "Prepárate para mañana. Define tu próxima meta." };
+}
+
 export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -19,6 +27,12 @@ export function Topbar() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [quickCommand, setQuickCommand] = useState("");
   const quickCommandRef = useRef<HTMLInputElement>(null);
+  const [timeGreeting, setTimeGreeting] = useState(getTimeGreeting);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTimeGreeting(getTimeGreeting()), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -80,8 +94,15 @@ export function Topbar() {
         <div className="min-w-0">
           <p className="hud-label mb-1 hidden md:block">EL ESCUDO</p>
           <h1 className="truncate font-heading text-sm font-bold uppercase tracking-[0.08em] text-foreground md:text-base">
-            {activeModule?.id === "dashboard" ? "Bitácora de viaje" : activeModule?.label ?? "El Escudo"}
+            {activeModule?.id === "dashboard"
+              ? `${timeGreeting.greeting}${userName ? `, ${userName}` : ""}`
+              : activeModule?.label ?? "El Escudo"}
           </h1>
+          {activeModule?.id === "dashboard" && (
+            <p className="hidden truncate text-[11px] leading-tight text-muted-foreground md:block">
+              {timeGreeting.subtitle}
+            </p>
+          )}
         </div>
       </div>
 

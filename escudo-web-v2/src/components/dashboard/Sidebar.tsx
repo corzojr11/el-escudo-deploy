@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, Shield } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { NAV_GROUPS, NAV_MODULES, type NavModule } from "@/lib/constants/navigation";
@@ -12,6 +13,13 @@ interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
 }
+
+const DEFAULT_EXPANDED: Record<string, boolean> = {
+  inicio: true,
+  productividad: false,
+  finanzas: false,
+  bienestar: false,
+};
 
 const GROUP_TONES = {
   inicio: "text-[#bcaeff]",
@@ -88,6 +96,20 @@ function NavLink({
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(DEFAULT_EXPANDED);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const isGroupExpanded = (key: string) => {
+    if (collapsed) return true;
+    return expandedGroups[key] ?? false;
+  };
+
+  const hasActiveChild = (groupKey: string) => {
+    return NAV_MODULES.some((m) => m.group === groupKey && pathname === m.href);
+  };
 
   return (
     <aside
@@ -135,24 +157,51 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <Separator className="bg-sidebar-border" />
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
           {NAV_GROUPS.map((group) => {
             const items = NAV_MODULES.filter((m) => m.group === group.key);
             if (items.length === 0) return null;
+            const expanded = isGroupExpanded(group.key);
+            const active = hasActiveChild(group.key);
 
             return (
-              <div key={group.key} className="flex flex-col gap-1">
-                {!collapsed && (
+              <div key={group.key} className="flex flex-col">
+                {!collapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.key)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest transition-colors hover:text-foreground",
+                      GROUP_TONES[group.key],
+                      active && "text-foreground",
+                    )}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "h-3 w-3 shrink-0 transition-transform duration-200",
+                        !expanded && "-rotate-90",
+                      )}
+                    />
+                    {group.label}
+                  </button>
+                ) : (
                   <span className={cn("hud-label px-3", GROUP_TONES[group.key])}>{group.label}</span>
                 )}
-                {items.map((mod) => (
-                  <NavLink
-                    key={mod.id}
-                    module={mod}
-                    collapsed={collapsed}
-                    active={pathname === mod.href}
-                  />
-                ))}
+                <div
+                  className={cn(
+                    "flex flex-col gap-0.5 overflow-hidden transition-all duration-200",
+                    collapsed || expanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0",
+                  )}
+                >
+                  {items.map((mod) => (
+                    <NavLink
+                      key={mod.id}
+                      module={mod}
+                      collapsed={collapsed}
+                      active={pathname === mod.href}
+                    />
+                  ))}
+                </div>
               </div>
             );
           })}

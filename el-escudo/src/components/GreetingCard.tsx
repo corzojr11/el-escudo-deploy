@@ -78,10 +78,10 @@ const humanizeName = (name: string) => {
  * ```
  */
 const GreetingCard: React.FC<GreetingCardProps> = ({ name = 'Usuario' }) => {
-  const { icon, text, h } = useMemo(getGreeting, []);
+  const { icon, text, h } = getGreeting();
   const dailyQuote = useAppStore(state => state.dailyQuote);
   const aiCostCop = useAppStore(state => state.aiCostCop);
-  const now  = useMemo(() => new Date(), []);
+  const now = new Date();
   const date = `${DAYS_ES[now.getDay()]} ${now.getDate()} ${MONTHS_ES[now.getMonth()]}`;
   
   const displayName = useMemo(() => humanizeName(name), [name]);

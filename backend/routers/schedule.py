@@ -834,7 +834,12 @@ def _generate_companion_timeline(
     wake_h, wake_m = _parse_time(wake_time_str)
     wake_mins = wake_h * 60 + wake_m
     
-    sleep_h, sleep_m = _parse_time(sleep_target)
+    # 2. Determinar hora de dormir
+    sleep_time_str = sleep_target
+    if sleep_windows and len(sleep_windows) > 0:
+        sleep_time_str = sleep_windows[0].get("sleep_time", sleep_target)
+
+    sleep_h, sleep_m = _parse_time(sleep_time_str)
     sleep_mins = sleep_h * 60 + sleep_m
     if sleep_mins < wake_mins:
         sleep_mins += 1440
@@ -915,7 +920,7 @@ def _generate_companion_timeline(
 
         # 5. Sueño Reparador
         timeline.append({
-            "time": sleep_target,
+            "time": sleep_time_str,
             "title": "🌙 Sueño Reparador",
             "description": "Habitación fresca, oscura y silenciosa. Hora de apagar luces para recuperar tu energía. ¡Buenas noches, Samid!",
             "type": "sleep"
@@ -980,7 +985,7 @@ def _generate_companion_timeline(
 
         # 6. Descanso Profundo
         timeline.append({
-            "time": sleep_target,
+            "time": sleep_time_str,
             "title": "🌙 Sueño Reparador",
             "description": "Habitación fresca y a oscuras. Hora de apagar luces y descansar profundo.",
             "type": "sleep"

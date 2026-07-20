@@ -111,6 +111,60 @@ function bogotaMinutesNow(): number {
   const value = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
   return value("hour") * 60 + value("minute");
 }
+function getActiveTimelineIndex(timeline: any[], currentMins: number): number {
+  if (!timeline || timeline.length === 0) return -1;
+  const wakeMins = timeToMinutes(timeline[0].time);
+
+  let relCurrent = currentMins - wakeMins;
+  if (relCurrent < 0) {
+    relCurrent += 1440;
+  }
+
+  let activeIndex = -1;
+  for (let i = 0; i < timeline.length; i++) {
+    const itemMins = timeToMinutes(timeline[i].time);
+    let relItem = itemMins - wakeMins;
+    if (relItem < 0) {
+      relItem += 1440;
+    }
+
+    const nextItem = timeline[i + 1];
+    let relNext = 1440;
+    if (nextItem) {
+      const nextMins = timeToMinutes(nextItem.time);
+      relNext = nextMins - wakeMins;
+      if (relNext < 0) {
+        relNext += 1440;
+      }
+    }
+
+    if (relCurrent >= relItem && relCurrent < relNext) {
+      activeIndex = i;
+      break;
+    }
+  }
+
+  if (activeIndex === -1) {
+    return -1;
+  }
+
+  if (activeIndex === timeline.length - 1) {
+    const activeItem = timeline[activeIndex];
+    if (activeItem && activeItem.type === "sleep") {
+      const sleepMins = timeToMinutes(activeItem.time);
+      const wakeMinsValue = timeToMinutes(timeline[0].time);
+      const isDaytime = currentMins >= 8 * 60 && currentMins < 18 * 60;
+      if (isDaytime && sleepMins > currentMins + 60) {
+        return -1;
+      }
+      if (currentMins >= 6 * 60 && currentMins < wakeMinsValue) {
+        return 0;
+      }
+    }
+  }
+
+  return activeIndex;
+}
 
 export function DashboardClient({ data, plan, wellness, stability, todayRoutine, routineCompleted, todayMeals, personalEntries }: DashboardClientProps) {
   const router = useRouter();
@@ -552,38 +606,30 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
             
             <div className="relative flex flex-col gap-3 rounded-2xl border border-border/80 bg-input/20 p-4">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {plan.companion_timeline.map((item, idx) => {
-                  let Icon = Hourglass;
-                  let iconColor = "text-muted-foreground";
-                  let bgBorder = "border-border/60 bg-[#14141B]/40";
-                  
-                  if (item.type === "wake") { Icon = Sunrise; iconColor = "text-[#FFD700]"; }
-                  else if (item.type === "prep") { Icon = Bath; iconColor = "text-sky-400"; }
-                  else if (item.type === "breakfast") { Icon = Coffee; iconColor = "text-amber-500"; }
-                  else if (item.type === "commute") { Icon = Car; iconColor = "text-emerald-400"; }
-                  else if (item.type === "work" || item.type === "work_end") { Icon = Briefcase; iconColor = "text-purple-400"; }
-                  else if (item.type === "lunch") { Icon = Utensils; iconColor = "text-indigo-400"; }
-                  else if (item.type === "workout") { Icon = Dumbbell; iconColor = "text-rose-400"; }
-                  else if (item.type === "leisure") { Icon = Gamepad; iconColor = "text-pink-400"; }
-                  else if (item.type === "dinner") { Icon = Utensils; iconColor = "text-orange-400"; }
-                  else if (item.type === "read") { Icon = BookOpen; iconColor = "text-cyan-400"; }
-                  else if (item.type === "sleep") { Icon = BedDouble; iconColor = "text-indigo-400"; }
+                {(() => {
+                  const activeIdx = getActiveTimelineIndex(plan.companion_timeline || [], nowMinutes);
+                  return plan.companion_timeline.map((item, idx) => {
+                    let Icon = Hourglass;
+                    let iconColor = "text-muted-foreground";
+                    let bgBorder = "border-border/60 bg-[#14141B]/40";
+                    
+                    if (item.type === "wake") { Icon = Sunrise; iconColor = "text-[#FFD700]"; }
+                    else if (item.type === "prep") { Icon = Bath; iconColor = "text-sky-400"; }
+                    else if (item.type === "breakfast") { Icon = Coffee; iconColor = "text-amber-500"; }
+                    else if (item.type === "commute") { Icon = Car; iconColor = "text-emerald-400"; }
+                    else if (item.type === "work" || item.type === "work_end") { Icon = Briefcase; iconColor = "text-purple-400"; }
+                    else if (item.type === "lunch") { Icon = Utensils; iconColor = "text-indigo-400"; }
+                    else if (item.type === "workout") { Icon = Dumbbell; iconColor = "text-rose-400"; }
+                    else if (item.type === "leisure") { Icon = Gamepad; iconColor = "text-pink-400"; }
+                    else if (item.type === "dinner") { Icon = Utensils; iconColor = "text-orange-400"; }
+                    else if (item.type === "read") { Icon = BookOpen; iconColor = "text-cyan-400"; }
+                    else if (item.type === "sleep") { Icon = BedDouble; iconColor = "text-indigo-400"; }
 
-                  const itemMins = timeToMinutes(item.time);
-                  const nextItem = plan.companion_timeline ? plan.companion_timeline[idx + 1] : undefined;
-                  const nextMins = nextItem ? timeToMinutes(nextItem.time) : (plan.companion_timeline ? (timeToMinutes(plan.companion_timeline[0].time) + 1440) : 1440);
-                  
-                  let isCurrent = false;
-                  const currentMins = nowMinutes;
-                  if (nextItem) {
-                    isCurrent = currentMins >= itemMins && currentMins < nextMins;
-                  } else if (plan.companion_timeline) {
-                    isCurrent = currentMins >= itemMins || currentMins < timeToMinutes(plan.companion_timeline[0].time);
-                  }
+                    const isCurrent = idx === activeIdx;
 
-                  if (isCurrent) {
-                    bgBorder = "border-[#7C5DFF]/80 bg-[#7C5DFF]/5 shadow-[0_0_12px_rgba(124,93,255,0.15)] ring-1 ring-[#7C5DFF]/30";
-                  }
+                    if (isCurrent) {
+                      bgBorder = "border-[#7C5DFF]/80 bg-[#7C5DFF]/5 shadow-[0_0_12px_rgba(124,93,255,0.15)] ring-1 ring-[#7C5DFF]/30";
+                    }
 
                   return (
                     <div
@@ -609,7 +655,8 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
                       </div>
                     </div>
                   );
-                })}
+                });
+              })()}
               </div>
             </div>
           </div>
