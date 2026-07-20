@@ -88,7 +88,7 @@ export function MobileNav() {
 
         <Separator className="my-4 bg-sidebar-border" />
 
-        <nav className="flex flex-col gap-6 px-3 pb-6">
+        <nav className="flex-1 overflow-y-auto px-3 pb-6 flex flex-col gap-6">
           {NAV_GROUPS.map((group) => {
             const items = NAV_MODULES.filter((m) => m.group === group.key);
             if (items.length === 0) return null;
