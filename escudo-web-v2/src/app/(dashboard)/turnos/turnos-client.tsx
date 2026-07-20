@@ -588,26 +588,44 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-sm font-medium text-foreground">{shift.day}</span>
-                        {shift.type === "rest" ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-400">
-                            Día de Descanso
-                          </span>
-                        ) : shift.type === "travel" ? (
-                          <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-400 font-mono">
-                            Viaje / Reunión fuera
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            {shift.start} - {shift.end}
-                          </span>
-                        )}
+                        {(() => {
+                          const sType = shift.type || (
+                            shift.start === "00:00" && shift.end === "00:01"
+                              ? ((shift as any).idempotency_key?.toLowerCase().includes("travel") ? "travel" : "rest")
+                              : "work"
+                          );
+                          if (sType === "rest") {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-400">
+                                Día de Descanso
+                              </span>
+                            );
+                          } else if (sType === "travel") {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-400 font-mono">
+                                Viaje / Reunión fuera
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className="text-xs text-muted-foreground">
+                                {shift.start} - {shift.end}
+                              </span>
+                            );
+                          }
+                        })()}
                       </div>
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingId(shift.id);
-                            setEditShiftType(shift.type || "work");
+                            const inferredType = shift.type || (
+                              shift.start === "00:00" && shift.end === "00:01"
+                                ? ((shift as any).idempotency_key?.toLowerCase().includes("travel") ? "travel" : "rest")
+                                : "work"
+                            );
+                            setEditShiftType(inferredType);
                             setCreating(false);
                             setFormStatus({});
                           }}

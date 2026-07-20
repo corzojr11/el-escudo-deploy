@@ -208,11 +208,13 @@ def _build_shift_instances(shifts_data: list) -> list[dict]:
         day = _normalize_day_name_text(s.get("day", ""))
         if not day:
             continue
-        if s.get("type", "work") != "work":
-            continue
         start = _normalize_time_text(s.get("start", ""))
         end = _normalize_time_text(s.get("end", ""))
         if not start or not end:
+            continue
+        if start == "00:00" and end == "00:01":
+            continue
+        if s.get("type", "work") != "work":
             continue
         parsed = _shift_instance_minutes({"day": day, "start": start, "end": end})
         if parsed is None:
@@ -279,9 +281,20 @@ def compute_current_status(shifts_data: list, now: Optional[datetime] = None, bi
         if not shifts_today:
             is_rest_day = True
         else:
-            has_work = any(s.get("type", "work") == "work" for s in shifts_today)
-            has_travel = any(s.get("type", "work") == "travel" for s in shifts_today)
-            has_rest = any(s.get("type", "work") == "rest" for s in shifts_today)
+            def get_shift_type(s: dict) -> str:
+                t = s.get("type")
+                if t:
+                    return t
+                if s.get("start") == "00:00" and s.get("end") == "00:01":
+                    ikey = str(s.get("idempotency_key") or "").lower()
+                    if "travel" in ikey:
+                        return "travel"
+                    return "rest"
+                return "work"
+
+            has_work = any(get_shift_type(s) == "work" for s in shifts_today)
+            has_travel = any(get_shift_type(s) == "travel" for s in shifts_today)
+            has_rest = any(get_shift_type(s) == "rest" for s in shifts_today)
             
             if has_travel:
                 is_travel_day = True
@@ -863,9 +876,20 @@ async def plan_diario(user = Depends(get_current_user)):
         if not shifts_today:
             is_rest_day = True
         else:
-            has_work = any(s.get("type", "work") == "work" for s in shifts_today)
-            has_travel = any(s.get("type", "work") == "travel" for s in shifts_today)
-            has_rest = any(s.get("type", "work") == "rest" for s in shifts_today)
+            def get_shift_type(s: dict) -> str:
+                t = s.get("type")
+                if t:
+                    return t
+                if s.get("start") == "00:00" and s.get("end") == "00:01":
+                    ikey = str(s.get("idempotency_key") or "").lower()
+                    if "travel" in ikey:
+                        return "travel"
+                    return "rest"
+                return "work"
+
+            has_work = any(get_shift_type(s) == "work" for s in shifts_today)
+            has_travel = any(get_shift_type(s) == "travel" for s in shifts_today)
+            has_rest = any(get_shift_type(s) == "rest" for s in shifts_today)
             
             if has_travel:
                 is_travel_day = True
