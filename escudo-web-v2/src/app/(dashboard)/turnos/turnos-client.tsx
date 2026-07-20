@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,10 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
   );
   const [newShiftType, setNewShiftType] = useState<"work" | "rest" | "travel">("work");
   const [editShiftType, setEditShiftType] = useState<"work" | "rest" | "travel">("work");
+
+  useEffect(() => {
+    setShiftList(sortByDay(shifts));
+  }, [shifts]);
 
   async function handleStatusOverride(status: string) {
     setOverrideStatus(status);
