@@ -589,7 +589,7 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
                       <div className="flex flex-col gap-0.5">
                         <span className="text-sm font-medium text-foreground">{shift.day}</span>
                         {(() => {
-                          const sType = shift.type || (
+                          const sType = (shift.type && shift.type !== "work") ? shift.type : (
                             shift.start === "00:00" && shift.end === "00:01"
                               ? ((shift as any).idempotency_key?.toLowerCase().includes("travel") ? "travel" : "rest")
                               : "work"
@@ -620,7 +620,7 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
                           type="button"
                           onClick={() => {
                             setEditingId(shift.id);
-                            const inferredType = shift.type || (
+                            const inferredType = (shift.type && shift.type !== "work") ? shift.type : (
                               shift.start === "00:00" && shift.end === "00:01"
                                 ? ((shift as any).idempotency_key?.toLowerCase().includes("travel") ? "travel" : "rest")
                                 : "work"

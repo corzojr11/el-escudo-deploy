@@ -283,14 +283,14 @@ def compute_current_status(shifts_data: list, now: Optional[datetime] = None, bi
         else:
             def get_shift_type(s: dict) -> str:
                 t = s.get("type")
-                if t:
+                if t and t != "work":
                     return t
                 if s.get("start") == "00:00" and s.get("end") == "00:01":
                     ikey = str(s.get("idempotency_key") or "").lower()
                     if "travel" in ikey:
                         return "travel"
                     return "rest"
-                return "work"
+                return t or "work"
 
             has_work = any(get_shift_type(s) == "work" for s in shifts_today)
             has_travel = any(get_shift_type(s) == "travel" for s in shifts_today)
@@ -878,14 +878,14 @@ async def plan_diario(user = Depends(get_current_user)):
         else:
             def get_shift_type(s: dict) -> str:
                 t = s.get("type")
-                if t:
+                if t and t != "work":
                     return t
                 if s.get("start") == "00:00" and s.get("end") == "00:01":
                     ikey = str(s.get("idempotency_key") or "").lower()
                     if "travel" in ikey:
                         return "travel"
                     return "rest"
-                return "work"
+                return t or "work"
 
             has_work = any(get_shift_type(s) == "work" for s in shifts_today)
             has_travel = any(get_shift_type(s) == "travel" for s in shifts_today)
