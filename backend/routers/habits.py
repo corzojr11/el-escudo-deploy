@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from auth import get_current_user
-from database import supabase
+from database import supabase, award_xp
 from exceptions import ApiException, BadRequestException, NotFoundException
 
 logger = logging.getLogger("escudo")
@@ -243,23 +243,7 @@ async def toggle_habit(habit_id: str, payload: ToggleHabitPayload, user = Depend
             xp_gained += 15
         elif old_streak >= 7:
             xp_gained += 5
-        try:
-            prof = await asyncio.to_thread(
-                lambda: supabase.table("profiles").select("xp, level").eq("user_id", user.id).single().execute()
-            )
-            current_xp = (prof.data or {}).get("xp", 0) or 0
-            current_level = (prof.data or {}).get("level", 0) or 1
-            new_xp = current_xp + xp_gained
-            next_level_xp = 1000
-            new_level = current_level
-            if new_xp >= next_level_xp:
-                new_xp = new_xp - next_level_xp
-                new_level = current_level + 1
-            await asyncio.to_thread(
-                lambda: supabase.table("profiles").update({"xp": new_xp, "level": new_level}).eq("user_id", user.id).execute()
-            )
-        except Exception as xp_e:
-            logger.warning(f"Error al actualizar XP del hábito: {xp_e}")
+        await award_xp(user.id, xp_gained)
 
     habit["completed_dates"] = dates
     habit["streak"] = streak

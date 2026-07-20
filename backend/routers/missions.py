@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, model_validator
 
 from auth import get_current_user
-from database import supabase
+from database import supabase, award_xp
 from exceptions import ApiException, NotFoundException
 
 logger = logging.getLogger("escudo")
@@ -175,6 +175,7 @@ async def update_mission(mission_id: str, payload: MissionUpdatePayload, user=De
         goal_progress = await _apply_mission_goal_progress(mission_id, user.id)
 
     new_achievement = None
+    xp_result = None
     if payload.status == "completed" and existing.get("status") != "completed":
         try:
             completed = await asyncio.to_thread(
@@ -203,11 +204,17 @@ async def update_mission(mission_id: str, payload: MissionUpdatePayload, user=De
         except Exception as e:
             logger.error(f"Error al desbloquear logro para {user.id}: {e}")
 
+        mission_xp = existing.get("xp_reward") or payload.xp_reward or 0
+        if mission_xp > 0:
+            xp_result = await award_xp(user.id, mission_xp)
+
     result = {"mission": res.data[0]}
     if goal_progress:
         result["goal_progress"] = goal_progress
     if new_achievement:
         result["new_achievement"] = new_achievement
+    if xp_result:
+        result["xp"] = xp_result
     return result
 
 

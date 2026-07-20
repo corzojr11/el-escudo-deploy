@@ -207,6 +207,9 @@ class TestHabits:
         )
         completions_table.insert.return_value.execute.return_value = MagicMock(data=[{}])
 
+        async def mock_award_xp(user_id, xp):
+            return {"xp": 0, "level": 1, "xp_to_next_level": 100, "xp_gained": xp, "leveled_up": False}
+
         def table_side(name):
             if name == "habits":
                 return habits_table
@@ -216,6 +219,7 @@ class TestHabits:
 
         mock_supa.table.side_effect = table_side
         monkeypatch.setattr(habits_module, "supabase", mock_supa)
+        monkeypatch.setattr(habits_module, "award_xp", mock_award_xp)
 
         client = TestClient(app)
         resp = client.post("/api/v1/habits/h1/toggle", json={"mark_done": True, "date": "2026-07-16"})
@@ -240,6 +244,9 @@ class TestHabits:
         )
         completions_table.insert.return_value.execute.return_value = MagicMock(data=[{}])
 
+        async def mock_award_xp(user_id, xp):
+            return {"xp": 0, "level": 1, "xp_to_next_level": 100, "xp_gained": xp, "leveled_up": False}
+
         def table_side(name):
             if name == "habits":
                 return habits_table
@@ -249,6 +256,7 @@ class TestHabits:
 
         mock_supa.table.side_effect = table_side
         monkeypatch.setattr(habits_module, "supabase", mock_supa)
+        monkeypatch.setattr(habits_module, "award_xp", mock_award_xp)
 
         client = TestClient(app)
         resp = client.post("/api/v1/habits/h1/toggle", json={"mark_done": True})

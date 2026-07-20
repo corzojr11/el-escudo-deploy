@@ -78,10 +78,9 @@ def test_mission_complete_returns_new_achievement_once(monkeypatch):
     count_chain = _make_chain(count_result)
 
     def select_side(*args, **kwargs):
-        s = str(args[0]) if args else ""
-        if s == "id" and not kwargs.get("count"):
-            return check_chain
-        return count_chain
+        if kwargs.get("count"):
+            return count_chain
+        return check_chain
 
     missions_table.select.side_effect = select_side
     missions_table.update.return_value = update_chain
@@ -127,10 +126,9 @@ def test_mission_complete_no_duplicate_achievement(monkeypatch):
     count_chain = _make_chain(count_result)
 
     def select_side(*args, **kwargs):
-        s = str(args[0]) if args else ""
-        if s == "id" and not kwargs.get("count"):
-            return check_chain
-        return count_chain
+        if kwargs.get("count"):
+            return count_chain
+        return check_chain
 
     missions_table.select.side_effect = select_side
     missions_table.update.return_value = update_chain

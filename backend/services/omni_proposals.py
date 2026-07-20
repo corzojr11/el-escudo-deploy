@@ -348,6 +348,13 @@ async def confirm_proposal(user, proposal_id: str, session_id: str | None = None
                 .execute()
         )
 
+        if total_xp > 0:
+            try:
+                from database import award_xp
+                await award_xp(user.id, total_xp)
+            except Exception as xp_exc:
+                logger.warning(f"Error persistiendo XP de OMNI para user {user.id}: {xp_exc}")
+
         # Persistir mensajes en historial
         session_id_to_use = session_id or proposal.get("session_id") or str(uuid.uuid4())
         try:
