@@ -14,11 +14,17 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const activeModule = NAV_MODULES.find((module) => module.href === pathname);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     if (pathname === "/onboarding" || pathname === "/perfil") return;
 
     const supabase = createClient();
@@ -35,7 +41,18 @@ export default function DashboardLayout({
           }
         });
     });
-  }, [pathname, router]);
+  }, [pathname, router, mounted]);
+
+  if (!mounted) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-[#09090b] text-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#7C5DFF] border-t-transparent" />
+          <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Iniciando interfaz...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div data-theme={activeModule?.id ?? "dashboard"} className="relative flex min-h-screen overflow-hidden">
