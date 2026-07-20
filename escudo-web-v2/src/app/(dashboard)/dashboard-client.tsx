@@ -31,11 +31,33 @@ import {
   Hourglass,
 } from "lucide-react";
 import { updateMission } from "@/app/actions/missions";
+import { endCurrentShift } from "@/app/actions/turnos";
 import { completeRoutineDay, uncompleteRoutineDay } from "@/app/actions/wellness";
 import { getProgressReport } from "@/app/actions/reports";
 import { Progress } from "@/components/ui/progress";
 import { ErrorState } from "@/components/dashboard/ErrorState";
+import { cn } from "@/lib/utils";
 import type { Debt, FixedExpense, NutritionMealPlanDay, PersonalEntry, ProgressReport, Routine, TodayResponse, PlanDiarioResponse, WellnessSummary } from "@/lib/api/types";
+
+function getTimeGreeting(name?: string): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return `Buenos días${name ? `, ${name}` : ""}`;
+  if (h >= 12 && h < 18) return `En marcha${name ? `, ${name}` : ""}`;
+  if (h >= 18 && h < 21) return `Cerrando el día${name ? `, ${name}` : ""}`;
+  return `Buenas noches${name ? `, ${name}` : ""}`;
+}
+
+function getTimeSubtitle(shiftStatus: any): string {
+  if (shiftStatus?.status === "in_shift") {
+    const shift = shiftStatus.shift;
+    return `Turno activo hasta las ${shift?.end || "??"}. ${shift?.remaining_hours ? `${shift.remaining_hours}h restantes.` : ""}`;
+  }
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "¿Cuál es tu primera misión hoy?";
+  if (h >= 12 && h < 18) return "Cierra una misión pendiente antes de abrir otra.";
+  if (h >= 18 && h < 21) return "Revisa lo que avanzaste y prepara el cierre.";
+  return "Reflexiona y define tu próxima meta para mañana.";
+}
 
 function Metric({ label, value, detail, tone = "text-foreground" }: {
   label: string;
@@ -172,6 +194,8 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
   const [actionError, setActionError] = useState("");
   const [reportingPeriod, setReportingPeriod] = useState<"week" | "month" | null>(null);
   const [reportError, setReportError] = useState("");
+  const [endingShift, setEndingShift] = useState(false);
+  const [shiftEnded, setShiftEnded] = useState(false);
   const nowMinutes = bogotaMinutesNow();
   const profile = data.profile;
   const today = data.today;
@@ -290,17 +314,41 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
     });
   }
 
+  async function handleEndShift() {
+    setEndingShift(true);
+    setActionError("");
+    try {
+      const result = await endCurrentShift();
+      if (result.success) {
+        setShiftEnded(true);
+        router.refresh();
+      } else {
+        setActionError(result.error || "No se pudo finalizar el turno.");
+      }
+    } catch {
+      setActionError("Error de conexión al finalizar el turno.");
+    } finally {
+      setEndingShift(false);
+    }
+  }
+
+  const isInShift = plan?.shift_status?.status === "in_shift";
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-8">
       <section className="grid gap-5 border-b border-border pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
           <p className="hud-label text-primary">Commander log // 024</p>
           <h2 className="mt-3 max-w-xl font-heading text-4xl font-extrabold uppercase leading-[0.94] tracking-[-0.05em] text-foreground sm:text-6xl">
-            Bitácora de<br />viaje
+            {getTimeGreeting(profile?.name)}
           </h2>
+          <p className="mt-2 max-w-xl text-sm text-muted-foreground">{getTimeSubtitle(shiftStatus)}</p>
           <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
-            <span className="border border-[#5a5122] bg-[#292515] px-2 py-1 font-mono text-[11px] uppercase text-[#ffe476]">
-              Estado: activo
+            <span className={cn(
+              "border px-2 py-1 font-mono text-[11px] uppercase",
+              isInShift ? "border-[#7c5dff] bg-[#7c5dff]/10 text-[#d5ccff]" : shiftEnded ? "border-emerald-700 bg-emerald-950 text-emerald-400" : "border-[#5a5122] bg-[#292515] text-[#ffe476]",
+            )}>
+              {isInShift ? "En turno" : shiftEnded ? "Turno finalizado" : "Estado: activo"}
             </span>
             <span className="text-muted-foreground">Tu ruta de evolucion personal</span>
             <a href="/plan-semanal" className="inline-flex items-center gap-2 border border-[#7C5DFF] px-3 py-2 font-mono text-[11px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black">
@@ -344,17 +392,36 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
       </section>
 
       {survivalMode && survivalReason && (
-        <section className="border border-[#7C5DFF] bg-card p-5">
+        <section className={cn("border bg-card p-5", isInShift ? "border-[#7C5DFF]" : "border-[#7C5DFF]")}>
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
               <p className="hud-label text-[#bcaeff]">Modo supervivencia</p>
               <h3 className="mt-1 font-heading text-lg font-bold text-foreground">Hoy basta con sostener lo esencial</h3>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{survivalReason}</p>
             </div>
-            <a href={immediateAction.href} className="shrink-0 border border-[#7C5DFF] px-3 py-2 font-mono text-[11px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black">
-              {immediateAction.cta}
-            </a>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {isInShift && (
+                <button
+                  type="button"
+                  onClick={handleEndShift}
+                  disabled={endingShift}
+                  className="border border-emerald-600 bg-emerald-950 px-4 py-3 font-heading text-sm font-bold uppercase text-emerald-400 hover:bg-emerald-900 hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+                >
+                  {endingShift ? "Finalizando..." : "Ya salí del turno"}
+                </button>
+              )}
+              <a href={immediateAction.href} className="border border-[#7C5DFF] px-3 py-2 font-mono text-[11px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black">
+                {immediateAction.cta}
+              </a>
+            </div>
           </div>
+          {shiftEnded && (
+            <div className="mt-4 border border-emerald-800 bg-emerald-950/50 p-3">
+              <p className="text-sm text-emerald-300">
+                Turno finalizado. Ahora enfócate en tu recuperación: llega a casa, báñate, cena ligero y prepárate para dormir.
+              </p>
+            </div>
+          )}
           <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
             <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Una mision:</span> {visibleMissions[0]?.name || visibleMissions[0]?.title || "No agregues una nueva hasta cerrar lo urgente."}</p>
             <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Un habito:</span> {priorityHabit?.name || "Tu descanso ya cuenta como prioridad."}</p>
@@ -595,12 +662,12 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
         {plan.companion_timeline && plan.companion_timeline.length > 0 && (
           <div className="mt-6 border-t border-border/60 pt-5">
             <div className="mb-4">
-              <p className="hud-label text-primary">Acompañante de Rutina</p>
+              <p className="hud-label text-primary">Ahora y después</p>
               <h4 className="font-heading text-base font-bold text-foreground">
-                Tus recomendaciones hora por hora
+                Lo que sigue en tu día
               </h4>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Sugerencias personalizadas adaptadas a tu estado actual (despierto, libre o trabajando).
+                Solo ves lo relevante ahora. Lo que ya pasó no aparece.
               </p>
             </div>
             
@@ -608,7 +675,10 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {(() => {
                   const activeIdx = getActiveTimelineIndex(plan.companion_timeline || [], nowMinutes);
-                  return plan.companion_timeline.map((item, idx) => {
+                  const startIdx = activeIdx >= 0 ? activeIdx : 0;
+                  const visibleItems = plan.companion_timeline.slice(startIdx, startIdx + 3);
+                  return visibleItems.map((item, idx) => {
+                    const actualIdx = startIdx + idx;
                     let Icon = Hourglass;
                     let iconColor = "text-muted-foreground";
                     let bgBorder = "border-border/60 bg-[#14141B]/40";
@@ -625,7 +695,7 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
                     else if (item.type === "read") { Icon = BookOpen; iconColor = "text-cyan-400"; }
                     else if (item.type === "sleep") { Icon = BedDouble; iconColor = "text-indigo-400"; }
 
-                    const isCurrent = idx === activeIdx;
+                    const isCurrent = actualIdx === activeIdx;
 
                     if (isCurrent) {
                       bgBorder = "border-[#7C5DFF]/80 bg-[#7C5DFF]/5 shadow-[0_0_12px_rgba(124,93,255,0.15)] ring-1 ring-[#7C5DFF]/30";

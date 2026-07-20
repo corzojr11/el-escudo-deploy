@@ -142,3 +142,19 @@ export async function getShiftConflicts(): Promise<any[]> {
     return [];
   }
 }
+
+export async function endCurrentShift(actualEnd?: string) {
+  try {
+    const body: Record<string, string> = {};
+    if (actualEnd) body.actual_end = actualEnd;
+    const res = await postToBackend<{ detail: string; actual_end: string; shift_id: string; current_status: any }>("/api/v1/shifts/end-current", body);
+    revalidatePath("/turnos");
+    revalidatePath("/");
+    return { success: true, ...res };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error al finalizar el turno",
+    };
+  }
+}

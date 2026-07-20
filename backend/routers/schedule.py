@@ -645,6 +645,101 @@ async def delete_shift(shift_id: str, user = Depends(get_current_user)):
     return {"detail": "Turno eliminado exitosamente"}
 
 
+class EndShiftPayload(BaseModel):
+    actual_end: Optional[str] = None
+
+
+@router.post("/api/v1/shifts/end-current")
+async def end_current_shift(payload: EndShiftPayload = EndShiftPayload(), user = Depends(get_current_user)):
+    now = _bogota_now()
+    actual_end = payload.actual_end or now.strftime("%H:%M")
+    hoy_index = now.weekday()
+    ahora_minutos = now.hour * 60 + now.minute
+    now_total = hoy_index * 24 * 60 + ahora_minutos
+
+    shifts_raw = await asyncio.to_thread(
+        lambda: supabase.table("shifts")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", True)
+        .execute()
+    )
+    shifts_data = shifts_raw.data or []
+
+    instances = _build_shift_instances(shifts_data)
+    shift_ended = None
+
+    for inst in instances:
+        if inst["start_total"] <= now_total < inst["end_total"]:
+            matching = [
+                s for s in shifts_data
+                if s.get("id") and s.get("id") == inst.get("shift_id")
+            ]
+            shift_ended = matching[0] if matching else None
+            break
+
+    if not shift_ended:
+        current_status = compute_current_status(shifts_data, now)
+        if current_status.get("status") == "in_shift":
+            active_shift = current_status.get("shift", {})
+            shift_day = active_shift.get("day", "")
+            shift_start = active_shift.get("start", "")
+            for s in shifts_data:
+                s_day = _normalize_day_name_text(s.get("day", ""))
+                s_start = _normalize_time_text(s.get("start", ""))
+                if s_day == shift_day and s_start == shift_start:
+                    shift_ended = s
+                    break
+
+    if not shift_ended:
+        raise ApiException(status_code=404, detail="No se encontró un turno activo para finalizar.")
+
+    shift_id = shift_ended.get("id")
+    try:
+        res = await asyncio.to_thread(
+            lambda: supabase.table("shifts")
+            .update({"end": actual_end})
+            .eq("id", shift_id)
+            .eq("user_id", user.id)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(f"Error ending shift: {exc}", exc_info=True)
+        raise ApiException(status_code=500, detail="Error al finalizar el turno.")
+
+    await track_event("schedule", "end_current_shift", user_id=user.id, metadata={
+        "shift_id": shift_id,
+        "actual_end": actual_end,
+        "original_end": shift_ended.get("end"),
+    })
+
+    bio_settings = await asyncio.to_thread(
+        lambda: supabase.table("user_bio_settings")
+        .select("*")
+        .eq("user_id", user.id)
+        .limit(1)
+        .execute()
+    )
+    bio = bio_settings.data[0] if bio_settings.data else None
+
+    updated_shifts_raw = await asyncio.to_thread(
+        lambda: supabase.table("shifts")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", True)
+        .execute()
+    )
+    updated_shifts = updated_shifts_raw.data or []
+    new_status = compute_current_status(updated_shifts, now, bio)
+
+    return {
+        "detail": "Turno finalizado exitosamente.",
+        "actual_end": actual_end,
+        "shift_id": shift_id,
+        "current_status": new_status,
+    }
+
+
 @router.get("/api/v1/sleep-analysis")
 async def get_sleep_analysis(user = Depends(get_current_user)):
     logs = await asyncio.to_thread(lambda: supabase.table("sleep_logs").select("*").eq("user_id", user.id).order("date", desc=True).limit(7).execute())
