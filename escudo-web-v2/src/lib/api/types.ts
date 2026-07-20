@@ -509,6 +509,13 @@ export interface SleepLog {
   notes: string;
 }
 
+export interface CompanionTimelineItem {
+  time: string;
+  title: string;
+  description: string;
+  type: "wake" | "prep" | "breakfast" | "commute" | "work" | "work_end" | "lunch" | "workout" | "leisure" | "dinner" | "read" | "sleep";
+}
+
 export interface PlanDiarioResponse {
   date: string;
   shift_status: ShiftStatusResponse;
@@ -524,6 +531,7 @@ export interface PlanDiarioResponse {
   hydration_ml: number | null;
   sleep_logs_recent: SleepLog[];
   missing_config: string[];
+  companion_timeline?: CompanionTimelineItem[];
   disclaimer: string;
 }
 

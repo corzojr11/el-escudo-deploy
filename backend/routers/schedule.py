@@ -815,6 +815,180 @@ def _find_next_shift(shifts_data: list, now: datetime) -> dict | None:
     }
 
 
+def _generate_companion_timeline(
+    now: datetime,
+    shift_status: dict,
+    sleep_windows: list,
+    workout_block: dict,
+    is_rest_day: bool,
+    is_travel_day: bool,
+    commute: int,
+    wake_target: str,
+    sleep_target: str
+) -> list[dict]:
+    # Resolver la hora de despertar de hoy
+    wake_time_str = wake_target
+    if sleep_windows and len(sleep_windows) > 0:
+        wake_time_str = sleep_windows[0].get("wake_time", wake_target)
+    
+    wake_h, wake_m = _parse_time(wake_time_str)
+    wake_mins = wake_h * 60 + wake_m
+    
+    sleep_h, sleep_m = _parse_time(sleep_target)
+    sleep_mins = sleep_h * 60 + sleep_m
+    if sleep_mins < wake_mins:
+        sleep_mins += 1440
+
+    timeline = []
+
+    # 1. Despertar
+    timeline.append({
+        "time": wake_time_str,
+        "title": "🌅 ¡Buenos días, Samid!",
+        "description": "Hora de levantarse de la cama. Toma un vaso grande de agua templada para activar tu metabolismo y haz estiramientos suaves por 5 minutos.",
+        "type": "wake"
+    })
+
+    # 2. Ducha y Cuidado
+    ducha_mins = (wake_mins + 15) % 1440
+    timeline.append({
+        "time": _minutes_to_time(ducha_mins),
+        "title": "🚿 Baño y energía",
+        "description": "Ducha fresca para terminar de despertar, asearte y preparar tu mentalidad para afrontar el día.",
+        "type": "prep"
+    })
+
+    # 3. Desayuno
+    desayuno_mins = (wake_mins + 40) % 1440
+    if is_travel_day:
+        desayuno_desc = "Desayuno de viaje: Prioriza alimentos prácticos y proteicos (huevos revueltos, yogur griego). Evita jugos dulces o fritos para no sentir fatiga en tus trayectos."
+    elif is_rest_day:
+        desayuno_desc = "Desayuno completo: Huevos revueltos, palta (aguacate) y café sin azúcar. Aporte alto de grasas saludables y proteína para tu recuperación activa."
+    else:
+        desayuno_desc = "Desayuno pre-jornada: Huevos, avena o pan integral y café. Energía sostenida para comenzar con claridad tu jornada."
+
+    timeline.append({
+        "time": _minutes_to_time(desayuno_mins),
+        "title": "🍳 Desayuno nutritivo",
+        "description": desayuno_desc,
+        "type": "breakfast"
+    })
+
+    # 4. Almuerzo (por defecto a la 1:00 PM / 13:00)
+    timeline.append({
+        "time": "13:00",
+        "title": "🍲 Almuerzo balanceado",
+        "description": "Tu comida principal. Elige pechuga de pollo, carne o pescado a la plancha, acompañado de vegetales frescos y una porción de carbohidratos limpios (arroz integral o papa cocida).",
+        "type": "lunch"
+    })
+
+    # Determinar si hay un turno de trabajo activo hoy
+    has_work_today = False
+    shift_start_mins = None
+    shift_end_mins = None
+    
+    if shift_status and not is_rest_day and not is_travel_day:
+        shift = shift_status.get("shift")
+        if not shift and shift_status.get("next_shift"):
+            next_s = shift_status["next_shift"]
+            # Convert name to lowercase
+            dias_es = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]
+            hoy_es = dias_es[now.weekday()]
+            if next_s.get("day", "").lower() == hoy_es.lower():
+                shift = next_s
+        
+        if shift:
+            has_work_today = True
+            sh, sm = _parse_time(shift.get("start", "08:00"))
+            eh, em = _parse_time(shift.get("end", "17:00"))
+            shift_start_mins = sh * 60 + sm
+            shift_end_mins = eh * 60 + em
+            if shift_end_mins <= shift_start_mins:
+                shift_end_mins += 1440
+
+    if has_work_today and shift_start_mins is not None and shift_end_mins is not None:
+        # 5. Salida al trabajo (Commute)
+        commute_mins_start = (shift_start_mins - commute - 10) % 1440
+        timeline.append({
+            "time": _minutes_to_time(commute_mins_start),
+            "title": "🚗 Camino al trabajo",
+            "description": f"Es hora de salir hacia el trabajo. Tu tiempo estimado de traslado es de {commute} minutos. Conduce con tranquilidad y escucha un podcast o música relajante.",
+            "type": "commute"
+        })
+
+        # 6. Turno de trabajo
+        timeline.append({
+            "time": _minutes_to_time(shift_start_mins % 1440),
+            "title": "💼 Inicio de turno laboral",
+            "description": "Comienza tu jornada. Enfoca tus primeras horas en las tareas de mayor concentración. Mantén agua en tu escritorio y haz pausas cada 2 horas para estirar las piernas.",
+            "type": "work"
+        })
+
+        # 7. Fin de turno
+        timeline.append({
+            "time": _minutes_to_time(shift_end_mins % 1440),
+            "title": "🏡 Fin del turno laboral",
+            "description": "¡Buen trabajo! Deja los pendientes en la oficina, sal del modo laboral y comienza a transicionar hacia tu descanso.",
+            "type": "work_end"
+        })
+
+    # 8. Entrenamiento (Workout)
+    if workout_block:
+        timeline.append({
+            "time": workout_block.get("start", "18:00"),
+            "title": f"💪 Entrenamiento: {workout_block.get('label', 'Rutina de Hoy')}",
+            "description": "¡Hora de ponerse en acción! Hidrátate bien antes de empezar, concéntrate en la técnica de cada ejercicio y da tu mejor esfuerzo.",
+            "type": "workout"
+        })
+
+    # 9. Ocio y Relajación (Juegos, lectura libre, etc.)
+    ocio_mins = (sleep_mins - 180) % 1440
+    timeline.append({
+        "time": _minutes_to_time(ocio_mins),
+        "title": "🎮 Espacio libre y ocio",
+        "description": "Dedica este rato a jugar en la consola, ver tu serie favorita, o cualquier actividad recreativa que te guste. Es tu momento de esparcimiento personal.",
+        "type": "leisure"
+    })
+
+    # 10. Cena
+    cena_mins = (sleep_mins - 120) % 1440
+    timeline.append({
+        "time": _minutes_to_time(cena_mins),
+        "title": "🥗 Cena suave",
+        "description": "Elige algo ligero y digestivo como pescado, pollo con vegetales o una ensalada suave. Esto evitará que tu digestión interfiera con la calidad de tu sueño circadiano.",
+        "type": "dinner"
+    })
+
+    # 11. Desconexión digital y Lectura
+    lectura_mins = (sleep_mins - 45) % 1440
+    timeline.append({
+        "time": _minutes_to_time(lectura_mins),
+        "title": "📚 Lectura y desconexión",
+        "description": "Apaga el ordenador, la consola y pon el móvil en modo silencio. Lee un libro físico o Kindle por unos minutos para calmar el sistema nervioso y preparar tu cerebro para dormir.",
+        "type": "read"
+    })
+
+    # 12. Dormir
+    timeline.append({
+        "time": sleep_target,
+        "title": "🌙 Descanso y sueño reparador",
+        "description": "Apaga todas las luces, mantén tu habitación fresca y silenciosa. Es hora de desconectar para que tu cuerpo se recupere al 100%. ¡Que tengas buenas noches, Samid!",
+        "type": "sleep"
+    })
+
+    # Ordenar cronológicamente el timeline empezando desde la hora de despertar
+    def minutes_from_wake(item):
+        h, m = _parse_time(item["time"])
+        mins = h * 60 + m
+        diff = mins - wake_mins
+        if diff < 0:
+            diff += 1440
+        return diff
+
+    timeline.sort(key=minutes_from_wake)
+    return timeline
+
+
 @router.get("/api/v1/plan-diario")
 async def plan_diario(user = Depends(get_current_user)):
     now = _bogota_now()
@@ -1051,6 +1225,18 @@ async def plan_diario(user = Depends(get_current_user)):
     if isinstance(shift_status, dict):
         shift_status = {**shift_status, "is_rest_day": is_rest_day, "is_travel_day": is_travel_day}
 
+    companion_timeline = _generate_companion_timeline(
+        now=now,
+        shift_status=shift_status,
+        sleep_windows=sleep_windows,
+        workout_block=workout_block,
+        is_rest_day=is_rest_day,
+        is_travel_day=is_travel_day,
+        commute=commute,
+        wake_target=wake_target,
+        sleep_target=sleep_target
+    )
+
     return {
         "date": now.strftime("%Y-%m-%d"),
         "shift_status": shift_status,
@@ -1066,5 +1252,6 @@ async def plan_diario(user = Depends(get_current_user)):
         "hydration_ml": hydration_ml,
         "sleep_logs_recent": sleep_logs[:7],
         "missing_config": missing_config,
+        "companion_timeline": companion_timeline,
         "disclaimer": "Esta es una planificacion orientativa basada en tus datos. No constituye consejo medico.",
     }

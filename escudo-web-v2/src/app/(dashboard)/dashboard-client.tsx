@@ -19,6 +19,16 @@ import {
   TrendingDown,
   Wallet,
   Zap,
+  Sunrise,
+  Bath,
+  Coffee,
+  Car,
+  Briefcase,
+  Utensils,
+  Dumbbell,
+  Gamepad,
+  BedDouble,
+  Hourglass,
 } from "lucide-react";
 import { updateMission } from "@/app/actions/missions";
 import { completeRoutineDay, uncompleteRoutineDay } from "@/app/actions/wellness";
@@ -86,12 +96,29 @@ function reportRows(report: ProgressReport) {
   ];
 }
 
+function timeToMinutes(value: string): number {
+  const [hours = "0", minutes = "0"] = value.split(":");
+  return Number(hours) * 60 + Number(minutes);
+}
+
+function bogotaMinutesNow(): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Bogota",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const value = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  return value("hour") * 60 + value("minute");
+}
+
 export function DashboardClient({ data, plan, wellness, stability, todayRoutine, routineCompleted, todayMeals, personalEntries }: DashboardClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState("");
   const [reportingPeriod, setReportingPeriod] = useState<"week" | "month" | null>(null);
   const [reportError, setReportError] = useState("");
+  const nowMinutes = bogotaMinutesNow();
   const profile = data.profile;
   const today = data.today;
   const goals = today.active_goals ?? [];
@@ -509,6 +536,82 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
               {plan.missing_config.includes("ajustes") && <a href="/turnos" className="text-[#7C5DFF] underline"> Ajustes</a>}
               {" "}para ver tu plan personalizado.
             </p>
+          </div>
+        )}
+        {plan.companion_timeline && plan.companion_timeline.length > 0 && (
+          <div className="mt-6 border-t border-border/60 pt-5">
+            <div className="mb-4">
+              <p className="hud-label text-primary">Acompañante de Rutina</p>
+              <h4 className="font-heading text-base font-bold text-foreground">
+                Tus recomendaciones hora por hora
+              </h4>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Sugerencias personalizadas adaptadas a tu estado actual (despierto, libre o trabajando).
+              </p>
+            </div>
+            
+            <div className="relative flex flex-col gap-3 rounded-2xl border border-border/80 bg-input/20 p-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {plan.companion_timeline.map((item, idx) => {
+                  let Icon = Hourglass;
+                  let iconColor = "text-muted-foreground";
+                  let bgBorder = "border-border/60 bg-[#14141B]/40";
+                  
+                  if (item.type === "wake") { Icon = Sunrise; iconColor = "text-[#FFD700]"; }
+                  else if (item.type === "prep") { Icon = Bath; iconColor = "text-sky-400"; }
+                  else if (item.type === "breakfast") { Icon = Coffee; iconColor = "text-amber-500"; }
+                  else if (item.type === "commute") { Icon = Car; iconColor = "text-emerald-400"; }
+                  else if (item.type === "work" || item.type === "work_end") { Icon = Briefcase; iconColor = "text-purple-400"; }
+                  else if (item.type === "lunch") { Icon = Utensils; iconColor = "text-indigo-400"; }
+                  else if (item.type === "workout") { Icon = Dumbbell; iconColor = "text-rose-400"; }
+                  else if (item.type === "leisure") { Icon = Gamepad; iconColor = "text-pink-400"; }
+                  else if (item.type === "dinner") { Icon = Utensils; iconColor = "text-orange-400"; }
+                  else if (item.type === "read") { Icon = BookOpen; iconColor = "text-cyan-400"; }
+                  else if (item.type === "sleep") { Icon = BedDouble; iconColor = "text-indigo-400"; }
+
+                  const itemMins = timeToMinutes(item.time);
+                  const nextItem = plan.companion_timeline ? plan.companion_timeline[idx + 1] : undefined;
+                  const nextMins = nextItem ? timeToMinutes(nextItem.time) : (plan.companion_timeline ? (timeToMinutes(plan.companion_timeline[0].time) + 1440) : 1440);
+                  
+                  let isCurrent = false;
+                  const currentMins = nowMinutes;
+                  if (nextItem) {
+                    isCurrent = currentMins >= itemMins && currentMins < nextMins;
+                  } else if (plan.companion_timeline) {
+                    isCurrent = currentMins >= itemMins || currentMins < timeToMinutes(plan.companion_timeline[0].time);
+                  }
+
+                  if (isCurrent) {
+                    bgBorder = "border-[#7C5DFF]/80 bg-[#7C5DFF]/5 shadow-[0_0_12px_rgba(124,93,255,0.15)] ring-1 ring-[#7C5DFF]/30";
+                  }
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex flex-col gap-2 rounded-xl border p-3 transition-all ${bgBorder}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs font-bold text-muted-foreground">{item.time}</span>
+                        {isCurrent && (
+                          <span className="rounded-full bg-[#7C5DFF]/25 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#d5ccff] animate-pulse">
+                            Ahora
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-start gap-2.5 mt-0.5">
+                        <div className={`mt-0.5 rounded-lg bg-background p-1.5 ${iconColor}`}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-heading text-sm font-bold text-white">{item.title}</p>
+                          <p className="text-[11px] leading-relaxed text-gray-400 mt-1">{item.description}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
         <p className="mt-3 text-[10px] text-gray-600">{plan.disclaimer}</p>
