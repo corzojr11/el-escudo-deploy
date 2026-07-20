@@ -179,7 +179,13 @@ export default function OmniPage() {
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const scrollEl = scrollRef.current;
+      requestAnimationFrame(() => {
+        scrollEl.scrollTo({
+          top: scrollEl.scrollHeight,
+          behavior: "smooth",
+        });
+      });
     }
   }, [messages, pendingProposal]);
 
@@ -212,6 +218,7 @@ export default function OmniPage() {
     }
 
     setInput("");
+    inputRef.current = "";
     setError(null);
     setMessages((prev) => [
       ...prev,

@@ -73,9 +73,10 @@ interface TurnosClientProps {
   plan: PlanDiarioResponse | null;
   loadErrors: string[];
   criticalError: boolean;
+  conflicts?: any[];
 }
 
-export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErrors, criticalError }: TurnosClientProps) {
+export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErrors, criticalError, conflicts = [] }: TurnosClientProps) {
   const router = useRouter();
   const [shiftList, setShiftList] = useState<Shift[]>(sortByDay(shifts));
   const [creating, setCreating] = useState(false);
@@ -189,6 +190,21 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
           message={`Tu agenda sigue disponible. Pendiente de actualizar: ${loadErrors.join(", ")}.`}
           onRetry={() => router.refresh()}
         />
+      )}
+
+      {conflicts && conflicts.length > 0 && (
+        <div className="border border-escudo-red/35 bg-escudo-red/10 p-4 rounded-xl flex flex-col gap-2">
+          <p className="hud-label text-escudo-red font-bold flex items-center gap-1.5">
+            <CircleAlert className="h-4 w-4" /> Alerta de Riesgo Biológico / Horario
+          </p>
+          <ul className="list-disc pl-5 space-y-1.5 text-xs text-muted-foreground">
+            {conflicts.map((conflict: any, idx: number) => (
+              <li key={idx} className="leading-relaxed">
+                <span className="text-[#FF7F7F] font-semibold">[{conflict.type}]</span> {conflict.message}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       <section className="panel-neon relative overflow-hidden rounded-[28px] p-6">
         <div className="relative flex flex-col gap-3">

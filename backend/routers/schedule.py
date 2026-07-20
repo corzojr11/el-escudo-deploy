@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import base64
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -21,6 +22,7 @@ from bio import CYCLE_MINUTES
 from database import supabase
 from exceptions import ApiException
 from services.observability import track_event
+from services.gemini import get_gemini_client
 
 logger = logging.getLogger("escudo")
 router = APIRouter()
@@ -327,7 +329,10 @@ async def list_shifts(user = Depends(get_current_user)):
         .order("start", desc=False)
         .execute()
     )
-    return {"shifts": s.data or []}
+    shifts_list = s.data or []
+    from bio import check_shift_conflicts
+    conflicts = check_shift_conflicts(shifts_list)
+    return {"shifts": shifts_list, "conflicts": conflicts}
 
 
 @router.post("/api/v1/shifts/upload-image")
@@ -336,13 +341,7 @@ async def upload_shift_image(
     user_name: str = Form("Usuario"),
     user = Depends(get_current_user),
 ):
-    await track_event("schedule", "upload_shift_image", "unavailable", user.id, {"reason": "deepseek_text_only"})
-    raise ApiException(
-        status_code=503,
-        detail="DeepSeek no procesa imágenes. Agrega los turnos manualmente.",
-    )
-
-    # Legacy Gemini OCR path retained below only until it is removed in the next cleanup.
+    _ai_client = get_gemini_client()
     if _ai_client is None:
         raise ApiException(status_code=503, detail="OCR no disponible. Configura GEMINI_API_KEY para escaneo de horario.")
 

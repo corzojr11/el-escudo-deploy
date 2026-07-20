@@ -23,6 +23,7 @@ from database import supabase
 from exceptions import ApiException, BadRequestException, NotFoundException
 from services.observability import track_event
 from services.deepseek import complete_chat
+from services.gemini import get_gemini_client
 
 logger = logging.getLogger("escudo")
 router = APIRouter()
@@ -412,13 +413,7 @@ async def parse_receipt(payload: ReceiptParsePayload, user=Depends(get_current_u
     if (payload.mime_type or "image/jpeg").lower() not in allowed_mimes:
         await track_event("finances", "parse_receipt", "validation_error", user.id, {"reason": "invalid_mime", "mime": payload.mime_type})
         raise BadRequestException("Formato de imagen no soportado.")
-    await track_event("finances", "parse_receipt", "unavailable", user.id, {"reason": "deepseek_text_only"})
-    raise ApiException(
-        status_code=503,
-        detail="DeepSeek no procesa imágenes. Registra el comprobante manualmente.",
-    )
-
-    # Legacy Gemini OCR path retained below only until it is removed in the next cleanup.
+    _ai_client = get_gemini_client()
     if _ai_client is None:
         await track_event("finances", "parse_receipt", "validation_error", user.id, {"reason": "missing_gemini_key"})
         raise BadRequestException("OCR no disponible por ahora. Completa el comprobante manualmente.")

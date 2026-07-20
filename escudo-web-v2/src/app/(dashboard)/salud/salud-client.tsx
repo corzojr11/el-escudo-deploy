@@ -255,6 +255,35 @@ export function SaludClient({ weightLogs, focusStatus, sleepAnalysis, bioSetting
                     >
                       Desmarcar
                     </button>
+                    <button
+                      onClick={async () => {
+                        setCompletingRoutine(true);
+                        setRoutineMsg({});
+                        try {
+                          let loggedCount = 0;
+                          for (const ex of todayRoutine.exercises) {
+                            await logExercise({
+                              exercise_name: ex.name,
+                              weight: 20,
+                              reps: 10,
+                              sets: ex.suggestedSets || 3,
+                              rpe: 8,
+                              date: todayInputValue(),
+                            });
+                            loggedCount++;
+                          }
+                          setRoutineMsg({ success: `Se auto-registraron ${loggedCount} ejercicios en tu historial de Salud.` });
+                          router.refresh();
+                        } catch (e: unknown) {
+                          setRoutineMsg({ error: e instanceof Error ? e.message : "Error al auto-registrar las series." });
+                        }
+                        setCompletingRoutine(false);
+                      }}
+                      disabled={completingRoutine}
+                      className="text-xs bg-escudo-gold hover:bg-escudo-gold/90 text-black px-2.5 py-1 ml-2 font-semibold"
+                    >
+                      {completingRoutine ? "Registrando..." : "Auto-registrar series"}
+                    </button>
                   </>
                 ) : (
                   <button

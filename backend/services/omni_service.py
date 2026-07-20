@@ -291,7 +291,7 @@ async def _get_conversation_context(user_id: str, session_id: str | None) -> str
                 .eq("user_id", user_id)
                 .eq("session_id", session_id)
                 .order("created_at", desc=True)
-                .limit(4)
+                .limit(10)
                 .execute()
         )
         rows = result.data if isinstance(result.data, list) else []

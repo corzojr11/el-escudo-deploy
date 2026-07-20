@@ -206,4 +206,26 @@ async def complete_onboarding(payload: OnboardingPayload, user=Depends(get_curre
         else:
             logger.warning(f"onboarding weight insert error: {exc}")
 
+    # Inicializar 3 hábitos sugeridos por defecto para evitar pantalla vacía
+    try:
+        existing_habits = await asyncio.to_thread(
+            lambda: supabase.table("habits")
+            .select("id")
+            .eq("user_id", user.id)
+            .limit(1)
+            .execute()
+        )
+        if not existing_habits.data:
+            default_habits = [
+                {"user_id": user.id, "name": "Hidratación (Agua)", "frequency": "daily"},
+                {"user_id": user.id, "name": "Higiene del Sueño", "frequency": "daily"},
+                {"user_id": user.id, "name": "Lectura o Enfoque", "frequency": "daily"},
+            ]
+            await asyncio.to_thread(
+                lambda: supabase.table("habits").insert(default_habits).execute()
+            )
+            logger.info(f"Creados 3 hábitos por defecto para usuario {user.id}")
+    except Exception as exc:
+        logger.warning(f"Error al crear hábitos por defecto: {exc}")
+
     return {"profile": res_profile.data[0] if res_profile.data else profile_data}

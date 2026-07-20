@@ -42,8 +42,8 @@ export async function createShift(
   if (!start || !end) {
     return { success: false, error: "Completa la hora de inicio y fin." };
   }
-  if (start >= end) {
-    return { success: false, error: "La hora de inicio debe ser anterior a la de fin." };
+  if (start === end) {
+    return { success: false, error: "La hora de inicio y fin no pueden ser iguales." };
   }
 
   const idempotencyKey = `shift-create:${day}:${start}:${end}`;
@@ -85,8 +85,8 @@ export async function updateShift(
   if (!start || !end) {
     return { success: false, error: "Completa la hora de inicio y fin." };
   }
-  if (start >= end) {
-    return { success: false, error: "La hora de inicio debe ser anterior a la de fin." };
+  if (start === end) {
+    return { success: false, error: "La hora de inicio y fin no pueden ser iguales." };
   }
 
   try {
@@ -117,5 +117,14 @@ export async function deleteShift(shiftId: string) {
       success: false,
       error: err instanceof Error ? err.message : "Error al eliminar el turno",
     };
+  }
+}
+
+export async function getShiftConflicts(): Promise<any[]> {
+  try {
+    const res = await fetchFromBackend<{ conflicts: any[] }>("/api/v1/shifts");
+    return res.conflicts ?? [];
+  } catch {
+    return [];
   }
 }

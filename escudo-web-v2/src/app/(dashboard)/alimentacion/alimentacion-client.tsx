@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useTransition } from "react";
 import { Beef, BookmarkPlus, CalendarDays, ChefHat, Clock3, Flame, Loader2, Scale, Sparkles, Trash2 } from "lucide-react";
@@ -374,6 +374,77 @@ export function AlimentacionClient({ initialFavorites, initialWeeklyPlan, dailyP
       <details className="border border-[#2A2A3C] bg-[#17171A] p-4"><summary className="cursor-pointer font-semibold text-white">Mis recetas guardadas ({favorites.length})</summary><div className="mt-4 grid gap-3 md:grid-cols-2">{favorites.length === 0 ? <p className="text-sm text-muted-foreground">Aún no tienes recetas guardadas.</p> : favorites.map((favorite) => <div key={favorite.id} className="flex items-center justify-between gap-3 border border-[#2A2A3C] bg-[#0C0C0E] p-3"><button type="button" onClick={() => { setSelected(favorite.recipe); setShowRecipeDetails(false); }} className="min-w-0 text-left"><p className="truncate font-semibold text-white">{favorite.name}</p><p className="mt-1 text-xs text-muted-foreground">{favorite.recipe.calories} kcal · {favorite.recipe.protein_g} g proteína</p></button><Button aria-label={`Eliminar ${favorite.name}`} size="icon" variant="ghost" disabled={saving} onClick={() => removeFavorite(favorite.id)} className="text-muted-foreground hover:text-red-400"><Trash2 className="h-4 w-4" /></Button></div>)}</div></details>
     </>}
 
-    {workspace === "week" && <Card className="border-[#2A2A3C] bg-[#17171A]"><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="hud-label text-[#bcaeff]">PLAN SEMANAL</p><CardTitle className="flex items-center gap-2 text-xl text-white"><CalendarDays className="h-5 w-5 text-[#FFD700]" /> Una compra, siete días más claros</CardTitle><CardDescription>Edita un día por vez. Así planeas sin enfrentarte a una cuadrícula interminable.</CardDescription></div><Button disabled={saving} onClick={savePlan} className="bg-[#7C5DFF]">{saving ? "Guardando..." : "Guardar semana"}</Button></div></CardHeader><CardContent className="space-y-5"><div className="flex flex-wrap gap-2">{weeklyPlan.map((day, index) => <Button key={day.day} type="button" size="sm" variant={selectedDayIndex === index ? "default" : "outline"} onClick={() => setSelectedDayIndex(index)} className={selectedDayIndex === index ? "bg-[#7C5DFF]" : ""}>{day.day.slice(0, 3)}</Button>)}</div><div className="border border-[#2A2A3C] bg-[#0C0C0E] p-5"><p className="mb-4 text-lg font-semibold text-white">{selectedDay.day}</p><div className="grid gap-4 md:grid-cols-2">{([ ["breakfast", "Desayuno"], ["lunch", "Almuerzo"], ["dinner", "Cena"], ["snack", "Snack"] ] as const).map(([field, label]) => <label key={field} className="space-y-2 text-sm text-muted-foreground"><span className="block font-medium text-white">{label}</span><select value={selectedDay[field]} onChange={(event) => updatePlan(selectedDayIndex, field, event.target.value)} className="h-10 w-full border border-[#2A2A3C] bg-[#17171A] px-3 text-sm text-white"><option value="">Sin definir</option>{recipeNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>)}</div></div></CardContent></Card>}
+    {workspace === "week" && <Card className="border-[#2A2A3C] bg-[#17171A]">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="hud-label text-[#bcaeff]">PLAN SEMANAL</p>
+            <CardTitle className="flex items-center gap-2 text-xl text-white">
+              <CalendarDays className="h-5 w-5 text-[#FFD700]" /> Una compra, siete días más claros
+            </CardTitle>
+            <CardDescription>Edita un día por vez o autocompleta el plan de la semana completa con un solo clic.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setWeeklyPlan(defaultPlan());
+                setNotice("Plan semanal autocompletado con recetas recomendadas. ¡Recuerda hacer clic en 'Guardar semana'!");
+              }}
+              className="border-[#FFD700] text-[#FFD700] hover:bg-[#FFD700]/10 hover:text-[#FFD700]"
+            >
+              Autocompletar
+            </Button>
+            <Button disabled={saving} onClick={savePlan} className="bg-[#7C5DFF]">
+              {saving ? "Guardando..." : "Guardar semana"}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="flex flex-wrap gap-2">
+          {weeklyPlan.map((day, index) => (
+            <Button
+              key={day.day}
+              type="button"
+              size="sm"
+              variant={selectedDayIndex === index ? "default" : "outline"}
+              onClick={() => setSelectedDayIndex(index)}
+              className={selectedDayIndex === index ? "bg-[#7C5DFF]" : ""}
+            >
+              {day.day.slice(0, 3)}
+            </Button>
+          ))}
+        </div>
+        <div className="border border-[#2A2A3C] bg-[#0C0C0E] p-5">
+          <p className="mb-4 text-lg font-semibold text-white">{selectedDay.day}</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {([
+              ["breakfast", "Desayuno"],
+              ["lunch", "Almuerzo"],
+              ["dinner", "Cena"],
+              ["snack", "Snack"],
+            ] as const).map(([field, label]) => (
+              <label key={field} className="space-y-2 text-sm text-muted-foreground">
+                <span className="block font-medium text-white">{label}</span>
+                <select
+                  value={selectedDay[field]}
+                  onChange={(event) => updatePlan(selectedDayIndex, field, event.target.value)}
+                  className="h-10 w-full border border-[#2A2A3C] bg-[#17171A] px-3 text-sm text-white"
+                >
+                  <option value="">Sin definir</option>
+                  {recipeNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>}
   </div>;
 }
