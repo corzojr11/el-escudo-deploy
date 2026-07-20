@@ -323,16 +323,33 @@ async def _insert_shift_row(user_id: str, payload: dict) -> dict:
     try:
         res = await asyncio.to_thread(lambda: supabase.table("shifts").insert(insert_data).execute())
     except Exception as exc:
-        if _is_unique_conflict(exc):
-            existing = None
-            if idempotency_key:
-                existing = await _fetch_shift_by_idempotency(user_id, idempotency_key)
-            if not existing:
-                existing = await _fetch_shift_by_day_time(user_id, day, start, end)
-            if existing:
-                return existing
-        logger.warning(f"shift insert failed: {exc}")
-        raise
+        exc_msg = str(exc).lower()
+        if 'column "date"' in exc_msg and ('not-null' in exc_msg or 'violates' in exc_msg):
+            insert_data["date"] = datetime.now().strftime("%Y-%m-%d")
+            try:
+                res = await asyncio.to_thread(lambda: supabase.table("shifts").insert(insert_data).execute())
+            except Exception as retry_exc:
+                if _is_unique_conflict(retry_exc):
+                    existing = None
+                    if idempotency_key:
+                        existing = await _fetch_shift_by_idempotency(user_id, idempotency_key)
+                    if not existing:
+                        existing = await _fetch_shift_by_day_time(user_id, day, start, end)
+                    if existing:
+                        return existing
+                logger.warning(f"shift insert retry with date failed: {retry_exc}")
+                raise retry_exc
+        else:
+            if _is_unique_conflict(exc):
+                existing = None
+                if idempotency_key:
+                    existing = await _fetch_shift_by_idempotency(user_id, idempotency_key)
+                if not existing:
+                    existing = await _fetch_shift_by_day_time(user_id, day, start, end)
+                if existing:
+                    return existing
+            logger.warning(f"shift insert failed: {exc}")
+            raise
 
     return res.data[0] if res.data else insert_data
 
