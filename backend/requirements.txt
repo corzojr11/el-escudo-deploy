@@ -15,3 +15,4 @@ slowapi>=0.1.0
 sentry-sdk[fastapi]>=2.0.0
 pytest-cov>=5.0.0
 mangum>=0.19.0
+google-genai>=2.6.0
