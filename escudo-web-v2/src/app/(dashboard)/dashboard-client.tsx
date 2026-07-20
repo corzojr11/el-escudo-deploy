@@ -130,15 +130,17 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
   const availableBudget = stability.budget && stability.monthExpense != null ? stability.budget - stability.monthExpense : null;
   const immediateAction = plan?.shift_status?.status === "in_shift"
     ? { label: "Estás en turno: protege tu energía y deja una sola misión ligera para después.", href: "/turnos", cta: "Ver turno" }
-    : plan?.sleep.fatigue_alert
-      ? { label: "Tu descanso está comprometido por el próximo turno. Prioriza recuperar sueño hoy.", href: "/salud", cta: "Registrar sueño" }
-      : plan?.shift_status?.is_rest_day
-        ? { label: "Hoy es tu día de descanso laboral. Aprovecha para entrenar fuerte, organizar tu casa y avanzar en tus proyectos.", href: "/rutinas", cta: "Entrenar ahora" }
-        : availableBudget != null && availableBudget < totalPendingFixed + debtCommitment
-          ? { label: "Tu margen del mes no cubre los compromisos pendientes. Revisa gastos fijos y abonos antes de hacer compras nuevas.", href: "/finanzas", cta: "Revisar finanzas" }
-          : missions.some((mission) => mission.status !== "completed")
-          ? { label: "Elige una sola misión pendiente y ciérrala antes de abrir otra tarea.", href: "/misiones", cta: "Ver misiones" }
-          : { label: "Tu día está despejado. Define el siguiente paso que más protege tu futuro.", href: "/metas", cta: "Definir meta" };
+    : plan?.shift_status?.is_travel_day
+      ? { label: "Estás fuera de la ciudad (Viaje). Mantente hidratado, camina un poco y prioriza descansar bien hoy.", href: "/turnos", cta: "Ver plan de viaje" }
+      : plan?.sleep.fatigue_alert
+        ? { label: "Tu descanso está comprometido por el próximo turno. Prioriza recuperar sueño hoy.", href: "/salud", cta: "Registrar sueño" }
+        : plan?.shift_status?.is_rest_day
+          ? { label: "Hoy es tu día de descanso laboral. Aprovecha para entrenar fuerte, organizar tu casa y avanzar en tus proyectos.", href: "/rutinas", cta: "Entrenar ahora" }
+          : availableBudget != null && availableBudget < totalPendingFixed + debtCommitment
+            ? { label: "Tu margen del mes no cubre los compromisos pendientes. Revisa gastos fijos y abonos antes de hacer compras nuevas.", href: "/finanzas", cta: "Revisar finanzas" }
+            : missions.some((mission) => mission.status !== "completed")
+            ? { label: "Elige una sola misión pendiente y ciérrala antes de abrir otra tarea.", href: "/misiones", cta: "Ver misiones" }
+            : { label: "Tu día está despejado. Define el siguiente paso que más protege tu futuro.", href: "/metas", cta: "Definir meta" };
 
   const visibleMissions = survivalMode
     ? missions.filter((mission) => mission.status !== "completed").slice(0, 1)
@@ -457,7 +459,12 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
           </div>
           <div className="space-y-1 border-t border-border pt-4 md:border-l md:border-t-0 md:pl-4 md:pt-0">
             <p className="hud-label text-[#ffd700]">Comidas</p>
-            {todayMeals ? (
+            {plan?.shift_status?.is_travel_day ? (
+              <>
+                <p className="text-sm text-white">Comidas fuera de casa</p>
+                <p className="line-clamp-2 text-[10px] text-gray-500">Viaje: Prioriza proteínas y vegetales. Evita fritos e hidrátate bien.</p>
+              </>
+            ) : todayMeals ? (
               <>
                 <p className="text-sm text-white">{todayMeals.breakfast}</p>
                 <p className="line-clamp-2 text-[10px] text-gray-500">{todayMeals.lunch} · {todayMeals.dinner}</p>

@@ -248,10 +248,14 @@ async def today_summary(user=Depends(get_current_user)):
 
         async def _fetch_shifts():
             try:
-                res = await asyncio.to_thread(
-                    lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("is_active", True).execute()
-                )
-                return compute_current_status(res.data or [], now)
+                async def _get_raw_shifts():
+                    res = await asyncio.to_thread(lambda: supabase.table("shifts").select("*").eq("user_id", user.id).eq("is_active", True).execute())
+                    return res.data or []
+                async def _get_raw_bio():
+                    res = await asyncio.to_thread(lambda: supabase.table("user_bio_settings").select("today_override_status,today_override_date").eq("user_id", user.id).limit(1).execute())
+                    return res.data[0] if res.data else {}
+                raw_shifts, bio_settings = await asyncio.gather(_get_raw_shifts(), _get_raw_bio())
+                return compute_current_status(raw_shifts, now, bio_settings)
             except Exception as exc:
                 logger.warning(f"Shifts status error: {exc}")
                 return {"status": "free", "message_short": "Sin turnos registrados."}

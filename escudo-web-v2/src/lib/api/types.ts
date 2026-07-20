@@ -301,6 +301,11 @@ export interface BioSettings {
   sleep_time?: string;
   work_start?: string;
   work_end?: string;
+  t_wake_target?: string;
+  t_sleep_target?: string;
+  commute_minutes?: number;
+  today_override_status?: "normal" | "rest" | "travel";
+  today_override_date?: string;
 }
 
 export interface RoutineExercise {
@@ -452,6 +457,7 @@ export interface ShiftStatusResponse {
   next_shift?: NextShift;
   message_short: string;
   is_rest_day?: boolean;
+  is_travel_day?: boolean;
 }
 
 export interface TodayResponse {

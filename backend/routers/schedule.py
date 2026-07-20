@@ -228,7 +228,7 @@ def _build_shift_instances(shifts_data: list) -> list[dict]:
     return instances
 
 
-def compute_current_status(shifts_data: list, now: Optional[datetime] = None) -> dict:
+def compute_current_status(shifts_data: list, now: Optional[datetime] = None, bio_settings: Optional[dict] = None) -> dict:
     """Calcula el estado de turno actual/proximo a partir de una lista de turnos."""
     if now is None:
         now = _bogota_now()
@@ -240,8 +240,9 @@ def compute_current_status(shifts_data: list, now: Optional[datetime] = None) ->
     instances = _build_shift_instances(shifts_data)
 
     if not instances:
-        return {"status": "free", "message_short": "Sin turnos registrados."}
+        return {"status": "free", "message_short": "Sin turnos registrados.", "is_rest_day": False, "is_travel_day": False}
 
+    # 1. Comprobar primero si está en turno activo (cubre overnight y cruzados)
     for inst in instances:
         if inst["start_total"] <= now_total < inst["end_total"]:
             remaining_hours = round((inst["end_total"] - now_total) / 60, 1)
@@ -249,15 +250,65 @@ def compute_current_status(shifts_data: list, now: Optional[datetime] = None) ->
                 "status": "in_shift",
                 "shift": {"day": inst["day"], "start": inst["start"], "end": inst["end"], "remaining_hours": remaining_hours},
                 "message_short": f"Turno activo hasta las {inst['end']} ({remaining_hours}h restantes).",
+                "is_rest_day": False,
+                "is_travel_day": False,
             }
 
+    # 2. Si no está en turno activo, evaluar overrides y día de descanso
+    is_rest_day = False
+    is_travel_day = False
+    if bio_settings:
+        override_status = bio_settings.get("today_override_status") or "normal"
+        override_date = bio_settings.get("today_override_date")
+        today_str = now.strftime("%Y-%m-%d")
+        if override_date == today_str and override_status in ("rest", "travel"):
+            if override_status == "rest":
+                is_rest_day = True
+            elif override_status == "travel":
+                is_travel_day = True
+
+    if not is_rest_day and not is_travel_day:
+        has_shift_today = False
+        for s in shifts_data:
+            if s.get("is_active", True) is not False:
+                s_day_idx = s.get("day_index")
+                if s_day_idx is None:
+                    s_day_idx = _day_name_to_index(s.get("day", ""))
+                if s_day_idx == hoy_index:
+                    has_shift_today = True
+                    break
+        is_rest_day = not has_shift_today
+
+    # Encontrar el próximo turno en el futuro
     proximo = None
-    min_diff: Optional[int] = None
+    min_diff = None
     for inst in instances:
         diff = inst["start_total"] - now_total
         if diff > 0 and (min_diff is None or diff < min_diff):
             min_diff = diff
             proximo = inst
+
+    if is_rest_day or is_travel_day:
+        status_label = "free"
+        msg = "Día de descanso. Libre."
+        if is_travel_day:
+            msg = "Fuera de la ciudad (Viaje). Libre."
+            
+        res_dict = {
+            "status": status_label,
+            "message_short": msg,
+            "is_rest_day": is_rest_day,
+            "is_travel_day": is_travel_day,
+        }
+        if proximo:
+            starts_in_hours = round((proximo["start_total"] - now_total) / 60, 1)
+            res_dict["next_shift"] = {
+                "day": proximo["day"],
+                "start": proximo["start"],
+                "end": proximo["end"],
+                "starts_in_hours": starts_in_hours
+            }
+        return res_dict
 
     if proximo:
         starts_in_hours = round((proximo["start_total"] - now_total) / 60, 1)
@@ -265,9 +316,11 @@ def compute_current_status(shifts_data: list, now: Optional[datetime] = None) ->
             "status": "free",
             "next_shift": {"day": proximo["day"], "start": proximo["start"], "end": proximo["end"], "starts_in_hours": starts_in_hours},
             "message_short": f"Libre. Proximo turno: {proximo['day']} {proximo['start']} (en {starts_in_hours}h).",
+            "is_rest_day": is_rest_day,
+            "is_travel_day": is_travel_day,
         }
 
-    return {"status": "free", "message_short": "Sin turnos registrados."}
+    return {"status": "free", "message_short": "Sin turnos registrados.", "is_rest_day": is_rest_day, "is_travel_day": is_travel_day}
 
 
 async def _fetch_shift_by_idempotency(user_id: str, key: str) -> Optional[dict]:
@@ -753,24 +806,38 @@ async def plan_diario(user = Depends(get_current_user)):
     ahora_minutos = now.hour * 60 + now.minute
     now_total = hoy_index * 24 * 60 + ahora_minutos
 
-    # Determinar si hoy es un día de descanso (no hay turnos activos programados para hoy)
-    has_shift_today = False
-    for s in shifts_data:
-        if s.get("is_active", True) is not False:
-            s_day_idx = s.get("day_index")
-            if s_day_idx is None:
-                s_day_idx = _day_name_to_index(s.get("day", ""))
-            if s_day_idx == hoy_index:
-                has_shift_today = True
-                break
-    is_rest_day = not has_shift_today
+    # Determinar estado de override de hoy (descanso o viaje)
+    override_status = bs.get("today_override_status") or "normal"
+    override_date = bs.get("today_override_date")
+    
+    is_rest_day = False
+    is_travel_day = False
+    
+    today_str = now.strftime("%Y-%m-%d")
+    if override_date == today_str and override_status in ("rest", "travel"):
+        if override_status == "rest":
+            is_rest_day = True
+        elif override_status == "travel":
+            is_travel_day = True
+    else:
+        # Determinar si hoy es un día de descanso (no hay turnos activos programados para hoy)
+        has_shift_today = False
+        for s in shifts_data:
+            if s.get("is_active", True) is not False:
+                s_day_idx = s.get("day_index")
+                if s_day_idx is None:
+                    s_day_idx = _day_name_to_index(s.get("day", ""))
+                if s_day_idx == hoy_index:
+                    has_shift_today = True
+                    break
+        is_rest_day = not has_shift_today
 
     WORKOUT_DURATION = 120 if is_rest_day else 90
 
     wake_h, wake_m = _parse_time(wake_target)
     sleep_h, sleep_m = _parse_time(sleep_target)
 
-    shift_status = compute_current_status(shifts_data, now)
+    shift_status = compute_current_status(shifts_data, now, bio)
     next_shift = _find_next_shift(shifts_data, now)
     instances = _build_shift_instances(shifts_data)
 
@@ -885,7 +952,14 @@ async def plan_diario(user = Depends(get_current_user)):
         if wo_e_abs > deadline_with_buffer:
             can_workout = False
 
-    if can_workout:
+    if is_travel_day:
+        workout_block = {
+            "start": _minutes_to_time(now_min + 30),
+            "end": _minutes_to_time(now_min + 60),
+            "duration_min": 30,
+            "label": "Caminata de movilidad y estiramiento (Viaje)",
+        }
+    elif can_workout:
         workout_block = {
             "start": _minutes_to_time(now_min + 30),
             "end": _minutes_to_time(now_min + 30 + WORKOUT_DURATION),
@@ -907,9 +981,9 @@ async def plan_diario(user = Depends(get_current_user)):
     if not bio:
         missing_config.append("ajustes")
 
-    # Merge is_rest_day into shift_status
+    # Merge is_rest_day and is_travel_day into shift_status
     if isinstance(shift_status, dict):
-        shift_status = {**shift_status, "is_rest_day": is_rest_day}
+        shift_status = {**shift_status, "is_rest_day": is_rest_day, "is_travel_day": is_travel_day}
 
     return {
         "date": now.strftime("%Y-%m-%d"),

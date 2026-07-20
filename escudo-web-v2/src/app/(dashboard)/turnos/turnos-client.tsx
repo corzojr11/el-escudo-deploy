@@ -91,6 +91,27 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
   const [bioMsg, setBioMsg] = useState<{ success?: string; error?: string }>({});
   const [nowMinutes, setNowMinutes] = useState(bogotaMinutesNow);
   const [targetWakeTime, setTargetWakeTime] = useState(plan?.sleep.wake_target ?? wakeTime);
+  const [overrideStatus, setOverrideStatus] = useState<string>(
+    (bioSettings?.today_override_status as string) || "normal"
+  );
+
+  async function handleStatusOverride(status: string) {
+    setOverrideStatus(status);
+    setBioMsg({});
+    try {
+      await upsertBioSettings({
+        t_wake_target: wakeTime,
+        t_sleep_target: sleepTime,
+        commute_minutes: parseInt(commuteMin) || 35,
+        today_override_status: status,
+        today_override_date: plan?.date || new Date().toLocaleDateString("en-CA"),
+      });
+      setBioMsg({ success: `Estado cambiado a ${status === 'rest' ? 'Descanso' : status === 'travel' ? 'Viaje' : 'Normal'}.` });
+      router.refresh();
+    } catch (e) {
+      setBioMsg({ error: e instanceof Error ? e.message : "Error al cambiar el estado" });
+    }
+  }
 
   async function handleCreate(formData: FormData) {
     setFormStatus({});
@@ -236,6 +257,24 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex flex-col gap-3 rounded-xl border border-[#2A2A3C] bg-[#14141B] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">Modo para hoy</p>
+              <p className="text-xs text-gray-400">¿Estás de viaje, descanso o jornada normal?</p>
+              {bioMsg.success && <p className="text-xs text-emerald-400 mt-1">{bioMsg.success}</p>}
+              {bioMsg.error && <p className="text-xs text-red-400 mt-1">{bioMsg.error}</p>}
+            </div>
+            <select
+              value={overrideStatus}
+              onChange={(e) => handleStatusOverride(e.target.value)}
+              className="h-9 rounded-lg border border-[#2A2A3C] bg-[#0C0C0E] px-3 py-1 text-xs text-white outline-none focus-visible:border-accent w-full sm:w-auto"
+            >
+              <option value="normal">Normal (Seguir turnos)</option>
+              <option value="rest">Día de descanso</option>
+              <option value="travel">Viaje / Fuera de la ciudad</option>
+            </select>
+          </div>
+
           {!hasRegisteredShifts && (
             <div className="flex flex-col gap-3 rounded-xl border border-escudo-gold/35 bg-escudo-gold/5 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="max-w-3xl">

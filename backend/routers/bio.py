@@ -25,6 +25,8 @@ class BioSettingsPayload(BaseModel):
     t_last_caffeine: Optional[str] = None
     sunlight_offset: int = 30
     commute_minutes: Optional[int] = None
+    today_override_status: Optional[str] = None
+    today_override_date: Optional[str] = None
 
 
 @router.get("/api/v1/bio-settings")
@@ -46,13 +48,31 @@ async def upsert_bio_settings(payload: BioSettingsPayload, user = Depends(get_cu
         "t_last_caffeine": payload.t_last_caffeine,
         "sunlight_offset": payload.sunlight_offset,
         "commute_minutes": payload.commute_minutes,
+        "today_override_status": payload.today_override_status,
+        "today_override_date": payload.today_override_date,
     }.items() if v is not None}
     existing = await asyncio.to_thread(lambda: supabase.table("user_bio_settings").select("id").eq("user_id", user.id).limit(1).execute())
-    res = await asyncio.to_thread(
-        lambda: (supabase.table("user_bio_settings").update(data).eq("user_id", user.id).execute()
-                 if existing.data
-                 else supabase.table("user_bio_settings").insert(data).execute())
-    )
+    
+    try:
+        res = await asyncio.to_thread(
+            lambda: (supabase.table("user_bio_settings").update(data).eq("user_id", user.id).execute()
+                     if existing.data
+                     else supabase.table("user_bio_settings").insert(data).execute())
+        )
+    except Exception as exc:
+        exc_msg = str(exc).lower()
+        if "today_override_status" in exc_msg or "today_override_date" in exc_msg or "column" in exc_msg:
+            # Remove override columns and retry
+            data.pop("today_override_status", None)
+            data.pop("today_override_date", None)
+            res = await asyncio.to_thread(
+                lambda: (supabase.table("user_bio_settings").update(data).eq("user_id", user.id).execute()
+                         if existing.data
+                         else supabase.table("user_bio_settings").insert(data).execute())
+            )
+        else:
+            raise
+
     if not res.data:
         raise ApiException(status_code=500, detail="Error al guardar la configuración biológica.")
     return {"bio_settings": res.data[0]}

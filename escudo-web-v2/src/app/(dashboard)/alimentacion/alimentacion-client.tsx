@@ -360,8 +360,60 @@ export function AlimentacionClient({ initialFavorites, initialWeeklyPlan, dailyP
 
     {workspace === "today" && <>
       <Card className="border-[#2A2A3C] bg-[#17171A]">
-        <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="hud-label text-[#bcaeff]">PLAN DE HOY</p><CardTitle className="text-xl text-white">Resuelve tus comidas una a una</CardTitle><CardDescription>{dailyPlan?.shift_status.status === "in_shift" ? "Estás en turno: abre la siguiente comida y deja listo lo que puedas llevar." : "Tus horarios se ajustan a tu descanso y al plan que organizaste."}</CardDescription></div><span className="border border-[#2A2A3C] px-2 py-1 font-mono text-xs text-[#FFD700]">{Object.values(mealChecks).filter(Boolean).length}/4 LISTAS</span></div></CardHeader>
-        <CardContent><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{dailyMeals.map((mealItem) => <div key={mealItem.key} className="border border-[#2A2A3C] bg-[#0C0C0E] p-4"><div className="flex items-center justify-between gap-2"><span className="hud-label text-[#bcaeff]">{mealItem.label}</span><span className="font-mono text-xs text-[#FFD700]">{mealItem.time}</span></div><button type="button" onClick={() => openRecipe(mealItem.recipeName)} className="mt-3 min-h-10 text-left text-sm font-semibold leading-5 text-white hover:text-[#d8ccff]">{mealItem.recipeName || "Elige una receta"}</button><div className="mt-4 flex gap-2"><Button size="sm" variant="outline" onClick={() => openRecipe(mealItem.recipeName)} className="flex-1 border-[#2A2A3C] text-muted-foreground">Ver</Button><Button size="sm" disabled={saving} onClick={() => toggleMealCheck(mealItem.key)} className={`flex-1 ${mealChecks[mealItem.key] ? "bg-[#7C5DFF] text-white" : "bg-[#2A2A3C] text-white hover:bg-[#7C5DFF]"}`}>{mealChecks[mealItem.key] ? "Lista" : "Hecha"}</Button></div></div>)}</div></CardContent>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="hud-label text-[#bcaeff]">PLAN DE HOY</p>
+              <CardTitle className="text-xl text-white">Resuelve tus comidas una a una</CardTitle>
+              <CardDescription>
+                {dailyPlan?.shift_status?.is_travel_day
+                  ? "Estás fuera de la ciudad (Viaje). Prioriza comer saludable fuera de casa e hidrátate bien."
+                  : dailyPlan?.shift_status.status === "in_shift"
+                  ? "Estás en turno: abre la siguiente comida y deja listo lo que puedas llevar."
+                  : "Tus horarios se ajustan a tu descanso y al plan que organizaste."}
+              </CardDescription>
+            </div>
+            {!dailyPlan?.shift_status?.is_travel_day && (
+              <span className="border border-[#2A2A3C] px-2 py-1 font-mono text-xs text-[#FFD700]">
+                {Object.values(mealChecks).filter(Boolean).length}/4 LISTAS
+              </span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {dailyPlan?.shift_status?.is_travel_day ? (
+            <div className="rounded-lg border border-accent/20 bg-accent/5 p-5 text-sm text-gray-300 space-y-3">
+              <p className="font-semibold text-white text-base">🥗 Pautas de alimentación durante tu viaje:</p>
+              <ul className="list-disc list-inside space-y-2 text-xs text-gray-400">
+                <li><strong className="text-white">Desayuno:</strong> Huevos revueltos, queso, porción de fruta y café sin azúcar (evita panadería industrial).</li>
+                <li><strong className="text-white">Almuerzo:</strong> Pescado, res o pollo a la plancha con abundantes vegetales/ensalada y arroz o papa cocida.</li>
+                <li><strong className="text-white">Snack:</strong> Frutos secos (almendras/nueces) o una fruta fresca.</li>
+                <li><strong className="text-white">Cena:</strong> Proteína magra ligera con vegetales calientes o ensalada verde.</li>
+                <li><strong className="text-white">Hidratación:</strong> Toma al menos 2 litros de agua para evitar la retención por el viaje y la fatiga.</li>
+              </ul>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {dailyMeals.map((mealItem) => (
+                <div key={mealItem.key} className="border border-[#2A2A3C] bg-[#0C0C0E] p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="hud-label text-[#bcaeff]">{mealItem.label}</span>
+                    <span className="font-mono text-xs text-[#FFD700]">{mealItem.time}</span>
+                  </div>
+                  <button type="button" onClick={() => openRecipe(mealItem.recipeName)} className="mt-3 min-h-10 text-left text-sm font-semibold leading-5 text-white hover:text-[#d8ccff]">
+                    {mealItem.recipeName || "Elige una receta"}
+                  </button>
+                  <div className="mt-4 flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => openRecipe(mealItem.recipeName)} className="flex-1 border-[#2A2A3C] text-muted-foreground">Ver</Button>
+                    <Button size="sm" disabled={saving} onClick={() => toggleMealCheck(mealItem.key)} className={`flex-1 ${mealChecks[mealItem.key] ? "bg-[#7C5DFF] text-white" : "bg-[#2A2A3C] text-white hover:bg-[#7C5DFF]"}`}>
+                      {mealChecks[mealItem.key] ? "Lista" : "Hecha"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
       </Card>
       <Card className="border-[#2A2A3C] bg-[#17171A]"><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div><p className="font-semibold text-white">¿No sabes qué preparar?</p><p className="mt-1 text-sm text-muted-foreground">Explora recetas por momento del día o adapta una con lo que tengas.</p></div><Button onClick={() => setWorkspace("recipes")} className="bg-[#7C5DFF]"><Sparkles className="mr-2 h-4 w-4" /> Ver recetas</Button></CardContent></Card>
     </>}
