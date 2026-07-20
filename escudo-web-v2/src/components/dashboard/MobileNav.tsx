@@ -64,7 +64,7 @@ export function MobileNav() {
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="w-[280px] border-r border-border bg-sidebar p-0"
+        className="w-[280px] border-r border-border bg-sidebar p-0 h-screen h-[100dvh] max-h-screen max-h-[100dvh] flex flex-col overflow-hidden"
       >
         <SheetHeader className="px-4 pt-4">
           <div className="flex items-center justify-between">
