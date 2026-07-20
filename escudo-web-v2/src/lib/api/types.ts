@@ -56,6 +56,7 @@ export interface WorkShift {
   day: string;
   start: string;
   end: string;
+  type?: "work" | "rest" | "travel";
 }
 
 export type Shift = WorkShift;

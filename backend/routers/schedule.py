@@ -115,6 +115,7 @@ class ShiftPayload(BaseModel):
     day: str
     start: str
     end: str
+    type: Optional[str] = "work"
     idempotency_key: Optional[str] = None
 
 
@@ -207,6 +208,8 @@ def _build_shift_instances(shifts_data: list) -> list[dict]:
         day = _normalize_day_name_text(s.get("day", ""))
         if not day:
             continue
+        if s.get("type", "work") != "work":
+            continue
         start = _normalize_time_text(s.get("start", ""))
         end = _normalize_time_text(s.get("end", ""))
         if not start or not end:
@@ -268,16 +271,24 @@ def compute_current_status(shifts_data: list, now: Optional[datetime] = None, bi
                 is_travel_day = True
 
     if not is_rest_day and not is_travel_day:
-        has_shift_today = False
-        for s in shifts_data:
-            if s.get("is_active", True) is not False:
-                s_day_idx = s.get("day_index")
-                if s_day_idx is None:
-                    s_day_idx = _day_name_to_index(s.get("day", ""))
-                if s_day_idx == hoy_index:
-                    has_shift_today = True
-                    break
-        is_rest_day = not has_shift_today
+        shifts_today = [
+            s for s in shifts_data
+            if s.get("is_active", True) is not False and
+               (_day_name_to_index(s.get("day", "")) if s.get("day_index") is None else s.get("day_index")) == hoy_index
+        ]
+        if not shifts_today:
+            is_rest_day = True
+        else:
+            has_work = any(s.get("type", "work") == "work" for s in shifts_today)
+            has_travel = any(s.get("type", "work") == "travel" for s in shifts_today)
+            has_rest = any(s.get("type", "work") == "rest" for s in shifts_today)
+            
+            if has_travel:
+                is_travel_day = True
+            elif has_rest:
+                is_rest_day = True
+            elif not has_work:
+                is_rest_day = True
 
     # Encontrar el próximo turno en el futuro
     proximo = None
@@ -361,6 +372,7 @@ async def _insert_shift_row(user_id: str, payload: dict) -> dict:
     day = _normalize_day_name_text(payload.get("day", ""))
     start = _normalize_time_text(payload.get("start", ""))
     end = _normalize_time_text(payload.get("end", ""))
+    shift_type = payload.get("type") or "work"
     idempotency_key = str(payload.get("idempotency_key") or "").strip() or None
 
     insert_data = {
@@ -368,13 +380,23 @@ async def _insert_shift_row(user_id: str, payload: dict) -> dict:
         "day": day,
         "start": start,
         "end": end,
+        "type": shift_type,
         "is_active": True,
     }
     if idempotency_key:
         insert_data["idempotency_key"] = idempotency_key
 
     try:
-        res = await asyncio.to_thread(lambda: supabase.table("shifts").insert(insert_data).execute())
+        try:
+            res = await asyncio.to_thread(lambda: supabase.table("shifts").insert(insert_data).execute())
+        except Exception as exc:
+            exc_msg = str(exc).lower()
+            if 'column "type"' in exc_msg or 'type' in exc_msg:
+                # Column doesn't exist yet, retry without type
+                insert_data.pop("type", None)
+                res = await asyncio.to_thread(lambda: supabase.table("shifts").insert(insert_data).execute())
+            else:
+                raise
     except Exception as exc:
         exc_msg = str(exc).lower()
         if 'column "date"' in exc_msg and ('not-null' in exc_msg or 'violates' in exc_msg):
@@ -573,11 +595,23 @@ async def update_shift(shift_id: str, payload: ShiftPayload, user = Depends(get_
         end = _normalize_time_text(payload.end)
         if not start or not end:
             raise ApiException(status_code=400, detail="Formato de hora inválido (HH:MM).")
-        res = await asyncio.to_thread(lambda: supabase.table("shifts").update({
+        
+        update_data = {
             "day": day,
             "start": start,
             "end": end,
-        }).eq("id", shift_id).eq("user_id", user.id).execute())
+            "type": payload.type or "work",
+        }
+        try:
+            res = await asyncio.to_thread(lambda: supabase.table("shifts").update(update_data).eq("id", shift_id).eq("user_id", user.id).execute())
+        except Exception as exc:
+            exc_msg = str(exc).lower()
+            if 'column "type"' in exc_msg or 'type' in exc_msg:
+                update_data.pop("type", None)
+                res = await asyncio.to_thread(lambda: supabase.table("shifts").update(update_data).eq("id", shift_id).eq("user_id", user.id).execute())
+            else:
+                raise
+
         if not res.data:
             raise ApiException(status_code=404, detail="Turno no encontrado.")
         await track_event("schedule", "update_shift", user_id=user.id, metadata={"shift_id": shift_id, "day": day, "start": start, "end": end})
@@ -820,17 +854,25 @@ async def plan_diario(user = Depends(get_current_user)):
         elif override_status == "travel":
             is_travel_day = True
     else:
-        # Determinar si hoy es un día de descanso (no hay turnos activos programados para hoy)
-        has_shift_today = False
-        for s in shifts_data:
-            if s.get("is_active", True) is not False:
-                s_day_idx = s.get("day_index")
-                if s_day_idx is None:
-                    s_day_idx = _day_name_to_index(s.get("day", ""))
-                if s_day_idx == hoy_index:
-                    has_shift_today = True
-                    break
-        is_rest_day = not has_shift_today
+        # Determinar si hoy es un día de descanso o viaje según la agenda semanal
+        shifts_today = [
+            s for s in shifts_data
+            if s.get("is_active", True) is not False and
+               (_day_name_to_index(s.get("day", "")) if s.get("day_index") is None else s.get("day_index")) == hoy_index
+        ]
+        if not shifts_today:
+            is_rest_day = True
+        else:
+            has_work = any(s.get("type", "work") == "work" for s in shifts_today)
+            has_travel = any(s.get("type", "work") == "travel" for s in shifts_today)
+            has_rest = any(s.get("type", "work") == "rest" for s in shifts_today)
+            
+            if has_travel:
+                is_travel_day = True
+            elif has_rest:
+                is_rest_day = True
+            elif not has_work:
+                is_rest_day = True
 
     WORKOUT_DURATION = 120 if is_rest_day else 90
 

@@ -33,8 +33,14 @@ export async function createShift(
   formData: FormData
 ): Promise<CreateShiftResult> {
   const day = (formData.get("day") as string) || "";
-  const start = (formData.get("start") as string) || "";
-  const end = (formData.get("end") as string) || "";
+  const type = (formData.get("type") as string) || "work";
+  let start = (formData.get("start") as string) || "";
+  let end = (formData.get("end") as string) || "";
+
+  if (type === "rest" || type === "travel") {
+    start = "00:00";
+    end = "00:01";
+  }
 
   if (!day) {
     return { success: false, error: "Selecciona un día de la semana." };
@@ -46,13 +52,14 @@ export async function createShift(
     return { success: false, error: "La hora de inicio y fin no pueden ser iguales." };
   }
 
-  const idempotencyKey = `shift-create:${day}:${start}:${end}`;
+  const idempotencyKey = `shift-create:${day}:${start}:${end}:${type}`;
 
   try {
     await postToBackend<CreateShiftResponse>("/api/v1/shifts", {
       day,
       start,
       end,
+      type,
       idempotency_key: idempotencyKey,
     });
     revalidatePath("/turnos");
@@ -76,8 +83,14 @@ export async function updateShift(
   formData: FormData
 ): Promise<UpdateShiftResult> {
   const day = (formData.get("day") as string) || "";
-  const start = (formData.get("start") as string) || "";
-  const end = (formData.get("end") as string) || "";
+  const type = (formData.get("type") as string) || "work";
+  let start = (formData.get("start") as string) || "";
+  let end = (formData.get("end") as string) || "";
+
+  if (type === "rest" || type === "travel") {
+    start = "00:00";
+    end = "00:01";
+  }
 
   if (!day) {
     return { success: false, error: "Selecciona un día de la semana." };
@@ -94,6 +107,7 @@ export async function updateShift(
       day,
       start,
       end,
+      type,
     });
     revalidatePath("/turnos");
     revalidatePath("/");

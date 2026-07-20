@@ -94,6 +94,8 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
   const [overrideStatus, setOverrideStatus] = useState<string>(
     (bioSettings?.today_override_status as string) || "normal"
   );
+  const [newShiftType, setNewShiftType] = useState<"work" | "rest" | "travel">("work");
+  const [editShiftType, setEditShiftType] = useState<"work" | "rest" | "travel">("work");
 
   async function handleStatusOverride(status: string) {
     setOverrideStatus(status);
@@ -257,23 +259,6 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-col gap-3 rounded-xl border border-[#2A2A3C] bg-[#14141B] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-white">Modo para hoy</p>
-              <p className="text-xs text-gray-400">¿Estás de viaje, descanso o jornada normal?</p>
-              {bioMsg.success && <p className="text-xs text-emerald-400 mt-1">{bioMsg.success}</p>}
-              {bioMsg.error && <p className="text-xs text-red-400 mt-1">{bioMsg.error}</p>}
-            </div>
-            <select
-              value={overrideStatus}
-              onChange={(e) => handleStatusOverride(e.target.value)}
-              className="h-9 rounded-lg border border-[#2A2A3C] bg-[#0C0C0E] px-3 py-1 text-xs text-white outline-none focus-visible:border-accent w-full sm:w-auto"
-            >
-              <option value="normal">Normal (Seguir turnos)</option>
-              <option value="rest">Día de descanso</option>
-              <option value="travel">Viaje / Fuera de la ciudad</option>
-            </select>
-          </div>
 
           {!hasRegisteredShifts && (
             <div className="flex flex-col gap-3 rounded-xl border border-escudo-gold/35 bg-escudo-gold/5 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -481,23 +466,46 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Inicio</label>
-                  <input
-                    name="start"
-                    type="time"
+                  <label className="text-xs font-medium text-muted-foreground">Tipo de Día</label>
+                  <select
+                    name="type"
+                    value={newShiftType}
+                    onChange={(e) => setNewShiftType(e.target.value as "work" | "rest" | "travel")}
                     required
-                    className="h-11 rounded-xl border border-border/80 bg-input/80 px-3 py-2 text-sm text-foreground outline-none transition-all focus-visible:border-accent/60 focus-visible:ring-3 focus-visible:ring-accent/20"
-                  />
+                    className="h-11 rounded-xl border border-border/80 bg-input/80 px-3 py-2 text-sm text-foreground outline-none transition-all focus-visible:border-accent/60"
+                  >
+                    <option value="work">Jornada Laboral</option>
+                    <option value="rest">Día de Descanso</option>
+                    <option value="travel">Viaje / Reunión fuera</option>
+                  </select>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Fin</label>
-                  <input
-                    name="end"
-                    type="time"
-                    required
-                    className="h-11 rounded-xl border border-border/80 bg-input/80 px-3 py-2 text-sm text-foreground outline-none transition-all focus-visible:border-accent/60 focus-visible:ring-3 focus-visible:ring-accent/20"
-                  />
-                </div>
+                {newShiftType === "work" ? (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Inicio</label>
+                      <input
+                        name="start"
+                        type="time"
+                        required
+                        className="h-11 rounded-xl border border-border/80 bg-input/80 px-3 py-2 text-sm text-foreground outline-none transition-all focus-visible:border-accent/60 focus-visible:ring-3 focus-visible:ring-accent/20"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Fin</label>
+                      <input
+                        name="end"
+                        type="time"
+                        required
+                        className="h-11 rounded-xl border border-border/80 bg-input/80 px-3 py-2 text-sm text-foreground outline-none transition-all focus-visible:border-accent/60 focus-visible:ring-3 focus-visible:ring-accent/20"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <input type="hidden" name="start" value="00:00" />
+                    <input type="hidden" name="end" value="00:01" />
+                  </>
+                )}
                 <SubmitButton>Guardar</SubmitButton>
               </form>
               <div className="mt-3">
@@ -523,26 +531,46 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
                         name="day"
                         defaultValue={shift.day}
                         required
-                        className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm"
+                        className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm text-foreground"
                       >
                         {DAYS.map((d) => (
                           <option key={d} value={d}>{d}</option>
                         ))}
                       </select>
-                      <input
-                        name="start"
-                        type="time"
-                        defaultValue={shift.start}
+                      <select
+                        name="type"
+                        value={editShiftType}
+                        onChange={(e) => setEditShiftType(e.target.value as "work" | "rest" | "travel")}
                         required
-                        className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm"
-                      />
-                      <input
-                        name="end"
-                        type="time"
-                        defaultValue={shift.end}
-                        required
-                        className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm"
-                      />
+                        className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm text-foreground"
+                      >
+                        <option value="work">Jornada Laboral</option>
+                        <option value="rest">Día de Descanso</option>
+                        <option value="travel">Viaje / Reunión fuera</option>
+                      </select>
+                      {editShiftType === "work" ? (
+                        <>
+                          <input
+                            name="start"
+                            type="time"
+                            defaultValue={shift.start === "00:00" ? "08:00" : shift.start}
+                            required
+                            className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm text-foreground"
+                          />
+                          <input
+                            name="end"
+                            type="time"
+                            defaultValue={shift.end === "00:01" ? "17:00" : shift.end}
+                            required
+                            className="h-9 rounded-lg border border-border/80 bg-input/80 px-2 text-sm text-foreground"
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <input type="hidden" name="start" value="00:00" />
+                          <input type="hidden" name="end" value="00:01" />
+                        </>
+                      )}
                       <SubmitButton>Guardar</SubmitButton>
                       <button
                         type="button"
@@ -556,15 +584,26 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-sm font-medium text-foreground">{shift.day}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {shift.start} - {shift.end}
-                        </span>
+                        {shift.type === "rest" ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-400">
+                            Día de Descanso
+                          </span>
+                        ) : shift.type === "travel" ? (
+                          <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-400 font-mono">
+                            Viaje / Reunión fuera
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {shift.start} - {shift.end}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingId(shift.id);
+                            setEditShiftType(shift.type || "work");
                             setCreating(false);
                             setFormStatus({});
                           }}
@@ -575,7 +614,7 @@ export function TurnosClient({ shifts, currentStatus, bioSettings, plan, loadErr
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(shift.id, `${shift.day} ${shift.start}-${shift.end}`)}
+                          onClick={() => handleDelete(shift.id, `${shift.day} ${shift.start === "00:00" ? "Descanso" : shift.start}-${shift.end === "00:01" ? "" : shift.end}`)}
                           disabled={deletingId === shift.id}
                           className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-escudo-red/10 hover:text-escudo-red"
                           title="Eliminar turno"
