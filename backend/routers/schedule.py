@@ -286,6 +286,24 @@ async def _fetch_shift_by_idempotency(user_id: str, key: str) -> Optional[dict]:
         return None
 
 
+async def _fetch_shift_by_day_time(user_id: str, day: str, start: str, end: str) -> dict | None:
+    try:
+        res = await asyncio.to_thread(
+            lambda: supabase.table("shifts")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("day", day)
+            .eq("start", start)
+            .eq("end", end)
+            .limit(1)
+            .execute()
+        )
+        return res.data[0] if res.data else None
+    except Exception as exc:
+        logger.warning(f"shift day-time lookup error: {exc}")
+        return None
+
+
 async def _insert_shift_row(user_id: str, payload: dict) -> dict:
     day = _normalize_day_name_text(payload.get("day", ""))
     start = _normalize_time_text(payload.get("start", ""))
@@ -305,8 +323,12 @@ async def _insert_shift_row(user_id: str, payload: dict) -> dict:
     try:
         res = await asyncio.to_thread(lambda: supabase.table("shifts").insert(insert_data).execute())
     except Exception as exc:
-        if idempotency_key and _is_unique_conflict(exc):
-            existing = await _fetch_shift_by_idempotency(user_id, idempotency_key)
+        if _is_unique_conflict(exc):
+            existing = None
+            if idempotency_key:
+                existing = await _fetch_shift_by_idempotency(user_id, idempotency_key)
+            if not existing:
+                existing = await _fetch_shift_by_day_time(user_id, day, start, end)
             if existing:
                 return existing
         logger.warning(f"shift insert failed: {exc}")
@@ -453,36 +475,48 @@ async def upload_shift_image(
 
 @router.post("/api/v1/shifts")
 async def create_shift(payload: ShiftPayload, user = Depends(get_current_user)):
-    day = _normalize_day_name_text(payload.day)
-    if not day:
-        raise ApiException(status_code=400, detail="Día de la semana inválido.")
-    start = _normalize_time_text(payload.start)
-    end = _normalize_time_text(payload.end)
-    if not start or not end:
-        raise ApiException(status_code=400, detail="Formato de hora inválido (HH:MM).")
-    created = await _insert_shift_row(user.id, payload.model_dump(exclude_unset=True))
-    await track_event("schedule", "create_shift", user_id=user.id, metadata={"day": day, "start": start, "end": end})
-    return {"shift": created}
+    try:
+        day = _normalize_day_name_text(payload.day)
+        if not day:
+            raise ApiException(status_code=400, detail="Día de la semana inválido.")
+        start = _normalize_time_text(payload.start)
+        end = _normalize_time_text(payload.end)
+        if not start or not end:
+            raise ApiException(status_code=400, detail="Formato de hora inválido (HH:MM).")
+        created = await _insert_shift_row(user.id, payload.model_dump(exclude_unset=True))
+        await track_event("schedule", "create_shift", user_id=user.id, metadata={"day": day, "start": start, "end": end})
+        return {"shift": created}
+    except ApiException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error in create_shift: {exc}", exc_info=True)
+        raise ApiException(status_code=500, detail=f"Error al guardar el turno: {str(exc)}")
 
 
 @router.put("/api/v1/shifts/{shift_id}")
 async def update_shift(shift_id: str, payload: ShiftPayload, user = Depends(get_current_user)):
-    day = _normalize_day_name_text(payload.day)
-    if not day:
-        raise ApiException(status_code=400, detail="Día de la semana inválido.")
-    start = _normalize_time_text(payload.start)
-    end = _normalize_time_text(payload.end)
-    if not start or not end:
-        raise ApiException(status_code=400, detail="Formato de hora inválido (HH:MM).")
-    res = await asyncio.to_thread(lambda: supabase.table("shifts").update({
-        "day": day,
-        "start": start,
-        "end": end,
-    }).eq("id", shift_id).eq("user_id", user.id).execute())
-    if not res.data:
-        raise ApiException(status_code=404, detail="Turno no encontrado.")
-    await track_event("schedule", "update_shift", user_id=user.id, metadata={"shift_id": shift_id, "day": day, "start": start, "end": end})
-    return {"shift": res.data[0]}
+    try:
+        day = _normalize_day_name_text(payload.day)
+        if not day:
+            raise ApiException(status_code=400, detail="Día de la semana inválido.")
+        start = _normalize_time_text(payload.start)
+        end = _normalize_time_text(payload.end)
+        if not start or not end:
+            raise ApiException(status_code=400, detail="Formato de hora inválido (HH:MM).")
+        res = await asyncio.to_thread(lambda: supabase.table("shifts").update({
+            "day": day,
+            "start": start,
+            "end": end,
+        }).eq("id", shift_id).eq("user_id", user.id).execute())
+        if not res.data:
+            raise ApiException(status_code=404, detail="Turno no encontrado.")
+        await track_event("schedule", "update_shift", user_id=user.id, metadata={"shift_id": shift_id, "day": day, "start": start, "end": end})
+        return {"shift": res.data[0]}
+    except ApiException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error in update_shift: {exc}", exc_info=True)
+        raise ApiException(status_code=500, detail=f"Error al actualizar el turno: {str(exc)}")
 
 
 @router.delete("/api/v1/shifts/{shift_id}")
