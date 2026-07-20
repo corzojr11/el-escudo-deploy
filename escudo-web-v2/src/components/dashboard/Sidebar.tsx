@@ -21,41 +21,6 @@ const DEFAULT_EXPANDED: Record<string, boolean> = {
   bienestar: false,
 };
 
-const GROUP_TONES = {
-  inicio: "text-[#bcaeff]",
-  productividad: "text-[#bcaeff]",
-  finanzas: "text-[#bcaeff]",
-  bienestar: "text-[#bcaeff]",
-} as const;
-
-function getNavTone(module: NavModule) {
-  if (module.id === "omni") {
-    return {
-      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
-      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
-    };
-  }
-
-  return {
-    inicio: {
-      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
-      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
-    },
-    productividad: {
-      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
-      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
-    },
-    finanzas: {
-      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
-      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
-    },
-    bienestar: {
-      active: "border-[#7c5dff] bg-[#7c5dff]/15 text-[#d5ccff]",
-      idle: "text-muted-foreground hover:border-[#7c5dff]/50 hover:bg-[#7c5dff]/10 hover:text-[#d5ccff]",
-    },
-  }[module.group];
-}
-
 function NavLink({
   module: mod,
   collapsed,
@@ -67,15 +32,16 @@ function NavLink({
 }) {
   const Icon = mod.icon;
   const isOmni = mod.id === "omni";
-  const tone = getNavTone(mod);
 
   return (
     <Link
       href={mod.href}
       className={cn(
-        "group flex items-center gap-3 rounded-none border px-3 py-2.5 text-sm transition-colors duration-200",
-        active ? tone.active : tone.idle,
-        collapsed && "justify-center px-2",
+        "group flex items-center gap-3 px-3 py-2 text-sm transition-colors duration-200 border-l-2",
+        active
+          ? "border-[#7c5dff] bg-[#7c5dff]/10 text-[#d5ccff]"
+          : "border-transparent text-muted-foreground hover:border-[#7c5dff]/40 hover:bg-[#7c5dff]/5 hover:text-foreground",
+        collapsed && "justify-center border-l-0 px-2",
       )}
       title={collapsed ? mod.label : undefined}
     >
@@ -86,8 +52,18 @@ function NavLink({
         )}
       </span>
       {!collapsed && (
-        <span className="truncate font-medium">
-          {isOmni ? "> OMNI_" : mod.label}
+        <span className="truncate font-medium text-sm">
+          {isOmni ? "OMNI" : mod.label}
+        </span>
+      )}
+      {!collapsed && isOmni && (
+        <span className="ml-auto font-mono text-[9px] uppercase text-[#7c5dff]/70 border border-[#7c5dff]/30 px-1.5 py-0.5">
+          IA
+        </span>
+      )}
+      {!collapsed && mod.badge && !isOmni && (
+        <span className="ml-auto font-mono text-[9px] uppercase text-muted-foreground border border-border px-1.5 py-0.5">
+          {mod.badge}
         </span>
       )}
     </Link>
@@ -156,8 +132,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       <Separator className="bg-sidebar-border" />
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <div className="flex flex-col gap-2">
+      <nav className="flex-1 overflow-y-auto px-3 py-4 scrollbar-none">
+        <div className="flex flex-col gap-3">
           {NAV_GROUPS.map((group) => {
             const items = NAV_MODULES.filter((m) => m.group === group.key);
             if (items.length === 0) return null;
@@ -171,9 +147,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     type="button"
                     onClick={() => toggleGroup(group.key)}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest transition-colors hover:text-foreground",
-                      GROUP_TONES[group.key],
-                      active && "text-foreground",
+                      "flex items-center gap-1.5 px-3 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors",
+                      active
+                        ? "text-[#d5ccff]"
+                        : "text-muted-foreground/60 hover:text-muted-foreground",
                     )}
                   >
                     <ChevronDown
@@ -183,14 +160,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       )}
                     />
                     {group.label}
+                    {!expanded && active && (
+                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#7c5dff]" />
+                    )}
                   </button>
-                ) : (
-                  <span className={cn("hud-label px-3", GROUP_TONES[group.key])}>{group.label}</span>
-                )}
+                ) : null}
                 <div
                   className={cn(
                     "flex flex-col gap-0.5 overflow-hidden transition-all duration-200",
-                    collapsed || expanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0",
+                    collapsed || expanded ? "max-h-96 opacity-100 mt-1" : "max-h-0 opacity-0",
                   )}
                 >
                   {items.map((mod) => (
