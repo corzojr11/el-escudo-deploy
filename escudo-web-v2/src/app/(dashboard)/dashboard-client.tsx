@@ -132,11 +132,13 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
     ? { label: "Estás en turno: protege tu energía y deja una sola misión ligera para después.", href: "/turnos", cta: "Ver turno" }
     : plan?.sleep.fatigue_alert
       ? { label: "Tu descanso está comprometido por el próximo turno. Prioriza recuperar sueño hoy.", href: "/salud", cta: "Registrar sueño" }
-      : availableBudget != null && availableBudget < totalPendingFixed + debtCommitment
-        ? { label: "Tu margen del mes no cubre los compromisos pendientes. Revisa gastos fijos y abonos antes de hacer compras nuevas.", href: "/finanzas", cta: "Revisar finanzas" }
-        : missions.some((mission) => mission.status !== "completed")
-        ? { label: "Elige una sola misión pendiente y ciérrala antes de abrir otra tarea.", href: "/misiones", cta: "Ver misiones" }
-        : { label: "Tu día está despejado. Define el siguiente paso que más protege tu futuro.", href: "/metas", cta: "Definir meta" };
+      : plan?.shift_status?.is_rest_day
+        ? { label: "Hoy es tu día de descanso laboral. Aprovecha para entrenar fuerte, organizar tu casa y avanzar en tus proyectos.", href: "/rutinas", cta: "Entrenar ahora" }
+        : availableBudget != null && availableBudget < totalPendingFixed + debtCommitment
+          ? { label: "Tu margen del mes no cubre los compromisos pendientes. Revisa gastos fijos y abonos antes de hacer compras nuevas.", href: "/finanzas", cta: "Revisar finanzas" }
+          : missions.some((mission) => mission.status !== "completed")
+          ? { label: "Elige una sola misión pendiente y ciérrala antes de abrir otra tarea.", href: "/misiones", cta: "Ver misiones" }
+          : { label: "Tu día está despejado. Define el siguiente paso que más protege tu futuro.", href: "/metas", cta: "Definir meta" };
 
   const visibleMissions = survivalMode
     ? missions.filter((mission) => mission.status !== "completed").slice(0, 1)
@@ -398,7 +400,16 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-1">
             <p className="hud-label text-[#7C5DFF]">Turno</p>
-            {plan.shift_status?.status === "in_shift" && plan.shift_status.shift ? (
+            {plan.shift_status?.is_rest_day ? (
+              <>
+                <p className="text-sm font-semibold text-emerald-400">Día de descanso</p>
+                {plan.shift_status.next_shift && (
+                  <p className="text-[10px] text-gray-500">
+                    Próximo: {plan.shift_status.next_shift.day} {plan.shift_status.next_shift.start}
+                  </p>
+                )}
+              </>
+            ) : plan.shift_status?.status === "in_shift" && plan.shift_status.shift ? (
               <>
                 <p className="text-sm text-white">
                   {plan.shift_status.shift.day} {plan.shift_status.shift.start} – {plan.shift_status.shift.end}

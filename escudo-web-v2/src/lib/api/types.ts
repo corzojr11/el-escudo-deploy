@@ -451,6 +451,7 @@ export interface ShiftStatusResponse {
   shift?: CurrentShift;
   next_shift?: NextShift;
   message_short: string;
+  is_rest_day?: boolean;
 }
 
 export interface TodayResponse {

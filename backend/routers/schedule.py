@@ -748,7 +748,24 @@ async def plan_diario(user = Depends(get_current_user)):
     sleep_target = str(bs.get("t_sleep_target") or "22:30")
     commute = int(bs.get("commute_minutes") or 35)
     PREP = 45
-    WORKOUT_DURATION = 90
+
+    hoy_index = now.weekday()
+    ahora_minutos = now.hour * 60 + now.minute
+    now_total = hoy_index * 24 * 60 + ahora_minutos
+
+    # Determinar si hoy es un día de descanso (no hay turnos activos programados para hoy)
+    has_shift_today = False
+    for s in shifts_data:
+        if s.get("is_active", True) is not False:
+            s_day_idx = s.get("day_index")
+            if s_day_idx is None:
+                s_day_idx = _day_name_to_index(s.get("day", ""))
+            if s_day_idx == hoy_index:
+                has_shift_today = True
+                break
+    is_rest_day = not has_shift_today
+
+    WORKOUT_DURATION = 120 if is_rest_day else 90
 
     wake_h, wake_m = _parse_time(wake_target)
     sleep_h, sleep_m = _parse_time(sleep_target)
@@ -757,19 +774,40 @@ async def plan_diario(user = Depends(get_current_user)):
     next_shift = _find_next_shift(shifts_data, now)
     instances = _build_shift_instances(shifts_data)
 
-    hoy_index = now.weekday()
-    ahora_minutos = now.hour * 60 + now.minute
-    now_total = hoy_index * 24 * 60 + ahora_minutos
-
     workout_block = None
     fatigue_alert = None
     best_cycles = None
+    wake_deadline_total = None
 
     # Calcular deadline de despertar para el proximo turno
     if next_shift:
         wake_deadline_total = next_shift["start_total"] - commute - PREP
-    else:
-        wake_deadline_total = None
+        # Si ya paso el limite para dormir (es decir, ya estamos despiertos para el proximo turno,
+        # o estamos a menos de 3 horas de despertarnos, o ya lo pasamos)
+        if now_total >= wake_deadline_total - 180:
+            # Buscar el siguiente turno despues de este
+            following_shift = None
+            min_diff = None
+            for inst in instances:
+                diff = inst["start_total"] - next_shift["start_total"]
+                if diff > 0 and (min_diff is None or diff < min_diff):
+                    min_diff = diff
+                    following_shift = inst
+            
+            if following_shift:
+                next_shift = {
+                    "day": following_shift["day"],
+                    "start": following_shift["start"],
+                    "end": following_shift["end"],
+                    "start_total": following_shift["start_total"],
+                    "end_total": following_shift["end_total"],
+                    "start_minutes": _time_to_minutes(*_parse_time(following_shift["start"])),
+                    "end_minutes": _time_to_minutes(*_parse_time(following_shift["end"])),
+                }
+                wake_deadline_total = next_shift["start_total"] - commute - PREP
+            else:
+                next_shift = None
+                wake_deadline_total = None
 
     if wake_deadline_total:
         # Convertir deadline a HH:MM local para generar ventanas de sueno
@@ -852,7 +890,7 @@ async def plan_diario(user = Depends(get_current_user)):
             "start": _minutes_to_time(now_min + 30),
             "end": _minutes_to_time(now_min + 30 + WORKOUT_DURATION),
             "duration_min": WORKOUT_DURATION,
-            "label": "Entrenamiento sugerido",
+            "label": "Entrenamiento intensivo (Día de descanso)" if is_rest_day else "Entrenamiento sugerido",
         }
 
     hydration_ml = None
@@ -868,6 +906,10 @@ async def plan_diario(user = Depends(get_current_user)):
         missing_config.append("turnos")
     if not bio:
         missing_config.append("ajustes")
+
+    # Merge is_rest_day into shift_status
+    if isinstance(shift_status, dict):
+        shift_status = {**shift_status, "is_rest_day": is_rest_day}
 
     return {
         "date": now.strftime("%Y-%m-%d"),
