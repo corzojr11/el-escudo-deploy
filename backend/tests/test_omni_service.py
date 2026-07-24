@@ -331,3 +331,43 @@ class TestPatternsInsights:
 
         assert result.patterns == []
         assert result.suggestion == ""
+
+
+class TestOmniSafetyFilter:
+    def test_positive_explicit_phrase_returns_static_safety_response(self, monkeypatch):
+        mock_complete_chat = MagicMock()
+        monkeypatch.setattr(omni_service_module, "complete_chat", mock_complete_chat)
+
+        user = _make_user()
+        res = _run_async(omni_service_module.process_single_command("Quiero suicidarme", user, 4000.0, {}, []))
+
+        assert res.get("is_safety_response") is True
+        assert "Línea 106" in res["response"]
+        assert res["cost_cop"] == 0.0
+        mock_complete_chat.assert_not_called()
+
+    def test_negative_normal_text_does_not_trigger_safety_and_calls_chat(self, monkeypatch):
+        async def mock_complete_chat(*args, **kwargs):
+            return {
+                "text": '{"intent": "NONE", "extracted_data": {}, "respuesta_usuario": "Hola, te escucho.", "xp_ganada": 0}',
+                "prompt_tokens": 10,
+                "completion_tokens": 10,
+            }
+
+        monkeypatch.setattr(omni_service_module, "complete_chat", mock_complete_chat)
+        monkeypatch.setattr(omni_service_module, "_check_omni_daily_limit", lambda uid: None)
+
+        async def mock_get_user_context(user):
+            return ""
+
+        async def mock_get_conversation_context(user_id, session_id):
+            return ""
+
+        monkeypatch.setattr(omni_service_module, "_get_user_context", mock_get_user_context)
+        monkeypatch.setattr(omni_service_module, "_get_conversation_context", mock_get_conversation_context)
+
+        user = _make_user()
+        res = _run_async(omni_service_module.process_single_command("Quiero organizar mis tareas", user, 4000.0, {}, []))
+
+        assert res.get("is_safety_response") is not True
+        assert res.get("respuesta_usuario") == "Hola, te escucho."

@@ -49,6 +49,7 @@ interface LocalMessage {
   cost?: number;
   time: string;
   isError?: boolean;
+  isSafety?: boolean;
 }
 
 interface PendingProposal {
@@ -191,7 +192,7 @@ export default function OmniPage() {
 
   const addAssistantMessage = (
     text: string,
-    options?: { intent?: string; xp?: number; cost?: number; isError?: boolean }
+    options?: { intent?: string; xp?: number; cost?: number; isError?: boolean; isSafety?: boolean }
   ) => {
     setMessages((prev) => [
       ...prev,
@@ -204,6 +205,7 @@ export default function OmniPage() {
         cost: options?.cost,
         time: formatTime(),
         isError: options?.isError,
+        isSafety: options?.isSafety,
       },
     ]);
   };
@@ -233,6 +235,7 @@ export default function OmniPage() {
         addAssistantMessage(result.response, {
           cost: result.cost_cop,
           isError: result.is_error,
+          isSafety: result.is_safety_response,
         });
       } else if (isOmniProposal(result)) {
         setPendingProposal({
@@ -470,8 +473,13 @@ export default function OmniPage() {
                 {messages.map((msg) => (
                   <div key={msg.id} className={cn("flex items-start gap-2.5", msg.role === "user" ? "justify-end" : "justify-start")}>
                     {msg.role === "assistant" && (
-                      <span className="mt-1 grid h-8 w-8 shrink-0 place-items-center border border-primary/45 bg-primary/10 text-primary">
-                        <Zap className="h-3.5 w-3.5" />
+                      <span className={cn(
+                        "mt-1 grid h-8 w-8 shrink-0 place-items-center border",
+                        msg.isSafety
+                          ? "border-[#7C5DFF]/60 bg-[#7C5DFF]/15 text-[#bcaeff]"
+                          : "border-primary/45 bg-primary/10 text-primary"
+                      )}>
+                        {msg.isSafety ? <HeartPulse className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
                       </span>
                     )}
                     <div
@@ -481,12 +489,15 @@ export default function OmniPage() {
                           ? "max-w-[min(100%,38rem)] border-primary/60 bg-primary/15 text-foreground"
                           : msg.isError
                             ? "border-escudo-red/20 bg-escudo-red/10 text-escudo-red"
-                            : "border-border bg-card text-foreground"
+                            : msg.isSafety
+                              ? "border-[#7C5DFF]/40 bg-[#7C5DFF]/10 text-foreground"
+                              : "border-border bg-card text-foreground"
                       )}
                     >
                       {msg.role === "assistant" && (
-                      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-primary">
-                          <Zap className="h-3.5 w-3.5" /> NAVIR
+                        <div className={cn("mb-2 flex items-center gap-1.5 text-[11px] font-medium", msg.isSafety ? "text-[#bcaeff]" : "text-primary")}>
+                          {msg.isSafety ? <HeartPulse className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
+                          {msg.isSafety ? "APOYO Y RECURSOS" : "NAVIR"}
                         </div>
                       )}
                       {msg.role === "user" && (

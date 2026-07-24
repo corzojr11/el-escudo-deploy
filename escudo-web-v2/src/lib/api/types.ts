@@ -349,6 +349,7 @@ export interface OmniQueryResponse {
   cost_cop?: number;
   current_trm?: number;
   is_error?: boolean;
+  is_safety_response?: boolean;
 }
 
 export interface OmniProposalResponse {

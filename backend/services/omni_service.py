@@ -47,6 +47,53 @@ def normalize_goal_type(value: str) -> str:
     return GOAL_TYPE_ALIASES.get(normalized, normalized)
 
 
+SAFETY_RISK_PHRASES = [
+    "quiero suicidarme",
+    "me voy a suicidar",
+    "quiero matarme",
+    "me voy a matar",
+    "quitarme la vida",
+    "hacerme daño",
+    "hacerme dano",
+    "no quiero seguir viviendo",
+]
+
+SAFETY_RESPONSE_TEXT = (
+    "Lo que describes puede requerir apoyo inmediato. No tienes que afrontarlo solo. "
+    "Si estás en peligro inmediato o crees que puedes hacerte daño, busca atención de urgencias "
+    "o contacta a los servicios de emergencia de tu zona. En Colombia puedes comunicarte con la "
+    "Línea 106, gratuita y disponible 24/7, para apoyo emocional. Si puedes, contacta ahora "
+    "a una persona de confianza y procura no quedarte solo."
+)
+
+
+def is_safety_risk(text: str) -> bool:
+    norm = normalize_text(text)
+    return any(normalize_text(phrase) in norm for phrase in SAFETY_RISK_PHRASES)
+
+
+def build_safety_response(trm: float = 0.0) -> dict:
+    return {
+        "kind": "response",
+        "multi_intent": False,
+        "actions": [
+            {
+                "intent": "NONE",
+                "extracted_data": {},
+                "respuesta_usuario": SAFETY_RESPONSE_TEXT,
+                "mensaje_sistema": SAFETY_RESPONSE_TEXT,
+                "xp_ganada": 0,
+                "interaction_cost_cop": 0.0,
+                "current_trm": trm,
+            }
+        ],
+        "response": SAFETY_RESPONSE_TEXT,
+        "cost_cop": 0.0,
+        "current_trm": trm,
+        "is_safety_response": True,
+    }
+
+
 # ─── Rate Limit ─────────────────────────────────────────────────────────────
 
 _omni_rate_limits = {}
@@ -319,6 +366,18 @@ async def _interpret_command(
     session_id: str | None = None,
 ) -> dict:
     """Llama al modelo generativo y devuelve la interpretación SIN ejecutar mutaciones."""
+    if is_safety_risk(command_text):
+        return {
+            "intent": "NONE",
+            "extracted_data": {},
+            "respuesta_usuario": SAFETY_RESPONSE_TEXT,
+            "mensaje_sistema": SAFETY_RESPONSE_TEXT,
+            "xp_ganada": 0,
+            "interaction_cost_cop": 0.0,
+            "current_trm": trm,
+            "is_safety_response": True,
+        }
+
     _check_omni_daily_limit(user.id)
     user_ctx = await _get_user_context(user)
     conversation_ctx = await _get_conversation_context(user.id, session_id)
@@ -393,6 +452,8 @@ async def _execute_interpreted_command(res_json: dict, user) -> dict:
 
 async def process_single_command(command_text: str, user, trm: float, lite_profile: dict, tasks: list, equipment: list | None = None) -> dict:
     """Flujo legacy: interpreta + ejecuta en un solo paso. Usado por tests y compatibilidad."""
+    if is_safety_risk(command_text):
+        return build_safety_response(trm)
     res_json = await _interpret_command(command_text, user, trm, lite_profile, tasks, equipment)
     return await _execute_interpreted_command(res_json, user)
 

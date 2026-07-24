@@ -12,6 +12,8 @@ from services.omni_service import (
     _execute_interpreted_command,
     _MUTATION_INTENTS,
     split_multi_intent,
+    is_safety_risk,
+    build_safety_response,
 )
 
 logger = logging.getLogger("escudo")
@@ -57,6 +59,9 @@ async def create_proposal(
     - Si contiene mutaciones, persiste la propuesta en `omni_proposals` con
       status='pending' y devuelve un preview para confirmación.
     """
+    if is_safety_risk(command):
+        return build_safety_response(trm)
+
     sub_commands = split_multi_intent(command)
     actions = []
     total_cost = 0.0
