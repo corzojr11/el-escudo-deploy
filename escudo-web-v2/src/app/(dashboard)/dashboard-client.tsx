@@ -334,9 +334,121 @@ export function DashboardClient({ data, plan, wellness, stability, todayRoutine,
 
   const isInShift = plan?.shift_status?.status === "in_shift";
 
+  const shiftStatusLabel = shiftStatus?.status === "in_shift"
+    ? "En turno"
+    : plan?.shift_status?.is_rest_day
+      ? "Día de descanso"
+      : plan?.shift_status?.is_travel_day
+        ? "Viaje"
+        : "Estado: activo";
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-8">
-      <section className="grid gap-5 border-b border-border pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
+      <section className="lg:hidden border border-border bg-card p-4 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-escudo-gold" />
+            <p className="hud-label text-primary">Modo rápido</p>
+          </div>
+          <span className={cn(
+            "border px-2 py-0.5 font-mono text-[10px] uppercase",
+            shiftStatus?.status === "in_shift" ? "border-[#7c5dff] bg-[#7c5dff]/10 text-[#d5ccff]" :
+              plan?.shift_status?.is_rest_day ? "border-emerald-700 bg-emerald-950 text-emerald-400" :
+                plan?.shift_status?.is_travel_day ? "border-amber-700 bg-amber-950 text-amber-400" :
+                  "border-[#5a5122] bg-[#292515] text-[#ffe476]"
+          )}>
+            {shiftStatusLabel}
+          </span>
+        </div>
+
+        <div className="border border-border bg-card/50 p-3 rounded-lg">
+          <div className="flex items-center justify-between">
+            <p className="hud-label text-[#bcaeff]">Ahora</p>
+            <p className="font-heading text-xs font-bold text-foreground">{getTimeGreeting(profile?.name)}</p>
+          </div>
+          <p className="mt-1.5 text-sm font-semibold text-foreground">{immediateAction.label}</p>
+          <a
+            href={immediateAction.href}
+            className="mt-3 inline-flex items-center justify-center w-full min-h-[44px] border border-[#7C5DFF] px-4 py-3 font-mono text-[11px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black transition-colors"
+          >
+            {immediateAction.cta} →
+          </a>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="border border-border bg-card/50 p-2.5 rounded-lg">
+            <p className="hud-label text-[#ffd700] text-[10px]">Hábitos</p>
+            <p className="mt-1 font-heading text-lg font-bold text-foreground">{habitsDone} / {habits.length}</p>
+          </div>
+          <div className="border border-border bg-card/50 p-2.5 rounded-lg">
+            <p className="hud-label text-[#7c5dff] text-[10px]">Misiones</p>
+            <p className="mt-1 font-heading text-lg font-bold text-foreground">{completedMissions} / {missions.length}</p>
+          </div>
+          <div className="border border-border bg-card/50 p-2.5 rounded-lg">
+            <p className="hud-label text-[#bcaeff] text-[10px]">Rutina</p>
+            <p className="mt-1 font-heading text-xs font-bold text-foreground truncate">{routineCompleted ? "Completada" : todayRoutine ? "Pendiente" : "Sin rutina"}</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {nextMission && (
+              <button
+                type="button"
+                onClick={completeNextMission}
+                disabled={isPending}
+                className="w-full min-h-[44px] border border-[#7C5DFF] px-3 py-2.5 font-mono text-[10px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black disabled:cursor-not-allowed disabled:opacity-50 transition-colors text-center truncate"
+              >
+                {isPending ? "Guardando..." : `Completar: ${nextMission.name || nextMission.title}`}
+              </button>
+            )}
+            {todayRoutine && (
+              <button
+                type="button"
+                onClick={toggleTodayRoutine}
+                disabled={isPending}
+                className={`w-full min-h-[44px] border px-3 py-2.5 font-mono text-[10px] uppercase disabled:cursor-not-allowed disabled:opacity-50 transition-colors text-center truncate ${
+                  routineCompleted
+                    ? "border-[#ffd700] text-[#ffd700] hover:bg-[#ffd700] hover:text-black"
+                    : "border-[#7C5DFF] text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black"
+                }`}
+              >
+                {isPending ? "Guardando..." : routineCompleted ? "Desmarcar rutina" : "Completar rutina"}
+              </button>
+            )}
+            <a
+              href="/habitos"
+              className="inline-flex items-center justify-center min-h-[44px] border border-[#7C5DFF] px-3 py-2.5 font-mono text-[10px] uppercase text-[#d5ccff] hover:bg-[#7C5DFF] hover:text-black transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Hábitos
+            </a>
+            <a
+              href="/plan-semanal"
+              className="inline-flex items-center justify-center min-h-[44px] border border-[#ffd700] px-3 py-2.5 font-mono text-[10px] uppercase text-[#ffe476] hover:bg-[#ffd700] hover:text-black transition-colors"
+            >
+              <CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Plan semanal
+            </a>
+          </div>
+
+          {actionError && <p className="text-xs text-red-400">{actionError}</p>}
+
+          {(habits.length === 0 || missions.length === 0 || !todayRoutine) && (
+            <div className="pt-2 border-t border-border/60 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              {habits.length === 0 && (
+                <span>Sin hábitos. <a href="/habitos" className="text-[#7C5DFF] underline">Agregar</a></span>
+              )}
+              {missions.length === 0 && (
+                <span>Sin misiones. <a href="/misiones" className="text-[#7C5DFF] underline">Crear</a></span>
+              )}
+              {!todayRoutine && (
+                <span>Sin rutina. <a href="/rutinas" className="text-[#7C5DFF] underline">Planificar</a></span>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="hidden lg:grid gap-5 border-b border-border pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
           <p className="hud-label text-primary">Commander log // 024</p>
           <h2 className="mt-3 max-w-xl font-heading text-4xl font-extrabold uppercase leading-[0.94] tracking-[-0.05em] text-foreground sm:text-6xl">
