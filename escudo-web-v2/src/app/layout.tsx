@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Epilogue, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { WebViewBridge } from '@/components/webview-bridge/WebViewBridge';
 import "./globals.css";
 
 const epilogue = Epilogue({
@@ -37,7 +38,10 @@ export default function RootLayout({
       className={`${epilogue.variable} ${hankenGrotesk.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <TooltipProvider>{children}</TooltipProvider>
+        <TooltipProvider>
+          {children}
+          <WebViewBridge />
+        </TooltipProvider>
       </body>
     </html>
   );

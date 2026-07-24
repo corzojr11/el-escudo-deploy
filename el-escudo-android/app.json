@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "El Escudo",
+    "slug": "el-escudo-android",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "android": {
+      "package": "com.elescudo.navir",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true,
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.elescudo.navir",
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-notifications"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "96fe777d-93cf-4f9d-b6b5-733fd75eea0b"
+      }
+    },
+    "owner": "corzojr"
+  }
+}
